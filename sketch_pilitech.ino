@@ -16,7 +16,7 @@ const char* AP_PASSWORD = "00002025";
 const char* SERIAL_NUMBER = "00002025";
 
 // API Configuration - Railway + NeonDB
-const char* API_URL = "https://pilitech-production.up.railway.app";
+const char* API_URL = "https://pilitech-esp32-production.up.railway.app";
 const char* API_KEY = "pilitech_00002025_secret_key";
 
 WebServer server(80);
