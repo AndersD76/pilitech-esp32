@@ -1,0 +1,898 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=1024, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>PILI TECH v1.0</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        :root {
+            --primary: #dc2626;
+            --success: #10b981;
+            --warning: #f59e0b;
+            --danger: #ef4444;
+            --bg: #f1f5f9;
+            --card: #ffffff;
+            --border: #e2e8f0;
+            --text: #0f172a;
+            --text-light: #64748b;
+        }
+
+        html, body {
+            width: 1024px;
+            height: 600px;
+            overflow: hidden;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: var(--bg);
+            color: var(--text);
+        }
+
+        #app {
+            display: flex;
+            flex-direction: column;
+            height: 600px;
+        }
+
+        .header {
+            height: 50px;
+            background: white;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 20px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+        }
+
+        .logo {
+            font-size: 18px;
+            font-weight: 700;
+            color: var(--primary);
+        }
+
+        .status {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        .status-badge {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 12px;
+            background: var(--bg);
+            border-radius: 20px;
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #ef4444;
+        }
+
+        .status.connected .status-dot {
+            background: var(--success);
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.6; }
+        }
+
+        .tabs {
+            height: 40px;
+            background: white;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            gap: 4px;
+            padding: 4px 8px;
+        }
+
+        .tab {
+            flex: 1;
+            border: none;
+            background: transparent;
+            padding: 8px;
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--text-light);
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .tab.active {
+            background: var(--primary);
+            color: white;
+        }
+
+        .content {
+            height: 510px;
+            overflow: hidden;
+        }
+
+        .panel {
+            display: none;
+            height: 510px;
+            padding: 12px;
+        }
+
+        .panel.active {
+            display: block;
+        }
+
+        .dashboard.active {
+            display: grid;
+            grid-template-columns: 1fr;
+            grid-template-rows: 1fr auto;
+            gap: 12px;
+        }
+
+        .system.active {
+            display: grid;
+            grid-template-columns: 1fr;
+            grid-template-rows: auto auto;
+            gap: 12px;
+        }
+
+        .page-content {
+            display: none;
+        }
+
+        .page-content.active {
+            display: grid;
+            grid-template-columns: 2fr 1fr;
+            grid-template-rows: 1fr;
+            gap: 12px;
+            height: 452px;
+        }
+
+        .page-content.active.page-controls {
+            grid-template-columns: 1fr;
+            grid-template-rows: 1fr;
+        }
+
+        .pagination {
+            display: flex;
+            justify-content: center;
+            gap: 8px;
+            padding: 8px;
+        }
+
+        .page-btn {
+            padding: 8px 16px;
+            border: none;
+            background: var(--bg);
+            color: var(--text);
+            border-radius: 6px;
+            font-size: 11px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .page-btn.active {
+            background: var(--primary);
+            color: white;
+        }
+
+        .card {
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 12px;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+        }
+
+        .card-title {
+            font-size: 13px;
+            font-weight: 700;
+            color: var(--text-light);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 12px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .sensors {
+            grid-column: 1;
+            grid-row: 1;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .sensors-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            grid-template-rows: repeat(2, 1fr);
+            gap: 8px;
+            flex: 1;
+        }
+
+        .sensor {
+            background: var(--bg);
+            border: 2px solid var(--border);
+            border-radius: 6px;
+            padding: 8px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s;
+        }
+
+        .sensor.on {
+            background: var(--success);
+            border-color: var(--success);
+            color: white;
+        }
+
+        .sensor.alert {
+            background: var(--warning);
+            border-color: var(--warning);
+            color: white;
+            animation: alertPulse 1s infinite;
+        }
+
+        @keyframes alertPulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+        }
+
+        .sensor-icon {
+            width: 32px;
+            height: 32px;
+            margin-bottom: 8px;
+        }
+
+        .sensor-name {
+            font-size: 11px;
+            font-weight: 700;
+            text-transform: uppercase;
+            margin-bottom: 6px;
+            opacity: 0.8;
+        }
+
+        .sensor-val {
+            font-size: 13px;
+            font-weight: 600;
+        }
+
+        .stats {
+            grid-column: 2;
+            grid-row: 1;
+            overflow: hidden;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: 1fr;
+            grid-template-rows: repeat(4, 1fr);
+            gap: 8px;
+            height: 100%;
+            overflow: hidden;
+        }
+
+        .stat {
+            background: var(--bg);
+            border-radius: 6px;
+            padding: 12px;
+            text-align: center;
+        }
+
+        .stat-num {
+            font-size: 36px;
+            font-weight: 700;
+            color: var(--primary);
+            line-height: 1;
+            margin-bottom: 8px;
+        }
+
+        .stat-label {
+            font-size: 13px;
+            color: var(--text-light);
+            font-weight: 600;
+        }
+
+        .btn-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+        }
+
+        .btn {
+            padding: 14px;
+            border: none;
+            border-radius: 6px;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            background: var(--primary);
+            color: white;
+        }
+
+        .btn:active {
+            transform: scale(0.98);
+        }
+
+        .btn.secondary {
+            background: var(--bg);
+            color: var(--text);
+            border: 1px solid var(--border);
+        }
+
+        .history {
+            grid-template-columns: 1fr;
+            grid-template-rows: 1fr;
+        }
+
+        .info-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 12px 0;
+            border-bottom: 1px solid var(--border);
+            font-size: 14px;
+        }
+
+        .info-row:last-child {
+            border-bottom: none;
+        }
+
+        .info-label {
+            color: var(--text-light);
+            font-weight: 500;
+        }
+
+        .info-value {
+            font-weight: 700;
+            color: var(--text);
+        }
+
+        .system {
+            grid-template-columns: 1fr 1fr;
+            grid-template-rows: 1fr;
+            gap: 12px;
+        }
+
+        .logs {
+            grid-template-columns: 1fr;
+            grid-template-rows: 1fr;
+        }
+
+        .log-container {
+            height: 460px;
+            overflow-y: auto;
+        }
+
+        .log {
+            padding: 10px;
+            margin-bottom: 6px;
+            border-radius: 6px;
+            border-left: 3px solid;
+            font-size: 11px;
+            background: var(--bg);
+        }
+
+        .log.ok {
+            border-color: var(--success);
+        }
+
+        .log.warn {
+            border-color: var(--warning);
+        }
+
+        .log.error {
+            border-color: var(--danger);
+        }
+
+        .log-time {
+            font-weight: 600;
+            opacity: 0.7;
+            margin-bottom: 4px;
+        }
+
+        ::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: var(--bg);
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: var(--border);
+            border-radius: 3px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: var(--text-light);
+        }
+
+        .wifi-input {
+            width: 100%;
+            padding: 10px;
+            margin-bottom: 10px;
+            background: var(--bg);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            font-size: 13px;
+        }
+
+        .faq-section {
+            margin-bottom: 24px;
+        }
+
+        .faq-header {
+            background: var(--primary);
+            color: white;
+            padding: 10px 16px;
+            border-radius: 6px;
+            font-weight: 700;
+            font-size: 14px;
+            margin-bottom: 12px;
+        }
+
+        .faq-item {
+            margin-bottom: 16px;
+        }
+
+        .faq-question {
+            font-weight: 700;
+            color: var(--text);
+            margin-bottom: 6px;
+            font-size: 13px;
+        }
+
+        .faq-answer {
+            color: var(--text-light);
+            font-size: 12px;
+            line-height: 1.6;
+        }
+    </style>
+</head>
+<body>
+    <div id="app">
+        <div class="header">
+            <div class="logo">PILI TECH</div>
+            <div class="status">
+                <div class="status-badge" id="status">
+                    <div class="status-dot"></div>
+                    <span>Conectando...</span>
+                </div>
+                <div class="status-badge" id="cloudStatus" style="display:none;">
+                    <span>☁️</span>
+                    <span id="cloudStatusText">Offline</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="tabs">
+            <button class="tab active" onclick="switchTab(0)">Dashboard</button>
+            <button class="tab" onclick="switchTab(1)">Alertas</button>
+            <button class="tab" onclick="switchTab(2)">Manutenções</button>
+            <button class="tab" onclick="switchTab(3)">Sistema</button>
+            <button class="tab" onclick="switchTab(4)">Logs</button>
+            <button class="tab" onclick="switchTab(5)">FAQ</button>
+            <button class="tab" onclick="switchTab(6)">Contato</button>
+        </div>
+
+        <div class="content">
+            <!-- Dashboard -->
+            <div class="panel dashboard active">
+                <div class="page-content active">
+                    <div class="card sensors">
+                        <div class="card-title">Sensores</div>
+                        <div class="sensors-grid" id="sensorsGrid"></div>
+                    </div>
+
+                    <div class="card stats">
+                        <div class="card-title">Produção</div>
+                        <div class="stats-grid" id="statsGrid"></div>
+                    </div>
+                </div>
+
+                <div class="page-content page-controls">
+                    <div class="card" style="height:100%;overflow:hidden;">
+                        <div class="card-title">Controles e Monitoramento</div>
+                        <div style="display:grid;grid-template-rows:auto 1fr auto;gap:12px;height:calc(100% - 45px);overflow:hidden;">
+                            <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;">
+                                <div style="background:var(--bg);border-radius:6px;padding:16px;text-align:center;">
+                                    <div style="font-size:32px;font-weight:700;color:var(--primary);" id="displayCiclosTotal">0</div>
+                                    <div style="font-size:12px;color:var(--text-light);margin-top:4px;">Ciclos Totais</div>
+                                </div>
+                                <div style="background:var(--bg);border-radius:6px;padding:16px;text-align:center;">
+                                    <div style="font-size:32px;font-weight:700;color:var(--primary);" id="displayHorimetro">0h</div>
+                                    <div style="font-size:12px;color:var(--text-light);margin-top:4px;">Horímetro</div>
+                                </div>
+                                <div style="background:var(--bg);border-radius:6px;padding:16px;text-align:center;">
+                                    <div style="font-size:32px;font-weight:700;color:var(--primary);" id="displayCiclosDia">0</div>
+                                    <div style="font-size:12px;color:var(--text-light);margin-top:4px;">Ciclos Hoje</div>
+                                </div>
+                            </div>
+
+                            <div id="maintenanceWarning" style="display:none;background:#fef3c7;border:2px solid #f59e0b;border-radius:8px;padding:16px;">
+                                <div style="display:flex;align-items:center;gap:12px;">
+                                    <div style="font-size:40px;">⚠️</div>
+                                    <div style="flex:1;">
+                                        <div style="font-size:16px;font-weight:700;color:#92400e;margin-bottom:4px;">MANUTENÇÃO NECESSÁRIA</div>
+                                        <div style="font-size:13px;color:#78350f;">
+                                            Atingidas <span id="horasDesdeManutencao" style="font-weight:700;">0</span> horas desde a última manutenção.
+                                            <br>Recomendado manutenção preventiva a cada 2000 horas.
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div style="background:var(--bg);border-radius:6px;padding:16px;">
+                                <div style="display:flex;justify-content:space-between;margin-bottom:10px;font-size:13px;font-weight:600;color:var(--text-light);">
+                                    <span>Próxima Manutenção</span>
+                                    <span><span id="horasAteManutencao">2000</span>h restantes</span>
+                                </div>
+                                <div style="width:100%;height:16px;background:#e2e8f0;border-radius:8px;overflow:hidden;">
+                                    <div id="maintenanceProgressBar" style="height:100%;background:linear-gradient(90deg,#10b981,#f59e0b);border-radius:6px;transition:width .5s ease;width:0%;"></div>
+                                </div>
+                                <div style="font-size:11px;color:var(--text-light);margin-top:8px;text-align:center;">
+                                    Meta: manutenção a cada 2000 horas de operação
+                                </div>
+                            </div>
+
+                            <div class="btn-grid">
+                                <button class="btn" onclick="saveData()">💾 Salvar Dados</button>
+                                <button class="btn secondary" onclick="exportData()">📥 Exportar JSON</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="pagination">
+                    <button class="page-btn active" onclick="switchDashPage(0)">Sensores</button>
+                    <button class="page-btn" onclick="switchDashPage(1)">Controles</button>
+                </div>
+            </div>
+
+            <!-- Alertas -->
+            <div class="panel">
+                <div class="card" style="height:100%;overflow:hidden;">
+                    <div class="card-title">Alertas Ativos</div>
+                    <div id="alertsArea" style="overflow-y:auto;height:calc(100% - 45px);"></div>
+                </div>
+            </div>
+
+            <!-- Manutenções -->
+            <div class="panel">
+                <div class="card" style="height:100%;overflow:hidden;">
+                    <div class="card-title">Registro de Manutenções</div>
+                    <div style="height:calc(100% - 45px);overflow:hidden;display:grid;grid-template-rows:1fr auto;gap:12px;">
+                        <div id="maintenanceList" style="overflow-y:auto;"></div>
+                        <div class="btn-grid">
+                            <button class="btn" onclick="addMaintenance()">Nova Manutenção</button>
+                            <button class="btn secondary" onclick="exportMaintenance()">Exportar</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Sistema -->
+            <div class="panel system">
+                <div class="card">
+                    <div class="card-title">Informações</div>
+                    <div id="sysInfo"></div>
+                </div>
+
+                <div class="card">
+                    <div class="card-title">Configuração WiFi</div>
+                    <input type="text" class="wifi-input" id="wifiSSID" placeholder="Nome da Rede (SSID)">
+                    <input type="password" class="wifi-input" id="wifiPass" placeholder="Senha">
+                    <div class="btn-grid">
+                        <button class="btn" onclick="saveWiFi()">Conectar</button>
+                        <button class="btn secondary" onclick="disconnectWiFi()">Desconectar</button>
+                    </div>
+                    <div id="wifiStatus" style="margin-top:12px;font-size:11px;color:var(--text-light);"></div>
+                </div>
+            </div>
+
+            <!-- Logs -->
+            <div class="panel logs">
+                <div class="card" style="height:100%;">
+                    <div class="card-title">Registro de Eventos</div>
+                    <div class="log-container" id="logsArea"></div>
+                </div>
+            </div>
+
+            <!-- FAQ -->
+            <div class="panel">
+                <div class="card" style="height:100%;overflow-y:auto;">
+                    <div class="card-title">❓ Perguntas Frequentes (FAQ)</div>
+                    <div style="padding:0 8px;">
+
+                        <div class="faq-section">
+                            <div class="faq-header">
+                                🚜 TOMBADOR PILI
+                            </div>
+
+                            <div class="faq-item">
+                                <div class="faq-question">1. O que é um tombador de grãos?</div>
+                                <div class="faq-answer">
+                                    O tombador de grãos é um equipamento hidráulico que eleva e inclina plataformas de caminhões para descarregar grãos por gravidade.
+                                    A PILI oferece os melhores tombadores do Brasil, com modelos fixos (10 a 30m) e móveis (10 a 21m).
+                                </div>
+                            </div>
+
+                            <div class="faq-item">
+                                <div class="faq-question">2. Qual a capacidade de carga suportada?</div>
+                                <div class="faq-answer">
+                                    Os tombadores PILI suportam cargas de até 60 toneladas, dependendo do modelo. Consulte a especificação técnica do seu modelo específico.
+                                </div>
+                            </div>
+
+                            <div class="faq-item">
+                                <div class="faq-question">3. Quanto tempo leva para descarregar um caminhão?</div>
+                                <div class="faq-answer">
+                                    O tempo médio de descarga é de 3 a 5 minutos, dependendo do tipo de grão, umidade e modelo do tombador.
+                                </div>
+                            </div>
+
+                            <div class="faq-item">
+                                <div class="faq-question">4. Quais grãos podem ser descarregados?</div>
+                                <div class="faq-answer">
+                                    Soja, milho, trigo, arroz, sorgo e outros cereais. O equipamento é projetado para manuseio seguro de diversos tipos de grãos.
+                                </div>
+                            </div>
+
+                            <div class="faq-item">
+                                <div class="faq-question">5. Com que frequência devo fazer manutenção?</div>
+                                <div class="faq-answer">
+                                    Recomenda-se manutenção preventiva a cada 2000 horas de operação ou anualmente, o que ocorrer primeiro.
+                                    Inclui: verificação de óleo hidráulico, mangueiras, vedações, sistema elétrico e sensores.
+                                </div>
+                            </div>
+
+                            <div class="faq-item">
+                                <div class="faq-question">6. O tombador funciona em caso de falta de energia?</div>
+                                <div class="faq-answer">
+                                    Não. O tombador requer energia elétrica trifásica para acionar a central hidráulica.
+                                    Recomenda-se gerador de backup para operação contínua.
+                                </div>
+                            </div>
+
+                            <div class="faq-item">
+                                <div class="faq-question">7. Quais são os principais cuidados de segurança?</div>
+                                <div class="faq-answer">
+                                    • Nunca operar com pessoas próximas à plataforma<br>
+                                    • Verificar travamento de rodas antes da operação<br>
+                                    • Não exceder a capacidade de carga<br>
+                                    • Manter área de segurança sinalizada<br>
+                                    • Operador treinado e certificado
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="faq-section">
+                            <div class="faq-header">
+                                📱 PILI TECH v9.0 (Sistema de Monitoramento)
+                            </div>
+
+                            <div class="faq-item">
+                                <div class="faq-question">1. O que é o PILI TECH?</div>
+                                <div class="faq-answer">
+                                    É um sistema eletrônico de monitoramento IoT que controla automaticamente o tombador de grãos,
+                                    registra ciclos de operação, horímetro, alertas e sincroniza dados com a nuvem para gestão remota.
+                                </div>
+                            </div>
+
+                            <div class="faq-item">
+                                <div class="faq-question">2. Como acessar a interface do sistema?</div>
+                                <div class="faq-answer">
+                                    Conecte o tablet à rede WiFi "PILI-TECH" (senha: 00002025) e acesse http://192.168.4.1 no navegador.
+                                </div>
+                            </div>
+
+                            <div class="faq-item">
+                                <div class="faq-question">3. O que significam os sensores?</div>
+                                <div class="faq-answer">
+                                    • <strong>0 Graus:</strong> Plataforma na posição horizontal<br>
+                                    • <strong>40 Graus:</strong> Plataforma inclinada (descarga)<br>
+                                    • <strong>Trava Roda:</strong> Sistema de travamento acionado<br>
+                                    • <strong>Subindo/Descendo:</strong> Movimento da plataforma<br>
+                                    • <strong>Moega Cheia:</strong> Moega atingiu capacidade máxima<br>
+                                    • <strong>Fosso Cheio:</strong> Fosso precisa ser esvaziado<br>
+                                    • <strong>Sistema:</strong> Equipamento energizado
+                                </div>
+                            </div>
+
+                            <div class="faq-item">
+                                <div class="faq-question">4. Como funciona o contador de ciclos?</div>
+                                <div class="faq-answer">
+                                    O sistema detecta automaticamente quando a plataforma vai de 0° → 40° → 0°, registrando um ciclo completo.
+                                    Os dados são salvos localmente e na nuvem.
+                                </div>
+                            </div>
+
+                            <div class="faq-item">
+                                <div class="faq-question">5. O que é o horímetro?</div>
+                                <div class="faq-answer">
+                                    Conta as horas efetivas de operação do equipamento (quando o sistema está energizado).
+                                    Essencial para programar manutenções preventivas.
+                                </div>
+                            </div>
+
+                            <div class="faq-item">
+                                <div class="faq-question">6. Quando aparece o alerta de manutenção?</div>
+                                <div class="faq-answer">
+                                    Automaticamente ao atingir 2000 horas de operação desde a última manutenção.
+                                    O sistema exibe banner amarelo na aba Controles.
+                                </div>
+                            </div>
+
+                            <div class="faq-item">
+                                <div class="faq-question">7. Como registrar uma manutenção?</div>
+                                <div class="faq-answer">
+                                    Vá para aba "Manutenções" → Clique "Nova Manutenção" → Informe nome do técnico e descrição do serviço.
+                                    O sistema salva automaticamente a data, horímetro e ciclos.
+                                </div>
+                            </div>
+
+                            <div class="faq-item">
+                                <div class="faq-question">8. Como conectar à internet para sincronização na nuvem?</div>
+                                <div class="faq-answer">
+                                    Aba "Sistema" → Configuração WiFi → Digite o nome da rede (SSID) e senha → Clique "Conectar".
+                                    O ESP32 entrará em modo dual (mantém AP PILI-TECH + conecta à internet).
+                                </div>
+                            </div>
+
+                            <div class="faq-item">
+                                <div class="faq-question">9. Os dados ficam salvos se faltar energia?</div>
+                                <div class="faq-answer">
+                                    Sim! Todos os dados são salvos automaticamente na memória interna (SPIFFS) a cada 5 minutos
+                                    e na nuvem quando houver internet. Nada é perdido em caso de falta de energia.
+                                </div>
+                            </div>
+
+                            <div class="faq-item">
+                                <div class="faq-question">10. Posso monitorar vários equipamentos remotamente?</div>
+                                <div class="faq-answer">
+                                    Sim! O sistema está preparado para monitoramento remoto de múltiplos dispositivos IoT.
+                                    Cada equipamento tem um número de série único e envia dados para o banco NeonDB.
+                                    Dashboard web disponível para gestão centralizada.
+                                </div>
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+            </div>
+
+            <!-- Contato -->
+            <div class="panel">
+                <div class="card" style="height:100%;overflow-y:auto;">
+                    <div class="card-title">📞 Contato PILI</div>
+                    <div style="padding:16px;">
+
+                        <div style="text-align:center;margin-bottom:24px;padding:20px;background:linear-gradient(135deg,var(--primary),#ef4444);border-radius:8px;color:white;">
+                            <div style="font-size:28px;font-weight:700;margin-bottom:8px;">PILI</div>
+                            <div style="font-size:13px;opacity:0.95;">Os Melhores Tombadores de Grãos do Brasil</div>
+                            <div style="font-size:11px;margin-top:6px;opacity:0.85;">Desde 1979 • Qualidade e Inovação</div>
+                        </div>
+
+                        <div style="display:grid;gap:16px;margin-bottom:24px;">
+
+                            <div style="background:var(--bg);padding:16px;border-radius:8px;border-left:4px solid var(--primary);">
+                                <div style="font-size:24px;margin-bottom:8px;">📞</div>
+                                <div style="font-weight:700;margin-bottom:6px;font-size:14px;">Telefones</div>
+                                <div style="color:var(--text-light);font-size:13px;">
+                                    <strong>Fixo:</strong> +54-3522-2828<br>
+                                    <strong>WhatsApp:</strong> 054 9 9141 2971
+                                </div>
+                            </div>
+
+                            <div style="background:var(--bg);padding:16px;border-radius:8px;border-left:4px solid var(--primary);">
+                                <div style="font-size:24px;margin-bottom:8px;">✉️</div>
+                                <div style="font-weight:700;margin-bottom:6px;font-size:14px;">E-mail</div>
+                                <div style="color:var(--text-light);font-size:13px;">
+                                    atendimento@pili.ind.br
+                                </div>
+                            </div>
+
+                            <div style="background:var(--bg);padding:16px;border-radius:8px;border-left:4px solid var(--primary);">
+                                <div style="font-size:24px;margin-bottom:8px;">📍</div>
+                                <div style="font-weight:700;margin-bottom:6px;font-size:14px;">Endereço</div>
+                                <div style="color:var(--text-light);font-size:13px;">
+                                    Bairro Petit Vilage<br>
+                                    Erechim, RS 242<br>
+                                    Brasil
+                                </div>
+                            </div>
+
+                            <div style="background:var(--bg);padding:16px;border-radius:8px;border-left:4px solid var(--primary);">
+                                <div style="font-size:24px;margin-bottom:8px;">🌐</div>
+                                <div style="font-weight:700;margin-bottom:6px;font-size:14px;">Website</div>
+                                <div style="color:var(--text-light);font-size:13px;">
+                                    <a href="https://www.pili.ind.br" target="_blank" style="color:var(--primary);text-decoration:none;font-weight:600;">
+                                        www.pili.ind.br
+                                    </a>
+                                </div>
+                            </div>
+
+                        </div>
+
+                        <div style="background:var(--bg);padding:16px;border-radius:8px;margin-bottom:24px;">
+                            <div style="font-weight:700;margin-bottom:12px;font-size:14px;">📱 Redes Sociais</div>
+                            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;font-size:12px;">
+                                <div>
+                                    <strong>Facebook:</strong><br>
+                                    <span style="color:var(--text-light);">@pilierechim</span>
+                                </div>
+                                <div>
+                                    <strong>Instagram:</strong><br>
+                                    <span style="color:var(--text-light);">@pili.ind</span>
+                                </div>
+                                <div>
+                                    <strong>YouTube:</strong><br>
+                                    <span style="color:var(--text-light);">Canal PILI</span>
+                                </div>
+                                <div>
+                                    <strong>LinkedIn:</strong><br>
+                                    <span style="color:var(--text-light);">Pili</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div style="background:linear-gradient(135deg,#10b981,#059669);padding:16px;border-radius:8px;color:white;margin-bottom:24px;">
+                            <div style="font-weight:700;margin-bottom:12px;font-size:14px;">🚜 Produtos PILI</div>
+                            <div style="font-size:12px;line-height:1.8;opacity:0.95;">
+                                <strong>Tombadores Fixos:</strong> 10, 11, 12, 18, 21, 26 e 30 metros<br>
+                                <strong>Tombadores Móveis:</strong> 10, 11, 12, 18 e 21 metros<br>
+                                <strong>Outros:</strong> Coletores de amostras, Rachadores de lenha, Prensas hidráulicas,
+                                Macacos hidráulicos, Centrais hidráulicas, Unidades de transbordo
+                            </div>
+                        </div>
+
+                        <div style="background:#fef3c7;border:2px solid #f59e0b;padding:16px;border-radius:8px;">
+                            <div style="display:flex;align-items:center;gap:12px;margin-bottom:8px;">
+                                <div style="font-size:32px;">🔧</div>
+                                <div>
+                                    <div style="font-weight:700;color:#92400e;font-size:14px;">Assistência Técnica</div>
+                                    <div style="font-size:11px;color:#78350f;">Suporte Especializado PILI TECH</div>
+                                </div>
+                            </div>
+                            <div style="font-size:12px;color:#78350f;line-height:1.6;">
+                                Para suporte técnico do sistema PILI TECH (IoT), entre em contato pelo WhatsApp
+                                <strong>054 9 9141 2971</strong> ou email <strong>atendimento@pili.ind.br</strong>
+                                <br><br>
+                                <strong>Horário de Atendimento:</strong><br>
+                                Segunda a Sexta: 8h às 18h<br>
+                                Sábado: 8h às 12h
+                            </div>
+                        </div>
+
+                        <div style="margin-top:24px;text-align:center;padding:16px;background:var(--bg);border-radius:8px;">
+                            <div style="font-size:11px;color:var(--text-light);margin-bottom:8px;">Clientes que Confiam na PILI:</div>
+                            <div style="font-size:13px;font-weight:700;color:var(--text);">
+                                Cargill • JBS • BRF • COFCO International
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <script src="/app.js"></script>
+</body>
+</html>

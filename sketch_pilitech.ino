@@ -1,0 +1,937 @@
+/************************************************************
+ * PILI TECH - Sistema v9.0 FUNCIONAL (HTML COMPACTO)
+ * Número de Série: 00002025
+ ************************************************************/
+
+#include <WiFi.h>
+#include <WebServer.h>
+#include <WebSocketsServer.h>
+#include <ArduinoJson.h>
+#include <SPIFFS.h>
+#include <Preferences.h>
+#include <HTTPClient.h>
+
+const char* AP_SSID = "PILI-TECH";
+const char* AP_PASSWORD = "00002025";
+const char* SERIAL_NUMBER = "00002025";
+
+// API Configuration - Railway + NeonDB
+const char* API_URL = "https://pilitech-production.up.railway.app";
+const char* API_KEY = "pilitech_00002025_secret_key";
+
+WebServer server(80);
+WebSocketsServer webSocket(81);
+Preferences preferences;
+HTTPClient http;
+
+// Pinos - Mapeamento WaveShare ESP32-S3 Digital Inputs
+// DI1=GPIO4, DI2=GPIO5, DI3=GPIO6, DI4=GPIO7, DI5=GPIO8, DI6=GPIO9, DI7=GPIO10, DI8=GPIO11
+#define TENSAO_PLATAFORMA   4   // DI1
+#define SENSOR_0_GRAUS      5   // DI2
+#define SENSOR_40_GRAUS     6   // DI3
+#define SENSOR_TRAVA_RODA   7   // DI4
+#define SENSOR_MOEGA_CHEIA  8   // DI5
+#define SENSOR_FOSSO_CHEIO  9   // DI6
+#define SUBINDO_PLATAFORMA  10  // DI7
+#define DESCENDO_PLATAFORMA 11  // DI8
+#define LED_STATUS          38
+
+struct {
+  unsigned long tempoInicio;
+  unsigned long ciclosHoje;
+  unsigned long ciclosTotal;
+  unsigned long horasOperacao;
+  unsigned long minutosOperacao;
+} stats = {0, 0, 0, 0, 0};
+
+bool sistema_ligado = false;
+bool sensor_0_graus = false;
+bool sensor_40_graus = false;
+bool trava_roda = false;
+bool moega_cheia = false;
+bool fosso_cheio = false;
+bool subindo = false;
+bool descendo = false;
+unsigned long uptimeSeconds = 0;
+String lastMaintenanceDate = "";
+
+// HTML MELHORADO
+const char index_html[] PROGMEM = R"rawliteral(<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=1024">
+<title>PILI TECH v1.0</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;background:linear-gradient(135deg,#667eea 0%,#764ba2 100%);width:1024px;height:600px;overflow:hidden}
+.header{height:60px;background:#fff;border-bottom:1px solid #e5e7eb;display:flex;align-items:center;justify-content:space-between;padding:0 24px;box-shadow:0 1px 3px rgba(0,0,0,0.1)}
+.logo{display:flex;align-items:center;gap:12px;font-size:20px;font-weight:700;color:#dc2626}
+.logo svg{width:28px;height:28px;stroke:#dc2626;fill:none}
+.datetime{display:flex;flex-direction:column;font-size:11px;color:#6b7280;font-weight:600;line-height:1.3}
+.status-area{display:flex;align-items:center;gap:10px;background:#f9fafb;padding:6px 14px;border-radius:20px;font-size:12px;font-weight:600}
+.dot{width:8px;height:8px;border-radius:50%;background:#ef4444}
+.dot.online{background:#10b981;animation:pulse 2s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.6}}
+.tabs{height:50px;background:#fff;border-bottom:1px solid #e5e7eb;display:flex;padding:6px;gap:4px}
+.tab{flex:1;border:none;background:transparent;padding:8px;font-size:12px;cursor:pointer;border-radius:6px;font-weight:700;color:#6b7280;transition:all 0.2s;display:flex;align-items:center;justify-content:center;gap:6px}
+.tab svg{width:16px;height:16px;stroke:currentColor;fill:none}
+.tab:hover{background:#f3f4f6}
+.tab.active{background:#dc2626;color:#fff}
+.content{height:490px;padding:12px;overflow:hidden}
+.panel{display:none;height:100%;overflow:hidden}
+.panel.active{display:grid;gap:10px}
+.card{background:#fff;border-radius:8px;padding:16px;box-shadow:0 1px 3px rgba(0,0,0,0.1);overflow:hidden}
+.card-title{font-size:15px;font-weight:700;color:#111827;margin-bottom:12px;display:flex;align-items:center;gap:8px}
+.card-title svg{width:18px;height:18px;stroke:#dc2626;fill:none}
+.sensor-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.sensor-item{background:#f9fafb;padding:10px;border-radius:6px;border:2px solid #e5e7eb;font-size:12px;font-weight:600;color:#374151;transition:all 0.3s}
+.sensor-item.active{border-color:#10b981;background:#10b981;color:#fff;box-shadow:0 4px 8px rgba(16,185,129,0.3)}
+.sensor-item.active .sensor-label{color:rgba(255,255,255,0.8)}
+.sensor-item.alert{border-color:#ef4444;background:#ef4444;color:#fff;animation:blink 1s infinite;box-shadow:0 4px 12px rgba(239,68,68,0.4)}
+.sensor-item.alert .sensor-label{color:rgba(255,255,255,0.9)}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:0.7}}
+.sensor-label{font-size:10px;color:#6b7280;text-transform:uppercase;letter-spacing:0.5px}
+.sensor-value{font-size:14px;margin-top:2px}
+.stats-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.stat-card{background:#f9fafb;padding:12px;border-radius:6px;text-align:center}
+.stat-value{font-size:32px;font-weight:700;color:#dc2626;line-height:1}
+.stat-label{font-size:10px;color:#6b7280;margin-top:6px;text-transform:uppercase;letter-spacing:0.5px}
+.progress-bar{background:#e5e7eb;height:16px;border-radius:8px;overflow:hidden;margin:8px 0}
+.progress-fill{background:linear-gradient(90deg,#10b981,#f59e0b);height:100%;transition:width 0.5s}
+.btn{padding:10px 16px;border:none;border-radius:6px;font-size:13px;font-weight:700;cursor:pointer;transition:all 0.2s;display:flex;align-items:center;justify-content:center;gap:6px}
+.btn svg{width:16px;height:16px;stroke:currentColor;fill:none}
+.btn-primary{background:#dc2626;color:#fff}
+.btn-primary:hover{background:#b91c1c}
+.btn-success{background:#10b981;color:#fff}
+.btn-success:hover{background:#059669}
+.info-row{display:flex;justify-content:space-between;align-items:center;padding:10px;background:#f9fafb;border-radius:6px;margin:6px 0;font-size:13px}
+.info-label{color:#6b7280;font-weight:600}
+.info-value{color:#111827;font-weight:700}
+.input{width:100%;padding:10px;border:2px solid #e5e7eb;border-radius:6px;font-size:13px;margin:6px 0;font-family:inherit}
+.input:focus{outline:none;border-color:#dc2626}
+.logs-area{background:#f9fafb;padding:10px;border-radius:6px;font-size:11px;font-family:monospace;line-height:1.6;color:#374151;height:400px;overflow-y:auto}
+.faq-item{background:#f9fafb;padding:12px;border-radius:6px;margin:8px 0;border-left:3px solid #dc2626}
+.faq-q{font-weight:700;color:#111827;font-size:13px;margin-bottom:6px}
+.faq-a{color:#4b5563;font-size:12px;line-height:1.6}
+</style>
+</head>
+<body>
+<div class="header">
+<div style="display:flex;align-items:center;gap:20px">
+<div class="logo">
+<svg viewBox="0 0 24 24" stroke-width="2"><path d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z"/></svg>
+<span>PILI TECH v1.0</span>
+</div>
+<div class="datetime">
+<span id="date">--/--/----</span>
+<span id="time">--:--:--</span>
+</div>
+</div>
+<div class="status-area">
+<div class="dot" id="dot"></div>
+<span id="status">Conectando...</span>
+</div>
+</div>
+<div class="tabs">
+<button class="tab active" onclick="switchTab(0)">
+<svg viewBox="0 0 24 24" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+Dashboard
+</button>
+<button class="tab" onclick="switchTab(1)">
+<svg viewBox="0 0 24 24" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 1v6m0 6v6M5.6 5.6l4.2 4.2m5.6 5.6l4.2 4.2m0-16.4l-4.2 4.2M9.8 14.2l-4.2 4.2"/></svg>
+Sistema
+</button>
+<button class="tab" onclick="switchTab(2)">
+<svg viewBox="0 0 24 24" stroke-width="2"><path d="M14.7 6.3a1 1 0 000 1.4l1.6 1.6a1 1 0 001.4 0l3.77-3.77a6 6 0 01-7.94 7.94l-6.91 6.91a2.12 2.12 0 01-3-3l6.91-6.91a6 6 0 017.94-7.94l-3.76 3.76z"/></svg>
+Manutenção
+</button>
+<button class="tab" onclick="switchTab(3)">
+<svg viewBox="0 0 24 24" stroke-width="2"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/></svg>
+Logs
+</button>
+<button class="tab" onclick="switchTab(4)">
+<svg viewBox="0 0 24 24" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 015.83 1c0 2-3 3-3 3m.08 4h.01"/></svg>
+FAQ
+</button>
+<button class="tab" onclick="switchTab(5)">
+<svg viewBox="0 0 24 24" stroke-width="2"><path d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"/></svg>
+Contato
+</button>
+</div>
+<div class="content">
+<div class="panel active" style="grid-template-rows:200px 260px">
+<div class="card">
+<div class="card-title">
+<svg viewBox="0 0 24 24" stroke-width="2"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"/></svg>
+Sensores do Sistema
+</div>
+<div class="sensor-grid" style="grid-template-rows:repeat(2,1fr)">
+<div class="sensor-item" id="si0">
+<div class="sensor-label">Sistema</div>
+<div class="sensor-value" id="sys">OFF</div>
+</div>
+<div class="sensor-item" id="si1">
+<div class="sensor-label">Sensor 0°</div>
+<div class="sensor-value" id="s0">-</div>
+</div>
+<div class="sensor-item" id="si2">
+<div class="sensor-label">Sensor 40°</div>
+<div class="sensor-value" id="s40">-</div>
+</div>
+<div class="sensor-item" id="si3">
+<div class="sensor-label">Trava Roda</div>
+<div class="sensor-value" id="tr">-</div>
+</div>
+<div class="sensor-item" id="si4">
+<div class="sensor-label">Subindo</div>
+<div class="sensor-value" id="sub">-</div>
+</div>
+<div class="sensor-item" id="si5">
+<div class="sensor-label">Descendo</div>
+<div class="sensor-value" id="desc">-</div>
+</div>
+<div class="sensor-item" id="si6">
+<div class="sensor-label">Moega</div>
+<div class="sensor-value" id="moega">-</div>
+</div>
+<div class="sensor-item" id="si7">
+<div class="sensor-label">Fosso</div>
+<div class="sensor-value" id="fosso">-</div>
+</div>
+</div>
+</div>
+<div class="card">
+<div class="card-title">
+<svg viewBox="0 0 24 24" stroke-width="2"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>
+Produção e Horímetro
+</div>
+<div class="stats-grid">
+<div class="stat-card">
+<div class="stat-value" id="ch">0</div>
+<div class="stat-label">Ciclos Hoje</div>
+</div>
+<div class="stat-card">
+<div class="stat-value" id="ct">0</div>
+<div class="stat-label">Ciclos Totais</div>
+</div>
+<div class="stat-card">
+<div class="stat-value"><span id="h">0</span>h <span id="m">0</span>m</div>
+<div class="stat-label">Horímetro</div>
+</div>
+</div>
+<div style="margin-top:16px;padding:12px;background:#f9fafb;border-radius:6px">
+<div style="display:flex;justify-content:space-between;margin-bottom:8px;font-size:11px;font-weight:700;color:#6b7280">
+<span>PRÓXIMA MANUTENÇÃO</span>
+<span><span id="maintHrs">2000</span>h restantes</span>
+</div>
+<div class="progress-bar">
+<div id="maintBar" class="progress-fill" style="width:0%"></div>
+</div>
+</div>
+</div>
+</div>
+<div class="panel" style="grid-template-rows:180px 250px">
+<div class="card">
+<div class="card-title">
+<svg viewBox="0 0 24 24" stroke-width="2"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+Informações do Sistema
+</div>
+<div class="info-row">
+<span class="info-label">Memória Livre</span>
+<span class="info-value"><span id="mem">0</span> KB</span>
+</div>
+<div class="info-row">
+<span class="info-label">Tempo Ativo</span>
+<span class="info-value"><span id="up">0</span> s</span>
+</div>
+<div class="info-row">
+<span class="info-label">Número de Série</span>
+<span class="info-value">00002025</span>
+</div>
+<div class="info-row">
+<span class="info-label">Versão Firmware</span>
+<span class="info-value">1.0</span>
+</div>
+</div>
+<div class="card">
+<div class="card-title">
+<svg viewBox="0 0 24 24" stroke-width="2"><path d="M5 12.55a11 11 0 0114.08 0M1.42 9a16 16 0 0121.16 0M8.53 16.11a6 6 0 016.95 0M12 20h.01"/></svg>
+Configuração WiFi
+</div>
+<p style="color:#6b7280;font-size:12px;margin-bottom:12px">Conecte o sistema à sua rede WiFi para acesso remoto</p>
+<input type="text" id="wifiSSID" placeholder="Nome da Rede (SSID)" class="input">
+<input type="password" id="wifiPass" placeholder="Senha WiFi" class="input">
+<button onclick="connectWiFi()" class="btn btn-primary" style="width:100%;margin-top:6px">
+<svg viewBox="0 0 24 24" stroke-width="2"><path d="M5 12.55a11 11 0 0114.08 0M1.42 9a16 16 0 0121.16 0M8.53 16.11a6 6 0 016.95 0M12 20h.01"/></svg>
+Conectar WiFi
+</button>
+<div id="wifiMsg" style="margin-top:12px;padding:10px;border-radius:6px;display:none;font-size:12px;font-weight:600"></div>
+</div>
+</div>
+<div class="panel" style="grid-template-rows:auto">
+<div class="card" style="max-height:460px;overflow-y:auto">
+<div class="card-title">
+<svg viewBox="0 0 24 24" stroke-width="2"><path d="M14.7 6.3a1 1 0 000 1.4l1.6 1.6a1 1 0 001.4 0l3.77-3.77a6 6 0 01-7.94 7.94l-6.91 6.91a2.12 2.12 0 01-3-3l6.91-6.91a6 6 0 017.94-7.94l-3.76 3.76z"/></svg>
+Manutenção Preventiva
+</div>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px">
+<div class="info-row" style="flex-direction:column;align-items:flex-start;gap:4px">
+<span class="info-label">Última Manutenção</span>
+<span class="info-value" id="lastMaint" style="font-size:11px">Não registrada</span>
+</div>
+<div class="info-row" style="flex-direction:column;align-items:flex-start;gap:4px">
+<span class="info-label">Intervalo</span>
+<span class="info-value">2000 horas</span>
+</div>
+</div>
+<div style="border-top:1px solid #e5e7eb;padding-top:12px;margin-top:12px">
+<p style="font-weight:700;color:#111827;font-size:13px;margin-bottom:10px">Registrar Nova Manutenção</p>
+<input type="text" id="maintDesc" placeholder="Descrição da manutenção" class="input">
+<input type="text" id="maintTech" placeholder="Nome do técnico" class="input">
+<button onclick="registrarManutencao()" class="btn btn-success" style="width:100%;margin-top:6px">
+Registrar Manutenção
+</button>
+</div>
+</div>
+<div class="card">
+<div class="card-title">
+<svg viewBox="0 0 24 24" stroke-width="2"><path d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"/></svg>
+Contatos de Suporte
+</div>
+<div class="info-row">
+<span class="info-label">Telefone</span>
+<span class="info-value">(54) 3321-4976</span>
+</div>
+<div class="info-row">
+<span class="info-label">Email</span>
+<span class="info-value">suporte@pili.ind.br</span>
+</div>
+<div class="info-row">
+<span class="info-label">Suporte Técnico</span>
+<span class="info-value">suporte@pili.ind.br</span>
+</div>
+<div class="info-row">
+<span class="info-label">Website</span>
+<span class="info-value">www.pili.ind.br</span>
+</div>
+</div>
+</div>
+<div class="panel" style="grid-template-rows:auto">
+<div class="card">
+<div class="card-title">
+<svg viewBox="0 0 24 24" stroke-width="2"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/></svg>
+Registro de Eventos
+</div>
+<div id="logs" class="logs-area">Nenhum log registrado</div>
+</div>
+</div>
+<div class="panel" style="grid-template-rows:auto">
+<div class="card" style="max-height:460px;overflow-y:auto">
+<div class="card-title">
+<svg viewBox="0 0 24 24" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 015.83 1c0 2-3 3-3 3m.08 4h.01"/></svg>
+Perguntas Frequentes
+</div>
+<div class="faq-item">
+<div class="faq-q">1. Como funciona o tombador de grãos?</div>
+<div class="faq-a">O tombador PILI inverte a posição da moega para descarregar grãos no fosso. O sistema monitora sensores em 0° (moega normal) e 40° (moega tombada) para controlar o ciclo completo.</div>
+</div>
+<div class="faq-item">
+<div class="faq-q">2. O que são os sensores monitorados?</div>
+<div class="faq-a">• Sensor 0°: Detecta moega na posição normal<br>• Sensor 40°: Detecta moega tombada<br>• Trava Roda: Confirma travamento antes do tombamento<br>• Moega Cheia: Indica necessidade de tombamento<br>• Fosso Cheio: Alerta quando fosso precisa esvaziamento</div>
+</div>
+<div class="faq-item">
+<div class="faq-q">3. Como acessar o sistema?</div>
+<div class="faq-a">Conecte ao WiFi "PILI-TECH" (senha: 00002025) e acesse http://192.168.4.1 no navegador.</div>
+</div>
+<div class="faq-item">
+<div class="faq-q">4. O que é um ciclo de operação?</div>
+<div class="faq-a">Um ciclo completo inclui: moega em 0° → subida até 40° → descarga de grãos → descida até 0°. O sistema conta automaticamente cada ciclo.</div>
+</div>
+<div class="faq-item">
+<div class="faq-q">5. Os dados são salvos?</div>
+<div class="faq-a">Sim! Dados salvos automaticamente na memória interna a cada 5 minutos. Nada é perdido em caso de queda de energia.</div>
+</div>
+<div class="faq-item">
+<div class="faq-q">6. Como funciona o horímetro?</div>
+<div class="faq-a">Registra automaticamente as horas de operação quando o sistema está ligado. Essencial para programar manutenções preventivas.</div>
+</div>
+</div>
+</div>
+<div class="panel" style="grid-template-rows:auto">
+<div class="card">
+<div class="card-title">
+<svg viewBox="0 0 24 24" stroke-width="2"><path d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"/></svg>
+Contato PILI Equipamentos
+</div>
+<div class="info-row">
+<span class="info-label">Telefone</span>
+<span class="info-value">(54) 3321-4976</span>
+</div>
+<div class="info-row">
+<span class="info-label">Email</span>
+<span class="info-value">atendimento@pili.ind.br</span>
+</div>
+<div class="info-row">
+<span class="info-label">Suporte Técnico</span>
+<span class="info-value">suporte@pili.ind.br</span>
+</div>
+<div class="info-row">
+<span class="info-label">Website</span>
+<span class="info-value">www.pili.ind.br</span>
+</div>
+<div class="info-row">
+<span class="info-label">Endereço</span>
+<span class="info-value">Bairro Petit Village, Erechim - RS</span>
+</div>
+<div style="margin-top:20px;padding:16px;background:#f9fafb;border-radius:6px;text-align:center">
+<p style="font-size:11px;color:#6b7280;font-weight:700;text-transform:uppercase;letter-spacing:0.5px">Principais Clientes</p>
+<p style="font-size:14px;color:#111827;font-weight:700;margin-top:8px">Cargill • JBS • BRF • COFCO</p>
+</div>
+</div>
+</div>
+</div>
+<script>
+console.log('PILI TECH v1.0');
+var ws=null,data={},logs=[],lastMaint=null;
+var lastMoegaCheia=false,lastFossoCheio=false;
+function switchTab(n){
+var tabs=document.querySelectorAll('.tab');
+var panels=document.querySelectorAll('.panel');
+for(var i=0;i<tabs.length;i++){
+tabs[i].classList.remove('active');
+panels[i].classList.remove('active');
+}
+tabs[n].classList.add('active');
+panels[n].classList.add('active');
+}
+function connectWS(){
+ws=new WebSocket('ws://'+window.location.hostname+':81');
+ws.onopen=function(){
+document.getElementById('dot').classList.add('online');
+document.getElementById('status').textContent='Conectado';
+addLog('Sistema conectado');
+};
+ws.onerror=function(e){
+document.getElementById('status').textContent='Erro';
+};
+ws.onclose=function(){
+document.getElementById('dot').classList.remove('online');
+document.getElementById('status').textContent='Reconectando...';
+setTimeout(connectWS,2000);
+};
+ws.onmessage=function(e){
+try{
+var msg=JSON.parse(e.data);
+if(msg.cmd==='WIFI_STATUS'){
+var wifiMsg=document.getElementById('wifiMsg');
+wifiMsg.style.display='block';
+if(msg.status==='connecting'){
+wifiMsg.style.background='#dbeafe';
+wifiMsg.style.color='#1e40af';
+wifiMsg.textContent='Conectando... tentativa '+msg.attempt+'/10';
+}else if(msg.status==='connected'){
+wifiMsg.style.background='#d1fae5';
+wifiMsg.style.color='#065f46';
+wifiMsg.textContent='WiFi conectado! IP: '+msg.ip;
+}else if(msg.status==='failed'){
+wifiMsg.style.background='#fef2f2';
+wifiMsg.style.color='#991b1b';
+wifiMsg.textContent='Falha ao conectar WiFi (erro '+msg.error+')';
+}
+}else{
+data=msg;
+updateUI();
+}
+}catch(err){console.error('Parse erro:',err);}
+};
+}
+function updateUI(){
+document.getElementById('sys').textContent=data.sistema_ligado?'ON':'OFF';
+document.getElementById('s0').textContent=data.sensor_0_graus?'ATIVO':'INATIVO';
+document.getElementById('s40').textContent=data.sensor_40_graus?'ATIVO':'INATIVO';
+document.getElementById('tr').textContent=data.trava_roda?'ATIVO':'INATIVO';
+document.getElementById('sub').textContent=data.subindo?'SIM':'NAO';
+document.getElementById('desc').textContent=data.descendo?'SIM':'NAO';
+document.getElementById('moega').textContent=data.moega_cheia?'CHEIA':'OK';
+document.getElementById('fosso').textContent=data.fosso_cheio?'CHEIO':'OK';
+document.getElementById('ch').textContent=data.ciclosHoje||0;
+document.getElementById('ct').textContent=data.ciclosTotal||0;
+document.getElementById('h').textContent=data.horasOperacao||0;
+document.getElementById('m').textContent=data.minutosOperacao||0;
+document.getElementById('mem').textContent=Math.round((data.freeHeap||0)/1024);
+document.getElementById('up').textContent=data.uptime||0;
+if(data.lastMaint)document.getElementById('lastMaint').textContent=data.lastMaint;
+var si=document.querySelectorAll('.sensor-item');
+si[0].classList.toggle('active',data.sistema_ligado);
+si[1].classList.toggle('active',data.sensor_0_graus);
+si[2].classList.toggle('active',data.sensor_40_graus);
+si[3].classList.toggle('active',data.trava_roda);
+si[4].classList.toggle('active',data.subindo);
+si[5].classList.toggle('active',data.descendo);
+si[6].classList.remove('active','alert');
+if(data.moega_cheia){
+si[6].classList.add('alert');
+if(!lastMoegaCheia){addLog('ALERTA: Moega cheia!');lastMoegaCheia=true;}
+}else{
+if(lastMoegaCheia){addLog('Moega normalizada');lastMoegaCheia=false;}
+}
+si[7].classList.remove('active','alert');
+if(data.fosso_cheio){
+si[7].classList.add('alert');
+if(!lastFossoCheio){addLog('ALERTA: Fosso cheio!');lastFossoCheio=true;}
+}else{
+if(lastFossoCheio){addLog('Fosso normalizado');lastFossoCheio=false;}
+}
+var hrs=data.horasOperacao||0;
+var pct=Math.min((hrs/2000)*100,100);
+document.getElementById('maintBar').style.width=pct+'%';
+document.getElementById('maintHrs').textContent=Math.max(2000-hrs,0);
+}
+function resetCiclos(){
+if(confirm('Resetar contagem de ciclos de hoje?')){
+if(ws && ws.readyState===1){
+ws.send(JSON.stringify({cmd:'RESET_CICLOS'}));
+addLog('Ciclos resetados');
+}
+}
+}
+function saveData(){
+if(ws && ws.readyState===1){
+ws.send(JSON.stringify({cmd:'SAVE_DATA'}));
+addLog('Dados salvos');
+}
+}
+function registrarManutencao(){
+var desc=document.getElementById('maintDesc').value;
+var tech=document.getElementById('maintTech').value;
+if(!desc||!tech){
+alert('Preencha a descricao e o nome do tecnico');
+return;
+}
+if(confirm('Confirmar registro de manutencao?')){
+lastMaint=new Date();
+var d=lastMaint.toLocaleDateString('pt-BR')+' '+lastMaint.toLocaleTimeString('pt-BR');
+var maintData={
+date:d,
+desc:desc,
+tech:tech
+};
+var displayText=d+' - '+tech+' - '+desc;
+document.getElementById('lastMaint').textContent=displayText;
+if(ws && ws.readyState===1){
+ws.send(JSON.stringify({cmd:'MAINT_LOG',data:maintData}));
+}
+addLog('Manutencao: '+desc+' ('+tech+')');
+document.getElementById('maintDesc').value='';
+document.getElementById('maintTech').value='';
+alert('Manutencao registrada com sucesso!');
+}
+}
+function addLog(msg){
+var t=new Date().toLocaleTimeString('pt-BR');
+logs.unshift('['+t+'] '+msg);
+if(logs.length>50)logs.pop();
+document.getElementById('logs').innerHTML=logs.join('<br>')||'Nenhum log registrado';
+}
+function connectWiFi(){
+var ssid=document.getElementById('wifiSSID').value;
+var pass=document.getElementById('wifiPass').value;
+var msg=document.getElementById('wifiMsg');
+if(!ssid){
+msg.style.display='block';
+msg.style.background='#fef2f2';
+msg.style.color='#991b1b';
+msg.textContent='Digite o nome da rede WiFi';
+return;
+}
+if(ws && ws.readyState===1){
+ws.send(JSON.stringify({cmd:'WIFI_CONNECT',ssid:ssid,pass:pass}));
+msg.style.display='block';
+msg.style.background='#dbeafe';
+msg.style.color='#1e40af';
+msg.textContent='Conectando a '+ssid+'...';
+addLog('Conectando WiFi: '+ssid);
+}else{
+msg.style.display='block';
+msg.style.background='#fef2f2';
+msg.style.color='#991b1b';
+msg.textContent='WebSocket desconectado';
+}
+}
+function updateClock(){
+var now=new Date();
+document.getElementById('date').textContent=now.toLocaleDateString('pt-BR');
+document.getElementById('time').textContent=now.toLocaleTimeString('pt-BR');
+}
+setInterval(updateClock,1000);
+updateClock();
+connectWS();
+</script>
+</body>
+</html>)rawliteral";
+
+void setupPins() {
+  // INPUT_PULLDOWN: sem tensão = LOW (0), com tensão = HIGH (1)
+  pinMode(TENSAO_PLATAFORMA, INPUT_PULLDOWN);
+  pinMode(SENSOR_0_GRAUS, INPUT_PULLDOWN);
+  pinMode(SENSOR_40_GRAUS, INPUT_PULLDOWN);
+  pinMode(SENSOR_TRAVA_RODA, INPUT_PULLDOWN);
+  pinMode(SENSOR_MOEGA_CHEIA, INPUT_PULLDOWN);
+  pinMode(SENSOR_FOSSO_CHEIO, INPUT_PULLDOWN);
+  pinMode(SUBINDO_PLATAFORMA, INPUT_PULLDOWN);
+  pinMode(DESCENDO_PLATAFORMA, INPUT_PULLDOWN);
+  pinMode(LED_STATUS, OUTPUT);
+}
+
+void readSensors() {
+  sistema_ligado = digitalRead(TENSAO_PLATAFORMA);
+  sensor_0_graus = digitalRead(SENSOR_0_GRAUS);
+  sensor_40_graus = digitalRead(SENSOR_40_GRAUS);
+  trava_roda = digitalRead(SENSOR_TRAVA_RODA);
+  moega_cheia = digitalRead(SENSOR_MOEGA_CHEIA);
+  fosso_cheio = digitalRead(SENSOR_FOSSO_CHEIO);
+  subindo = digitalRead(SUBINDO_PLATAFORMA);
+  descendo = digitalRead(DESCENDO_PLATAFORMA);
+}
+
+String createJsonData() {
+  StaticJsonDocument<512> doc;
+  doc["sistema_ligado"] = sistema_ligado;
+  doc["sensor_0_graus"] = sensor_0_graus;
+  doc["sensor_40_graus"] = sensor_40_graus;
+  doc["trava_roda"] = trava_roda;
+  doc["moega_cheia"] = moega_cheia;
+  doc["fosso_cheio"] = fosso_cheio;
+  doc["subindo"] = subindo;
+  doc["descendo"] = descendo;
+  doc["ciclosHoje"] = stats.ciclosHoje;
+  doc["ciclosTotal"] = stats.ciclosTotal;
+  doc["horasOperacao"] = stats.horasOperacao;
+  doc["minutosOperacao"] = stats.minutosOperacao;
+  doc["freeHeap"] = ESP.getFreeHeap();
+  doc["uptime"] = uptimeSeconds;
+  doc["lastMaint"] = lastMaintenanceDate;
+
+  String jsonData;
+  serializeJson(doc, jsonData);
+  return jsonData;
+}
+
+void onWebSocketEvent(uint8_t num, WStype_t type, uint8_t *payload, size_t length) {
+  switch(type) {
+    case WStype_DISCONNECTED:
+      Serial.printf("Cliente [%u] desconectado\n", num);
+      break;
+
+    case WStype_CONNECTED: {
+      Serial.printf("Cliente [%u] conectado\n", num);
+      String jsonData = createJsonData();
+      webSocket.sendTXT(num, jsonData);
+      break;
+    }
+
+    case WStype_TEXT: {
+      Serial.printf("Mensagem recebida: %s\n", payload);
+
+      StaticJsonDocument<256> doc;
+      DeserializationError error = deserializeJson(doc, payload);
+
+      if (!error && doc.containsKey("cmd")) {
+        String cmd = doc["cmd"].as<String>();
+
+        if (cmd == "WIFI_CONNECT") {
+          String ssid = doc["ssid"].as<String>();
+          String pass = doc["pass"].as<String>();
+
+          Serial.printf("\n=== CONECTANDO WiFi ===\n");
+          Serial.printf("SSID: %s\n", ssid.c_str());
+          Serial.printf("Modo atual: %d\n", WiFi.getMode());
+
+          // Desconecta qualquer conexão anterior
+          WiFi.disconnect();
+          delay(100);
+
+          // Garante modo AP+STA
+          WiFi.mode(WIFI_AP_STA);
+          delay(100);
+
+          // Inicia conexão
+          WiFi.begin(ssid.c_str(), pass.c_str());
+
+          // Aguarda conexão (máx 20 segundos)
+          int attempts = 0;
+          while (WiFi.status() != WL_CONNECTED && attempts < 40) {
+            delay(500);
+            Serial.print(".");
+            attempts++;
+
+            // Envia status a cada 2 segundos
+            if (attempts % 4 == 0) {
+              StaticJsonDocument<128> statusDoc;
+              statusDoc["cmd"] = "WIFI_STATUS";
+              statusDoc["status"] = "connecting";
+              statusDoc["attempt"] = attempts / 4;
+              String statusJson;
+              serializeJson(statusDoc, statusJson);
+              webSocket.broadcastTXT(statusJson);
+            }
+          }
+
+          if (WiFi.status() == WL_CONNECTED) {
+            Serial.println("\n✓ WiFi CONECTADO!");
+            Serial.printf("IP Local: %s\n", WiFi.localIP().toString().c_str());
+            Serial.printf("Gateway: %s\n", WiFi.gatewayIP().toString().c_str());
+            Serial.printf("DNS: %s\n", WiFi.dnsIP().toString().c_str());
+            Serial.printf("RSSI: %d dBm\n", WiFi.RSSI());
+
+            // Envia confirmação
+            StaticJsonDocument<128> successDoc;
+            successDoc["cmd"] = "WIFI_STATUS";
+            successDoc["status"] = "connected";
+            successDoc["ip"] = WiFi.localIP().toString();
+            String successJson;
+            serializeJson(successDoc, successJson);
+            webSocket.broadcastTXT(successJson);
+          } else {
+            Serial.println("\n✗ FALHA ao conectar WiFi");
+            Serial.printf("Status: %d\n", WiFi.status());
+
+            // Envia erro
+            StaticJsonDocument<128> errorDoc;
+            errorDoc["cmd"] = "WIFI_STATUS";
+            errorDoc["status"] = "failed";
+            errorDoc["error"] = WiFi.status();
+            String errorJson;
+            serializeJson(errorDoc, errorDoc);
+            webSocket.broadcastTXT(errorJson);
+          }
+        }
+        else if (cmd == "RESET_CICLOS") {
+          stats.ciclosHoje = 0;
+          Serial.println("Ciclos de hoje resetados!");
+        }
+        else if (cmd == "SAVE_DATA") {
+          preferences.begin("pilitech", false);
+          preferences.putULong("ciclosTotal", stats.ciclosTotal);
+          preferences.putULong("horasOp", stats.horasOperacao);
+          preferences.end();
+          Serial.println("Dados salvos na memória!");
+        }
+        else if (cmd == "MAINT_LOG") {
+          JsonObject maintData = doc["data"];
+          String date = maintData["date"].as<String>();
+          String desc = maintData["desc"].as<String>();
+          String tech = maintData["tech"].as<String>();
+
+          String fullMaint = date + " - " + tech + " - " + desc;
+          lastMaintenanceDate = fullMaint;
+
+          preferences.begin("pilitech", false);
+          preferences.putString("lastMaint", fullMaint);
+          preferences.end();
+
+          Serial.println("Manutenção registrada:");
+          Serial.println("  Data: " + date);
+          Serial.println("  Técnico: " + tech);
+          Serial.println("  Descrição: " + desc);
+
+          // Envia para o NeonDB se conectado na internet
+          if (WiFi.status() == WL_CONNECTED) {
+            enviarManutencao(tech.c_str(), desc.c_str());
+          }
+        }
+      }
+      break;
+    }
+  }
+}
+
+// Função para enviar dados para a API
+bool sendToAPI(const char* endpoint, String jsonPayload) {
+  if (WiFi.status() != WL_CONNECTED) {
+    Serial.println("WiFi não conectado - dados não enviados");
+    return false;
+  }
+
+  String url = String(API_URL) + endpoint;
+  http.begin(url);
+  http.addHeader("Content-Type", "application/json");
+  http.addHeader("X-API-Key", API_KEY);
+
+  int httpCode = http.POST(jsonPayload);
+
+  if (httpCode > 0) {
+    String response = http.getString();
+    Serial.printf("✓ API Response [%d]: %s\n", httpCode, response.c_str());
+    http.end();
+    return (httpCode == 200);
+  } else {
+    Serial.printf("✗ API Error: %s\n", http.errorToString(httpCode).c_str());
+    http.end();
+    return false;
+  }
+}
+
+// Enviar leitura completa de sensores
+bool enviarLeituraSensores() {
+  StaticJsonDocument<512> doc;
+  doc["serial_number"] = SERIAL_NUMBER;
+  doc["sistema_ligado"] = sistema_ligado;
+  doc["sensor_0_graus"] = sensor_0_graus;
+  doc["sensor_40_graus"] = sensor_40_graus;
+  doc["trava_roda"] = trava_roda;
+  doc["moega_cheia"] = moega_cheia;
+  doc["fosso_cheio"] = fosso_cheio;
+  doc["subindo"] = subindo;
+  doc["descendo"] = descendo;
+  doc["ciclos_hoje"] = stats.ciclosHoje;
+  doc["ciclos_total"] = stats.ciclosTotal;
+  doc["horas_operacao"] = stats.horasOperacao;
+  doc["minutos_operacao"] = stats.minutosOperacao;
+  doc["free_heap"] = ESP.getFreeHeap();
+  doc["uptime_seconds"] = uptimeSeconds;
+
+  String payload;
+  serializeJson(doc, payload);
+
+  Serial.println("📤 Enviando leitura de sensores para API...");
+  return sendToAPI("/api/sensor-reading", payload);
+}
+
+// Enviar evento/log
+bool enviarEvento(const char* eventType, const char* message, const char* sensorName = "", bool sensorValue = false) {
+  StaticJsonDocument<256> doc;
+  doc["serial_number"] = SERIAL_NUMBER;
+  doc["event_type"] = eventType;
+  doc["message"] = message;
+  if (strlen(sensorName) > 0) {
+    doc["sensor_name"] = sensorName;
+    doc["sensor_value"] = sensorValue;
+  }
+
+  String payload;
+  serializeJson(doc, payload);
+
+  Serial.printf("📤 Enviando evento: %s - %s\n", eventType, message);
+  return sendToAPI("/api/event", payload);
+}
+
+// Enviar registro de manutenção
+bool enviarManutencao(const char* technician, const char* description) {
+  StaticJsonDocument<256> doc;
+  doc["serial_number"] = SERIAL_NUMBER;
+  doc["technician"] = technician;
+  doc["description"] = description;
+  doc["horas_operacao"] = stats.horasOperacao;
+
+  String payload;
+  serializeJson(doc, payload);
+
+  Serial.printf("📤 Enviando manutenção para API...\n");
+  return sendToAPI("/api/maintenance", payload);
+}
+
+void handleRoot() {
+  Serial.println("Enviando HTML...");
+  server.send_P(200, "text/html", index_html);
+  Serial.println("HTML enviado!");
+}
+
+void setup() {
+  Serial.begin(115200);
+  delay(1000);
+
+  Serial.println("\n\n═══════════════════════════════");
+  Serial.println("   PILI TECH v1.0 INICIANDO");
+  Serial.println("═══════════════════════════════\n");
+
+  setupPins();
+  digitalWrite(LED_STATUS, HIGH);
+
+  SPIFFS.begin(true);
+
+  // Carregar dados salvos
+  preferences.begin("pilitech", true);
+  stats.ciclosTotal = preferences.getULong("ciclosTotal", 0);
+  stats.horasOperacao = preferences.getULong("horasOp", 0);
+  lastMaintenanceDate = preferences.getString("lastMaint", "Não registrada");
+  preferences.end();
+  Serial.printf("Dados carregados: %lu ciclos, %lu horas\n", stats.ciclosTotal, stats.horasOperacao);
+  Serial.println("Última manutenção: " + lastMaintenanceDate);
+
+  Serial.println("Configurando Access Point...");
+  WiFi.mode(WIFI_AP_STA);
+  WiFi.softAP(AP_SSID, AP_PASSWORD);
+
+  IPAddress IP = WiFi.softAPIP();
+  Serial.printf("\n✓ AP Ativo\n");
+  Serial.printf("  SSID: %s\n", AP_SSID);
+  Serial.printf("  Senha: %s\n", AP_PASSWORD);
+  Serial.printf("  IP: %s\n\n", IP.toString().c_str());
+
+  server.on("/", handleRoot);
+  server.begin();
+  Serial.println("✓ HTTP iniciado (porta 80)");
+
+  webSocket.begin();
+  webSocket.onEvent(onWebSocketEvent);
+  Serial.println("✓ WebSocket iniciado (porta 81)");
+
+  Serial.println("\n🌐 Acesse: http://192.168.4.1\n");
+  digitalWrite(LED_STATUS, LOW);
+}
+
+void loop() {
+  server.handleClient();
+  webSocket.loop();
+
+  unsigned long currentMillis = millis();
+
+  // LED pisca
+  static unsigned long lastLed = 0;
+  if (currentMillis - lastLed >= 1000) {
+    lastLed = currentMillis;
+    digitalWrite(LED_STATUS, !digitalRead(LED_STATUS));
+    uptimeSeconds++;
+  }
+
+  // Lê sensores
+  static unsigned long lastRead = 0;
+  if (currentMillis - lastRead >= 100) {
+    lastRead = currentMillis;
+    readSensors();
+  }
+
+  // Envia dados WS
+  static unsigned long lastSend = 0;
+  if (currentMillis - lastSend >= 500) {
+    lastSend = currentMillis;
+    if (webSocket.connectedClients() > 0) {
+      String jsonData = createJsonData();
+      webSocket.broadcastTXT(jsonData);
+    }
+  }
+
+  // Status serial
+  static unsigned long lastStatus = 0;
+  if (currentMillis - lastStatus >= 30000) {
+    lastStatus = currentMillis;
+    Serial.printf("Up:%lus | Mem:%d | Clients:%d | Ciclos:%lu/%lu\n",
+                  uptimeSeconds, ESP.getFreeHeap(),
+                  webSocket.connectedClients(),
+                  stats.ciclosHoje, stats.ciclosTotal);
+  }
+
+  // Envia dados para NeonDB a cada 5 minutos (se conectado na internet)
+  static unsigned long lastAPISync = 0;
+  if (WiFi.status() == WL_CONNECTED && currentMillis - lastAPISync >= 300000) {
+    lastAPISync = currentMillis;
+    Serial.println("\n🌐 Sincronizando com NeonDB...");
+    if (enviarLeituraSensores()) {
+      Serial.println("✓ Dados sincronizados com sucesso!");
+    } else {
+      Serial.println("✗ Falha ao sincronizar dados");
+    }
+  }
+}

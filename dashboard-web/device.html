@@ -1,0 +1,743 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PILI TECH - Dispositivo</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        :root {
+            --primary: #dc2626;
+            --success: #10b981;
+            --warning: #f59e0b;
+            --danger: #ef4444;
+            --bg: #f1f5f9;
+            --card: #ffffff;
+            --border: #e2e8f0;
+            --text: #0f172a;
+            --text-light: #64748b;
+        }
+
+        html, body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            overflow-x: hidden;
+        }
+
+        #app {
+            display: flex;
+            flex-direction: column;
+            min-height: 100vh;
+        }
+
+        .header {
+            height: 60px;
+            background: white;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 24px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+        }
+
+        .header-left {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .back-btn {
+            padding: 8px 16px;
+            background: var(--bg);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--text);
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .back-btn:hover {
+            background: var(--border);
+        }
+
+        .logo {
+            font-size: 20px;
+            font-weight: 700;
+            color: var(--primary);
+        }
+
+        .status {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        .status-badge {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 12px;
+            background: var(--bg);
+            border-radius: 20px;
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--success);
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.6; }
+        }
+
+        .tabs {
+            height: 50px;
+            background: white;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            gap: 4px;
+            padding: 4px 12px;
+        }
+
+        .tab {
+            flex: 1;
+            max-width: 200px;
+            border: none;
+            background: transparent;
+            padding: 10px;
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--text-light);
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .tab.active {
+            background: var(--primary);
+            color: white;
+        }
+
+        .content {
+            flex: 1;
+            padding: 24px;
+            max-width: 1400px;
+            margin: 0 auto;
+            width: 100%;
+        }
+
+        .panel {
+            display: none;
+        }
+
+        .panel.active {
+            display: block;
+        }
+
+        .card {
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+            margin-bottom: 16px;
+        }
+
+        .card-title {
+            font-size: 13px;
+            font-weight: 700;
+            color: var(--text-light);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 16px;
+            padding-bottom: 12px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        /* Sensors Panel */
+        .sensors-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 12px;
+        }
+
+        .sensor {
+            background: var(--bg);
+            border: 2px solid var(--border);
+            border-radius: 6px;
+            padding: 16px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s;
+            min-height: 120px;
+        }
+
+        .sensor.on {
+            background: var(--success);
+            border-color: var(--success);
+            color: white;
+        }
+
+        .sensor.alert {
+            background: var(--warning);
+            border-color: var(--warning);
+            color: white;
+            animation: alertPulse 1s infinite;
+        }
+
+        @keyframes alertPulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+        }
+
+        .sensor-icon {
+            width: 40px;
+            height: 40px;
+            margin-bottom: 12px;
+        }
+
+        .sensor-name {
+            font-size: 12px;
+            font-weight: 700;
+            text-transform: uppercase;
+            margin-bottom: 8px;
+            opacity: 0.8;
+            text-align: center;
+        }
+
+        .sensor-val {
+            font-size: 14px;
+            font-weight: 600;
+        }
+
+        /* Stats Panel */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 16px;
+        }
+
+        .stat {
+            background: var(--bg);
+            border-radius: 6px;
+            padding: 20px;
+            text-align: center;
+        }
+
+        .stat-num {
+            font-size: 36px;
+            font-weight: 700;
+            color: var(--primary);
+            line-height: 1;
+            margin-bottom: 8px;
+        }
+
+        .stat-label {
+            font-size: 13px;
+            color: var(--text-light);
+            font-weight: 600;
+        }
+
+        /* Maintenance Panel */
+        .maintenance-warning {
+            background: #fef3c7;
+            border: 1px solid var(--warning);
+            border-left: 4px solid var(--warning);
+            border-radius: 6px;
+            padding: 16px;
+            margin-bottom: 16px;
+            display: none;
+        }
+
+        .maintenance-warning.show {
+            display: block;
+        }
+
+        .maintenance-warning.danger {
+            background: #fee2e2;
+            border-color: var(--danger);
+            border-left-color: var(--danger);
+        }
+
+        .warning-title {
+            font-size: 14px;
+            font-weight: 700;
+            color: var(--text);
+            margin-bottom: 8px;
+        }
+
+        .warning-message {
+            font-size: 13px;
+            color: var(--text-light);
+        }
+
+        .progress-area {
+            margin-bottom: 24px;
+        }
+
+        .progress-header {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 10px;
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--text-light);
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 16px;
+            background: #e2e8f0;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, var(--primary), #ef4444);
+            border-radius: 6px;
+            transition: width 0.5s ease;
+        }
+
+        .maintenance-list {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .maintenance-item {
+            background: var(--bg);
+            border-radius: 6px;
+            padding: 16px;
+            border-left: 3px solid var(--success);
+        }
+
+        .maintenance-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+
+        .maintenance-tech {
+            font-size: 14px;
+            font-weight: 700;
+            color: var(--text);
+        }
+
+        .maintenance-date {
+            font-size: 11px;
+            color: var(--text-light);
+        }
+
+        .maintenance-hours {
+            font-size: 13px;
+            color: var(--text-light);
+        }
+
+        .btn {
+            width: 100%;
+            padding: 12px;
+            border: none;
+            border-radius: 6px;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            background: var(--primary);
+            color: white;
+        }
+
+        .btn:active {
+            transform: scale(0.98);
+        }
+
+        /* System Panel */
+        .info-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 12px 0;
+            border-bottom: 1px solid var(--border);
+            font-size: 14px;
+        }
+
+        .info-row:last-child {
+            border-bottom: none;
+        }
+
+        .info-label {
+            color: var(--text-light);
+            font-weight: 500;
+        }
+
+        .info-value {
+            font-weight: 700;
+            color: var(--text);
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: var(--text-light);
+        }
+
+        .empty-state h3 {
+            font-size: 18px;
+            margin-bottom: 8px;
+        }
+
+        .empty-state p {
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+    <div id="app">
+        <div class="header">
+            <div class="header-left">
+                <button class="back-btn" onclick="goBack()">← Voltar</button>
+                <div class="logo">PILI TECH</div>
+            </div>
+            <div class="status">
+                <div class="status-badge">
+                    <div class="status-dot"></div>
+                    <span id="deviceStatus">Carregando...</span>
+                </div>
+                <div class="status-badge">
+                    <span id="lastUpdate">-</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="tabs">
+            <button class="tab active" data-panel="sensors">Sensores</button>
+            <button class="tab" data-panel="stats">Estatísticas</button>
+            <button class="tab" data-panel="maintenance">Manutenções</button>
+            <button class="tab" data-panel="system">Sistema</button>
+        </div>
+
+        <div class="content">
+            <!-- Sensors Panel -->
+            <div id="sensors" class="panel active">
+                <div class="card">
+                    <div class="card-title">Estado dos Sensores</div>
+                    <div class="sensors-grid" id="sensorsGrid">
+                        <!-- Row 1 -->
+                        <div class="sensor" id="sensor-sistema">
+                            <div class="sensor-icon">⚙️</div>
+                            <div class="sensor-name">Sistema</div>
+                            <div class="sensor-val">-</div>
+                        </div>
+                        <div class="sensor" id="sensor-0graus">
+                            <div class="sensor-icon">🔵</div>
+                            <div class="sensor-name">0°</div>
+                            <div class="sensor-val">-</div>
+                        </div>
+                        <div class="sensor" id="sensor-40graus">
+                            <div class="sensor-icon">🔴</div>
+                            <div class="sensor-name">40°</div>
+                            <div class="sensor-val">-</div>
+                        </div>
+                        <div class="sensor" id="sensor-trava">
+                            <div class="sensor-icon">🔒</div>
+                            <div class="sensor-name">Trava</div>
+                            <div class="sensor-val">-</div>
+                        </div>
+                        <!-- Row 2 -->
+                        <div class="sensor" id="sensor-subindo">
+                            <div class="sensor-icon">⬆️</div>
+                            <div class="sensor-name">Subindo</div>
+                            <div class="sensor-val">-</div>
+                        </div>
+                        <div class="sensor" id="sensor-descendo">
+                            <div class="sensor-icon">⬇️</div>
+                            <div class="sensor-name">Descendo</div>
+                            <div class="sensor-val">-</div>
+                        </div>
+                        <div class="sensor" id="sensor-moega">
+                            <div class="sensor-icon">📦</div>
+                            <div class="sensor-name">Moega</div>
+                            <div class="sensor-val">-</div>
+                        </div>
+                        <div class="sensor" id="sensor-fosso">
+                            <div class="sensor-icon">🕳️</div>
+                            <div class="sensor-name">Fosso</div>
+                            <div class="sensor-val">-</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Stats Panel -->
+            <div id="stats" class="panel">
+                <div class="card">
+                    <div class="card-title">Estatísticas de Operação</div>
+                    <div class="stats-grid">
+                        <div class="stat">
+                            <div class="stat-num" id="statCiclosHoje">0</div>
+                            <div class="stat-label">Ciclos Hoje</div>
+                        </div>
+                        <div class="stat">
+                            <div class="stat-num" id="statCiclosTotal">0</div>
+                            <div class="stat-label">Ciclos Total</div>
+                        </div>
+                        <div class="stat">
+                            <div class="stat-num" id="statHorimetro">0h</div>
+                            <div class="stat-label">Horímetro</div>
+                        </div>
+                        <div class="stat">
+                            <div class="stat-num" id="statUptime">0h</div>
+                            <div class="stat-label">Uptime</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-title">Progresso de Manutenção</div>
+                    <div class="progress-area">
+                        <div class="progress-header">
+                            <span>Próxima Manutenção</span>
+                            <span id="progressText">0 / 2000 horas</span>
+                        </div>
+                        <div class="progress-bar">
+                            <div class="progress-fill" id="progressFill" style="width: 0%"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Maintenance Panel -->
+            <div id="maintenance" class="panel">
+                <div id="maintenanceWarning" class="maintenance-warning">
+                    <div class="warning-title">⚠️ Atenção: Manutenção Necessária</div>
+                    <div class="warning-message" id="warningMessage">-</div>
+                </div>
+
+                <div class="card">
+                    <div class="card-title">Histórico de Manutenções</div>
+                    <div class="maintenance-list" id="maintenanceList"></div>
+                </div>
+
+                <button class="btn" onclick="addMaintenance()">+ Registrar Nova Manutenção</button>
+            </div>
+
+            <!-- System Panel -->
+            <div id="system" class="panel">
+                <div class="card">
+                    <div class="card-title">Informações do Dispositivo</div>
+                    <div class="info-row">
+                        <span class="info-label">Número de Série</span>
+                        <span class="info-value" id="infoSerial">-</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">Versão Firmware</span>
+                        <span class="info-value" id="infoVersion">-</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">Uptime</span>
+                        <span class="info-value" id="infoUptime">-</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">WiFi RSSI</span>
+                        <span class="info-value" id="infoRSSI">-</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">Memória Livre</span>
+                        <span class="info-value" id="infoMemory">-</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">Última Sincronização</span>
+                        <span class="info-value" id="infoLastSync">-</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_URL = 'http://localhost:3000/api';
+        const API_KEY = 'pilitech2025';
+        const urlParams = new URLSearchParams(window.location.search);
+        const serialNumber = urlParams.get('serial') || '00002025';
+        let refreshInterval;
+
+        // Tab navigation
+        document.querySelectorAll('.tab').forEach(tab => {
+            tab.addEventListener('click', () => {
+                document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+                document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+
+                tab.classList.add('active');
+                document.getElementById(tab.dataset.panel).classList.add('active');
+            });
+        });
+
+        // Load device data
+        async function loadDeviceData() {
+            try {
+                const response = await fetch(`${API_URL}/logs/recent?serial=${serialNumber}&limit=10`, {
+                    headers: {
+                        'X-API-Key': API_KEY
+                    }
+                });
+
+                if (!response.ok) throw new Error('Failed to fetch');
+
+                const data = await response.json();
+
+                if (data.length > 0) {
+                    renderDeviceData(data[0]);
+                    updateStatus(data[0]);
+                }
+            } catch (error) {
+                console.error('Error loading device data:', error);
+                document.getElementById('deviceStatus').textContent = 'Erro ao carregar';
+            }
+        }
+
+        function renderDeviceData(log) {
+            // Sensors
+            const sensorMap = {
+                'sensor-sistema': log.sensor_sistema ? 'ON' : 'OFF',
+                'sensor-0graus': log.sensor_0graus ? 'ON' : 'OFF',
+                'sensor-40graus': log.sensor_40graus ? 'ON' : 'OFF',
+                'sensor-trava': log.sensor_trava ? 'ON' : 'OFF',
+                'sensor-subindo': log.sensor_subindo ? 'ON' : 'OFF',
+                'sensor-descendo': log.sensor_descendo ? 'ON' : 'OFF',
+                'sensor-moega': log.sensor_moega ? 'ON' : 'OFF',
+                'sensor-fosso': log.sensor_fosso ? 'ON' : 'OFF'
+            };
+
+            Object.keys(sensorMap).forEach(id => {
+                const element = document.getElementById(id);
+                const value = sensorMap[id];
+                element.querySelector('.sensor-val').textContent = value;
+
+                if (value === 'ON') {
+                    element.classList.add('on');
+                } else {
+                    element.classList.remove('on');
+                }
+            });
+
+            // Stats
+            document.getElementById('statCiclosHoje').textContent = log.ciclos_hoje || 0;
+            document.getElementById('statCiclosTotal').textContent = log.ciclos_total || 0;
+            document.getElementById('statHorimetro').textContent = `${log.horas_operacao || 0}h`;
+            document.getElementById('statUptime').textContent = formatUptime(log.uptime_seconds || 0);
+
+            // Progress
+            const hours = parseInt(log.horas_operacao) || 0;
+            const progress = Math.min((hours / 2000) * 100, 100);
+            document.getElementById('progressFill').style.width = `${progress}%`;
+            document.getElementById('progressText').textContent = `${hours} / 2000 horas`;
+
+            // Maintenance warning
+            const warning = document.getElementById('maintenanceWarning');
+            const warningMsg = document.getElementById('warningMessage');
+
+            if (hours >= 2000) {
+                warning.classList.add('show', 'danger');
+                warningMsg.textContent = `Manutenção obrigatória! O horímetro está em ${hours} horas (limite: 2000h). Agende manutenção imediatamente.`;
+            } else if (hours >= 1800) {
+                warning.classList.add('show');
+                warning.classList.remove('danger');
+                warningMsg.textContent = `Manutenção preventiva recomendada. O horímetro está em ${hours} horas. Restam ${2000 - hours} horas até a manutenção obrigatória.`;
+            } else {
+                warning.classList.remove('show');
+            }
+
+            // System info
+            document.getElementById('infoSerial').textContent = log.serial_number || serialNumber;
+            document.getElementById('infoVersion').textContent = '1.0';
+            document.getElementById('infoUptime').textContent = formatUptime(log.uptime_seconds || 0);
+            document.getElementById('infoRSSI').textContent = '-';
+            document.getElementById('infoMemory').textContent = '-';
+            document.getElementById('infoLastSync').textContent = new Date(log.timestamp).toLocaleString('pt-BR');
+        }
+
+        function updateStatus(log) {
+            const lastUpdate = new Date(log.timestamp);
+            const now = new Date();
+            const minutesSinceUpdate = (now - lastUpdate) / 1000 / 60;
+            const isOnline = minutesSinceUpdate < 5;
+
+            document.getElementById('deviceStatus').textContent = isOnline ? `Dispositivo #${serialNumber} Online` : `Dispositivo #${serialNumber} Offline`;
+            document.getElementById('lastUpdate').textContent = lastUpdate.toLocaleTimeString('pt-BR');
+        }
+
+        function formatUptime(seconds) {
+            const hours = Math.floor(seconds / 3600);
+            const minutes = Math.floor((seconds % 3600) / 60);
+            return `${hours}h ${minutes}m`;
+        }
+
+        // Load maintenance history from localStorage
+        function loadMaintenanceHistory() {
+            const history = JSON.parse(localStorage.getItem(`maintenance_${serialNumber}`) || '[]');
+
+            if (history.length === 0) {
+                document.getElementById('maintenanceList').innerHTML = '<div class="empty-state"><h3>Nenhuma manutenção registrada</h3><p>Histórico de manutenções aparecerá aqui</p></div>';
+                return;
+            }
+
+            const html = history.map(item => `
+                <div class="maintenance-item">
+                    <div class="maintenance-header">
+                        <div class="maintenance-tech">👨‍🔧 ${item.technician}</div>
+                        <div class="maintenance-date">${new Date(item.date).toLocaleDateString('pt-BR')}</div>
+                    </div>
+                    <div class="maintenance-hours">Horímetro: ${item.hours}h</div>
+                </div>
+            `).join('');
+
+            document.getElementById('maintenanceList').innerHTML = html;
+        }
+
+        function addMaintenance() {
+            const technician = prompt('Nome do técnico:');
+            if (!technician) return;
+
+            const hours = prompt('Horímetro atual:');
+            if (!hours) return;
+
+            const history = JSON.parse(localStorage.getItem(`maintenance_${serialNumber}`) || '[]');
+            history.unshift({
+                technician: technician,
+                date: new Date().toISOString(),
+                hours: parseInt(hours)
+            });
+
+            localStorage.setItem(`maintenance_${serialNumber}`, JSON.stringify(history));
+            loadMaintenanceHistory();
+        }
+
+        function goBack() {
+            window.location.href = 'index.html';
+        }
+
+        // Initial load
+        loadDeviceData();
+        loadMaintenanceHistory();
+        refreshInterval = setInterval(loadDeviceData, 30000); // 30s
+    </script>
+</body>
+</html>

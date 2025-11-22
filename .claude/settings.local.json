@@ -1,0 +1,28 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(del \"c:\\Users\\danie\\OneDrive\\4. APLICATIVOS\\sketch_pilitech\\test_pins.ino\")",
+      "Bash(dir)",
+      "Bash(python -m http.server:*)",
+      "Bash(timeout /t 3)",
+      "Bash(nul)",
+      "Bash(curl:*)",
+      "Bash(del \"c:\\Users\\danie\\OneDrive\\4. APLICATIVOS\\sketch_pilitech\\dashboard-web\\reports.html\")",
+      "Bash(netstat:*)",
+      "Bash(findstr:*)",
+      "Bash(dir:*)",
+      "Bash(git init:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(gh --version:*)",
+      "Bash(gh repo create:*)",
+      "Bash(git push)",
+      "Bash(powershell:*)",
+      "Bash(del \"c:\\Users\\danie\\OneDrive\\4. APLICATIVOS\\sketch_pilitech\\sketch_pilitech_backup.ino\")",
+      "Bash(del \"c:\\Users\\danie\\OneDrive\\4. APLICATIVOS\\sketch_pilitech\\sketch_pilitech_v8.ino\")",
+      "Bash(del \"c:\\Users\\danie\\OneDrive\\4. APLICATIVOS\\sketch_pilitech\\test_simple.ino\")"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}
