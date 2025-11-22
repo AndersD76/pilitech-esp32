@@ -120,7 +120,7 @@ Sistema completo de monitoramento para tombador de grãos com ESP32-S3, interfac
 - **Framework**: Express.js
 - **Database**: PostgreSQL (NeonDB)
 - **Deploy**: Railway
-- **URL**: https://pilitech-production.up.railway.app
+- **URL**: https://pilitech-esp32-production.up.railway.app
 
 ### Banco de Dados
 - **Provider**: NeonDB (PostgreSQL Serverless)
@@ -220,7 +220,7 @@ Configure as variáveis de ambiente no Railway:
 
 ### Base URL
 ```
-https://pilitech-production.up.railway.app
+https://pilitech-esp32-production.up.railway.app
 ```
 
 ### Autenticação
@@ -415,7 +415,7 @@ O ESP32 sincroniza automaticamente com o NeonDB quando:
 - Verifique conexão internet (LED deve piscar)
 - Confirme URL da API no código
 - Verifique logs no Railway
-- Teste endpoint: https://pilitech-production.up.railway.app/health
+- Teste endpoint: https://pilitech-esp32-production.up.railway.app/health
 
 ---
 
