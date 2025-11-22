@@ -1,0 +1,12 @@
+{
+  "name": "pilitech-root",
+  "version": "1.0.0",
+  "description": "PILI TECH ESP32 System",
+  "scripts": {
+    "start": "cd api-server && node server.js",
+    "postinstall": "cd api-server && npm install"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
