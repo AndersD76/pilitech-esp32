@@ -46,7 +46,11 @@ Sistema completo de monitoramento para tombador de grãos com ESP32-S3, interfac
 - ✅ 8 entradas digitais isoladas (INPUT_PULLDOWN)
 - ✅ WebSocket em tempo real (porta 81)
 - ✅ Interface web embarcada
-- ✅ Sincronização automática com NeonDB a cada 5 minutos
+- ✅ Sincronização automática com NeonDB a cada 5 minutos (quando online)
+- ✅ **Buffer offline SPIFFS**: salva snapshots a cada 15 minutos quando sem internet
+- ✅ **Sincronização automática de backlog**: envia todos os dados acumulados ao reconectar
+- ✅ **Armazenamento de até 96 snapshots** (24 horas de histórico offline)
+- ✅ **Envio automático de alertas** para NeonDB quando moega/fosso ficam cheios
 - ✅ Armazenamento local persistente (NVS)
 - ✅ Logging de eventos e alertas
 
@@ -353,13 +357,27 @@ maintenances
 
 ## 📊 Sincronização de Dados
 
+### Modo Online (WiFi conectado)
 O ESP32 sincroniza automaticamente com o NeonDB quando:
-- ✅ Conectado na internet via WiFi
-- ✅ A cada 5 minutos (leituras completas)
-- ✅ Ao registrar uma manutenção
-- ✅ Ao ocorrer um alerta (moega/fosso cheio)
+- ✅ A cada **5 minutos** - envia leitura completa de sensores ao vivo
+- ✅ Ao registrar uma **manutenção** - envia imediatamente para o banco
+- ✅ Ao ocorrer um **alerta** - envia eventos de moega/fosso cheio em tempo real
 
-**Importante**: Mesmo sem internet, o sistema funciona normalmente salvando dados localmente na memória NVS do ESP32.
+### Modo Offline (Sem internet)
+**Sistema de Buffer Inteligente com SPIFFS:**
+- 💾 Salva **snapshots completos** a cada **15 minutos** no sistema de arquivos
+- 📦 Armazena até **96 snapshots** (equivalente a **24 horas** de histórico)
+- 🔄 Buffer circular: quando cheio, sobrescreve os dados mais antigos
+- ⚡ Ao reconectar WiFi, envia **automaticamente todos os snapshots acumulados**
+- 🗑️ Limpa snapshots após upload bem-sucedido
+
+### Dados Persistentes (NVS)
+Salvos permanentemente na memória não-volátil:
+- Ciclos totais
+- Horas de operação total
+- Última manutenção registrada
+
+**Garantia**: Com o sistema de buffer, **NENHUM dado é perdido** mesmo que o ESP32 fique offline por 24 horas!
 
 ---
 

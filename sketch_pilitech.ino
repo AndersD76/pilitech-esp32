@@ -19,10 +19,21 @@ const char* SERIAL_NUMBER = "00002025";
 const char* API_URL = "https://pilitech-esp32-production.up.railway.app";
 const char* API_KEY = "pilitech_00002025_secret_key";
 
+// Buffer Configuration
+#define BUFFER_INTERVAL 900000  // 15 minutos = 900.000 ms
+#define MAX_BUFFER_SIZE 96      // 24 horas de snapshots (15min cada)
+#define BUFFER_DIR "/buffer"
+
 WebServer server(80);
 WebSocketsServer webSocket(81);
 Preferences preferences;
 HTTPClient http;
+
+bool lastWiFiConnected = false;  // Rastreia mudança de estado WiFi
+
+// Rastrear estado anterior para detectar alertas
+bool lastMoegaCheia = false;
+bool lastFossoCheio = false;
 
 // Pinos - Mapeamento WaveShare ESP32-S3 Digital Inputs
 // DI1=GPIO4, DI2=GPIO5, DI3=GPIO6, DI4=GPIO7, DI5=GPIO8, DI6=GPIO9, DI7=GPIO10, DI8=GPIO11
@@ -832,6 +843,123 @@ bool enviarManutencao(const char* technician, const char* description) {
   return sendToAPI("/api/maintenance", payload);
 }
 
+// ====== BUFFER OFFLINE ======
+
+// Salvar snapshot atual no buffer SPIFFS
+void saveSnapshotToBuffer() {
+  // Criar documento JSON com leitura atual
+  StaticJsonDocument<512> doc;
+  doc["serial_number"] = SERIAL_NUMBER;
+  doc["timestamp"] = millis();
+  doc["sistema_ligado"] = sistema_ligado;
+  doc["sensor_0_graus"] = sensor_0_graus;
+  doc["sensor_40_graus"] = sensor_40_graus;
+  doc["trava_roda"] = trava_roda;
+  doc["moega_cheia"] = moega_cheia;
+  doc["fosso_cheio"] = fosso_cheio;
+  doc["subindo"] = subindo;
+  doc["descendo"] = descendo;
+  doc["ciclos_hoje"] = stats.ciclosHoje;
+  doc["ciclos_total"] = stats.ciclosTotal;
+  doc["horas_operacao"] = stats.horasOperacao;
+  doc["minutos_operacao"] = stats.minutosOperacao;
+  doc["free_heap"] = ESP.getFreeHeap();
+  doc["uptime_seconds"] = uptimeSeconds;
+
+  // Encontrar próximo slot disponível (circular)
+  int slot = -1;
+  for (int i = 0; i < MAX_BUFFER_SIZE; i++) {
+    String filename = String(BUFFER_DIR) + "/snap_" + String(i) + ".json";
+    if (!SPIFFS.exists(filename)) {
+      slot = i;
+      break;
+    }
+  }
+
+  // Se buffer cheio, sobrescreve o mais antigo (slot 0)
+  if (slot == -1) {
+    slot = 0;
+    Serial.println("⚠ Buffer cheio! Sobrescrevendo snapshot mais antigo");
+  }
+
+  // Salvar no arquivo
+  String filename = String(BUFFER_DIR) + "/snap_" + String(slot) + ".json";
+  File file = SPIFFS.open(filename, "w");
+  if (file) {
+    serializeJson(doc, file);
+    file.close();
+    Serial.printf("💾 Snapshot salvo no buffer: slot %d\n", slot);
+  } else {
+    Serial.println("✗ Erro ao salvar snapshot!");
+  }
+}
+
+// Sincronizar todos os snapshots do buffer com a API
+int syncBufferedData() {
+  if (WiFi.status() != WL_CONNECTED) {
+    Serial.println("WiFi desconectado - sync cancelado");
+    return 0;
+  }
+
+  int synced = 0;
+  int failed = 0;
+
+  Serial.println("\n🔄 Iniciando sincronização de buffer...");
+
+  for (int i = 0; i < MAX_BUFFER_SIZE; i++) {
+    String filename = String(BUFFER_DIR) + "/snap_" + String(i) + ".json";
+
+    if (SPIFFS.exists(filename)) {
+      File file = SPIFFS.open(filename, "r");
+      if (file) {
+        String payload = file.readString();
+        file.close();
+
+        // Tentar enviar
+        Serial.printf("  Enviando snapshot %d...", i);
+        if (sendToAPI("/api/sensor-reading", payload)) {
+          // Sucesso - deletar arquivo
+          SPIFFS.remove(filename);
+          Serial.printf(" ✓ OK (removido)\n");
+          synced++;
+        } else {
+          Serial.printf(" ✗ FALHA\n");
+          failed++;
+          // Continua tentando os próximos (não quebra)
+        }
+
+        delay(200); // Delay entre requisições
+      }
+    }
+  }
+
+  Serial.printf("🔄 Sync completo: %d enviados, %d falharam\n", synced, failed);
+  return synced;
+}
+
+// Contar snapshots pendentes no buffer
+int countBufferedSnapshots() {
+  int count = 0;
+  for (int i = 0; i < MAX_BUFFER_SIZE; i++) {
+    String filename = String(BUFFER_DIR) + "/snap_" + String(i) + ".json";
+    if (SPIFFS.exists(filename)) {
+      count++;
+    }
+  }
+  return count;
+}
+
+// Limpar todo o buffer (usar com cuidado!)
+void clearBuffer() {
+  for (int i = 0; i < MAX_BUFFER_SIZE; i++) {
+    String filename = String(BUFFER_DIR) + "/snap_" + String(i) + ".json";
+    if (SPIFFS.exists(filename)) {
+      SPIFFS.remove(filename);
+    }
+  }
+  Serial.println("🗑️ Buffer limpo!");
+}
+
 void handleRoot() {
   Serial.println("Enviando HTML...");
   server.send_P(200, "text/html", index_html);
@@ -849,7 +977,30 @@ void setup() {
   setupPins();
   digitalWrite(LED_STATUS, HIGH);
 
-  SPIFFS.begin(true);
+  // Inicializar SPIFFS
+  if (!SPIFFS.begin(true)) {
+    Serial.println("✗ Erro ao montar SPIFFS!");
+  } else {
+    Serial.println("✓ SPIFFS montado");
+
+    // Criar diretório de buffer se não existir
+    if (!SPIFFS.exists(BUFFER_DIR)) {
+      // SPIFFS não tem mkdir(), criar arquivo dummy para "criar" o diretório
+      File f = SPIFFS.open(String(BUFFER_DIR) + "/.keep", "w");
+      if (f) {
+        f.close();
+        Serial.println("✓ Diretório de buffer criado");
+      }
+    }
+
+    // Mostrar status do buffer
+    int buffered = countBufferedSnapshots();
+    if (buffered > 0) {
+      Serial.printf("⚠ Buffer contém %d snapshots pendentes\n", buffered);
+    } else {
+      Serial.println("✓ Buffer vazio");
+    }
+  }
 
   // Carregar dados salvos
   preferences.begin("pilitech", true);
@@ -903,6 +1054,36 @@ void loop() {
     readSensors();
   }
 
+  // ====== DETECÇÃO E ENVIO AUTOMÁTICO DE ALERTAS ======
+  // Verifica mudanças nos sensores críticos e envia para NeonDB
+  if (WiFi.status() == WL_CONNECTED) {
+    // Alerta: Moega ficou cheia
+    if (moega_cheia && !lastMoegaCheia) {
+      Serial.println("🚨 ALERTA: Moega cheia detectada!");
+      enviarEvento("ALERT", "Moega cheia! Necessário esvaziamento", "moega", true);
+    }
+    // Moega normalizada
+    else if (!moega_cheia && lastMoegaCheia) {
+      Serial.println("✓ Moega normalizada");
+      enviarEvento("INFO", "Moega esvaziada", "moega", false);
+    }
+
+    // Alerta: Fosso ficou cheio
+    if (fosso_cheio && !lastFossoCheio) {
+      Serial.println("🚨 ALERTA: Fosso cheio detectado!");
+      enviarEvento("ALERT", "Fosso cheio! Necessário esvaziamento", "fosso", true);
+    }
+    // Fosso normalizado
+    else if (!fosso_cheio && lastFossoCheio) {
+      Serial.println("✓ Fosso normalizado");
+      enviarEvento("INFO", "Fosso esvaziado", "fosso", false);
+    }
+  }
+
+  // Atualiza estados anteriores
+  lastMoegaCheia = moega_cheia;
+  lastFossoCheio = fosso_cheio;
+
   // Envia dados WS
   static unsigned long lastSend = 0;
   if (currentMillis - lastSend >= 500) {
@@ -917,17 +1098,51 @@ void loop() {
   static unsigned long lastStatus = 0;
   if (currentMillis - lastStatus >= 30000) {
     lastStatus = currentMillis;
-    Serial.printf("Up:%lus | Mem:%d | Clients:%d | Ciclos:%lu/%lu\n",
+    int buffered = countBufferedSnapshots();
+    Serial.printf("Up:%lus | Mem:%d | Clients:%d | Ciclos:%lu/%lu | Buffer:%d\n",
                   uptimeSeconds, ESP.getFreeHeap(),
                   webSocket.connectedClients(),
-                  stats.ciclosHoje, stats.ciclosTotal);
+                  stats.ciclosHoje, stats.ciclosTotal,
+                  buffered);
   }
 
-  // Envia dados para NeonDB a cada 5 minutos (se conectado na internet)
+  // ====== GERENCIAMENTO OFFLINE/ONLINE ======
+
+  bool wifiConnected = (WiFi.status() == WL_CONNECTED);
+
+  // Detecta RECONEXÃO WiFi (mudança de estado offline->online)
+  if (wifiConnected && !lastWiFiConnected) {
+    Serial.println("\n✓ WiFi RECONECTADO!");
+
+    // Sincronizar buffer pendente
+    int buffered = countBufferedSnapshots();
+    if (buffered > 0) {
+      Serial.printf("📦 Encontrados %d snapshots no buffer. Sincronizando...\n", buffered);
+      int synced = syncBufferedData();
+      Serial.printf("✓ Sincronização completa: %d/%d enviados\n", synced, buffered);
+    } else {
+      Serial.println("✓ Nenhum snapshot pendente");
+    }
+  }
+
+  // Atualiza estado anterior
+  lastWiFiConnected = wifiConnected;
+
+  // ====== SALVAMENTO OFFLINE A CADA 15 MINUTOS ======
+  static unsigned long lastBufferSave = 0;
+  if (!wifiConnected && currentMillis - lastBufferSave >= BUFFER_INTERVAL) {
+    lastBufferSave = currentMillis;
+    Serial.println("\n💾 WiFi offline - salvando snapshot no buffer...");
+    saveSnapshotToBuffer();
+    int buffered = countBufferedSnapshots();
+    Serial.printf("📦 Total no buffer: %d/%d snapshots\n", buffered, MAX_BUFFER_SIZE);
+  }
+
+  // ====== SINCRONIZAÇÃO ONLINE A CADA 5 MINUTOS ======
   static unsigned long lastAPISync = 0;
-  if (WiFi.status() == WL_CONNECTED && currentMillis - lastAPISync >= 300000) {
+  if (wifiConnected && currentMillis - lastAPISync >= 300000) {
     lastAPISync = currentMillis;
-    Serial.println("\n🌐 Sincronizando com NeonDB...");
+    Serial.println("\n🌐 WiFi online - sincronizando dados ao vivo...");
     if (enviarLeituraSensores()) {
       Serial.println("✓ Dados sincronizados com sucesso!");
     } else {
