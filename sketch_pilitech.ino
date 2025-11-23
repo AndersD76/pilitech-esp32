@@ -444,7 +444,8 @@ wifiMsg.textContent='Conectando... tentativa '+msg.attempt+'/10';
 }else if(msg.status==='connected'){
 wifiMsg.style.background='#d1fae5';
 wifiMsg.style.color='#065f46';
-wifiMsg.textContent='WiFi conectado! IP: '+msg.ip;
+wifiMsg.textContent='✓ '+msg.message+' | SSID: '+msg.ssid+' | IP: '+msg.ip;
+addLog('WiFi conectado: '+msg.ssid+' ('+msg.ip+')');
 }else if(msg.status==='failed'){
 wifiMsg.style.background='#fef2f2';
 wifiMsg.style.color='#991b1b';
@@ -690,17 +691,21 @@ void onWebSocketEvent(uint8_t num, WStype_t type, uint8_t *payload, size_t lengt
           }
 
           if (WiFi.status() == WL_CONNECTED) {
-            Serial.println("\n✓ WiFi CONECTADO!");
-            Serial.printf("IP Local: %s\n", WiFi.localIP().toString().c_str());
-            Serial.printf("Gateway: %s\n", WiFi.gatewayIP().toString().c_str());
-            Serial.printf("DNS: %s\n", WiFi.dnsIP().toString().c_str());
-            Serial.printf("RSSI: %d dBm\n", WiFi.RSSI());
+            Serial.println("\n✓ WiFi CONECTADO COM SUCESSO!");
+            Serial.printf("  SSID: %s\n", ssid.c_str());
+            Serial.printf("  IP Local: %s\n", WiFi.localIP().toString().c_str());
+            Serial.printf("  Gateway: %s\n", WiFi.gatewayIP().toString().c_str());
+            Serial.printf("  DNS: %s\n", WiFi.dnsIP().toString().c_str());
+            Serial.printf("  RSSI: %d dBm\n", WiFi.RSSI());
+            Serial.println("  ✓ Internet disponível - dados serão sincronizados com NeonDB");
 
-            // Envia confirmação
-            StaticJsonDocument<128> successDoc;
+            // Envia confirmação com mensagem melhorada
+            StaticJsonDocument<256> successDoc;
             successDoc["cmd"] = "WIFI_STATUS";
             successDoc["status"] = "connected";
             successDoc["ip"] = WiFi.localIP().toString();
+            successDoc["ssid"] = ssid;
+            successDoc["message"] = "Conectado com sucesso! Internet disponível.";
             String successJson;
             serializeJson(successDoc, successJson);
             webSocket.broadcastTXT(successJson);

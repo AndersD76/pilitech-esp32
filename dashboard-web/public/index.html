@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Portal PILI TECH - Monitoramento</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;background:linear-gradient(135deg,#667eea 0%,#764ba2 100%);min-height:100vh;padding:20px}
+.container{max-width:1400px;margin:0 auto}
+.header{background:#fff;border-radius:12px;padding:24px;margin-bottom:20px;box-shadow:0 4px 6px rgba(0,0,0,0.1)}
+.logo{display:flex;align-items:center;gap:12px;font-size:24px;font-weight:700;color:#dc2626}
+.logo svg{width:32px;height:32px;stroke:#dc2626;fill:none}
+.stats-row{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:20px}
+.stat-card{background:#fff;border-radius:12px;padding:20px;box-shadow:0 4px 6px rgba(0,0,0,0.1);text-align:center}
+.stat-value{font-size:36px;font-weight:700;color:#dc2626;line-height:1}
+.stat-label{font-size:12px;color:#6b7280;margin-top:8px;text-transform:uppercase;letter-spacing:0.5px;font-weight:600}
+.devices-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(400px,1fr));gap:16px;margin-bottom:20px}
+.device-card{background:#fff;border-radius:12px;padding:20px;box-shadow:0 4px 6px rgba(0,0,0,0.1);position:relative;overflow:hidden}
+.device-card.offline{opacity:0.6}
+.device-card.offline::after{content:'OFFLINE';position:absolute;top:10px;right:10px;background:#ef4444;color:#fff;padding:4px 12px;border-radius:12px;font-size:10px;font-weight:700}
+.device-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;padding-bottom:12px;border-bottom:2px solid #f3f4f6}
+.device-serial{font-size:18px;font-weight:700;color:#111827}
+.device-name{font-size:12px;color:#6b7280;margin-top:2px}
+.status-badge{padding:4px 12px;border-radius:12px;font-size:11px;font-weight:700;text-transform:uppercase}
+.status-badge.online{background:#d1fae5;color:#065f46}
+.status-badge.offline{background:#fef2f2;color:#991b1b}
+.sensor-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:12px}
+.sensor-item{background:#f9fafb;padding:8px;border-radius:6px;border:2px solid #e5e7eb;font-size:11px;font-weight:600;color:#374151;text-align:center}
+.sensor-item.active{border-color:#10b981;background:#10b981;color:#fff}
+.sensor-item.alert{border-color:#ef4444;background:#ef4444;color:#fff;animation:blink 1s infinite}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:0.7}}
+.sensor-label{font-size:9px;text-transform:uppercase;letter-spacing:0.3px;opacity:0.8}
+.sensor-value{font-size:12px;margin-top:2px;font-weight:700}
+.device-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:12px}
+.device-stat{background:#f9fafb;padding:8px;border-radius:6px;text-align:center}
+.device-stat-value{font-size:18px;font-weight:700;color:#dc2626}
+.device-stat-label{font-size:9px;color:#6b7280;margin-top:2px;text-transform:uppercase}
+.alerts-section{background:#fff;border-radius:12px;padding:20px;box-shadow:0 4px 6px rgba(0,0,0,0.1)}
+.section-title{font-size:18px;font-weight:700;color:#111827;margin-bottom:16px;display:flex;align-items:center;gap:8px}
+.section-title svg{width:20px;height:20px;stroke:#dc2626;fill:none}
+.alert-item{background:#fef2f2;border-left:4px solid #ef4444;padding:12px;border-radius:6px;margin-bottom:8px}
+.alert-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:4px}
+.alert-device{font-weight:700;color:#991b1b;font-size:13px}
+.alert-time{font-size:11px;color:#6b7280}
+.alert-message{font-size:12px;color:#111827}
+.timestamp{font-size:10px;color:#6b7280;margin-top:8px;text-align:center}
+.loading{text-align:center;padding:40px;color:#fff;font-size:18px}
+.refresh-btn{background:#dc2626;color:#fff;border:none;padding:10px 20px;border-radius:6px;font-size:13px;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:8px;transition:all 0.2s}
+.refresh-btn:hover{background:#b91c1c}
+.refresh-btn svg{width:16px;height:16px;stroke:currentColor;fill:none}
+.auto-refresh{font-size:11px;color:#6b7280;margin-top:4px}
+</style>
+</head>
+<body>
+<div class="container">
+<div class="header">
+<div style="display:flex;justify-content:space-between;align-items:center">
+<div class="logo">
+<svg viewBox="0 0 24 24" stroke-width="2"><path d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z"/></svg>
+<div>
+<div>PORTAL PILI TECH</div>
+<div style="font-size:12px;color:#6b7280;font-weight:400">Monitoramento Centralizado de Equipamentos</div>
+</div>
+</div>
+<div style="display:flex;align-items:center;gap:12px">
+<div class="auto-refresh" id="autoRefreshStatus">Atualização automática: 30s</div>
+<button class="refresh-btn" onclick="loadData()">
+<svg viewBox="0 0 24 24" stroke-width="2"><path d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+Atualizar
+</button>
+</div>
+</div>
+</div>
+
+<div class="stats-row">
+<div class="stat-card">
+<div class="stat-value" id="totalDevices">-</div>
+<div class="stat-label">Dispositivos Ativos</div>
+</div>
+<div class="stat-card">
+<div class="stat-value" id="totalReadings">-</div>
+<div class="stat-label">Leituras Registradas</div>
+</div>
+<div class="stat-card">
+<div class="stat-value" id="alerts24h">-</div>
+<div class="stat-label">Alertas (24h)</div>
+</div>
+<div class="stat-card">
+<div class="stat-value" id="totalMaintenances">-</div>
+<div class="stat-label">Manutenções</div>
+</div>
+</div>
+
+<div class="devices-grid" id="devicesGrid">
+<div class="loading">Carregando dispositivos...</div>
+</div>
+
+<div class="alerts-section">
+<div class="section-title">
+<svg viewBox="0 0 24 24" stroke-width="2"><path d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+Alertas Recentes (24h)
+</div>
+<div id="alertsList">
+<div class="loading" style="color:#6b7280;font-size:14px">Carregando alertas...</div>
+</div>
+</div>
+
+<div class="timestamp" id="lastUpdate">Última atualização: --:--:--</div>
+</div>
+
+<script>
+let autoRefreshTimer = null;
+let countdownTimer = null;
+let secondsUntilRefresh = 30;
+
+async function loadData() {
+  try {
+    // Buscar estatísticas
+    const statsRes = await fetch('/api/stats');
+    const stats = await statsRes.json();
+
+    document.getElementById('totalDevices').textContent = stats.total_devices;
+    document.getElementById('totalReadings').textContent = stats.total_readings.toLocaleString('pt-BR');
+    document.getElementById('alerts24h').textContent = stats.alerts_24h;
+    document.getElementById('totalMaintenances').textContent = stats.total_maintenances;
+
+    // Buscar últimas leituras dos dispositivos
+    const readingsRes = await fetch('/api/latest-readings');
+    const readings = await readingsRes.json();
+
+    renderDevices(readings);
+
+    // Buscar alertas
+    const alertsRes = await fetch('/api/recent-alerts');
+    const alerts = await alertsRes.json();
+
+    renderAlerts(alerts);
+
+    // Atualizar timestamp
+    const now = new Date();
+    document.getElementById('lastUpdate').textContent =
+      'Última atualização: ' + now.toLocaleString('pt-BR');
+
+    // Resetar countdown
+    secondsUntilRefresh = 30;
+  } catch (err) {
+    console.error('Erro ao carregar dados:', err);
+  }
+}
+
+function renderDevices(readings) {
+  const grid = document.getElementById('devicesGrid');
+
+  if (readings.length === 0) {
+    grid.innerHTML = '<div class="loading" style="color:#fff">Nenhum dispositivo encontrado</div>';
+    return;
+  }
+
+  grid.innerHTML = readings.map(r => {
+    const isOnline = r.timestamp && (new Date() - new Date(r.timestamp)) < 600000; // 10 min
+    const offlineClass = isOnline ? '' : 'offline';
+
+    return `
+      <div class="device-card ${offlineClass}">
+        <div class="device-header">
+          <div>
+            <div class="device-serial">${r.serial_number}</div>
+            <div class="device-name">${r.name || 'Tombador de Grãos'}</div>
+          </div>
+          <div class="status-badge ${isOnline ? 'online' : 'offline'}">
+            ${isOnline ? 'Online' : 'Offline'}
+          </div>
+        </div>
+
+        ${r.sistema_ligado !== null ? `
+        <div class="sensor-grid">
+          <div class="sensor-item ${r.sistema_ligado ? 'active' : ''}">
+            <div class="sensor-label">Sistema</div>
+            <div class="sensor-value">${r.sistema_ligado ? 'ON' : 'OFF'}</div>
+          </div>
+          <div class="sensor-item ${r.sensor_0_graus ? 'active' : ''}">
+            <div class="sensor-label">0°</div>
+            <div class="sensor-value">${r.sensor_0_graus ? 'Ativo' : 'Inativo'}</div>
+          </div>
+          <div class="sensor-item ${r.sensor_40_graus ? 'active' : ''}">
+            <div class="sensor-label">40°</div>
+            <div class="sensor-value">${r.sensor_40_graus ? 'Ativo' : 'Inativo'}</div>
+          </div>
+          <div class="sensor-item ${r.trava_roda ? 'active' : ''}">
+            <div class="sensor-label">Trava</div>
+            <div class="sensor-value">${r.trava_roda ? 'Ativo' : 'Inativo'}</div>
+          </div>
+          <div class="sensor-item ${r.subindo ? 'active' : ''}">
+            <div class="sensor-label">Subindo</div>
+            <div class="sensor-value">${r.subindo ? 'Sim' : 'Não'}</div>
+          </div>
+          <div class="sensor-item ${r.descendo ? 'active' : ''}">
+            <div class="sensor-label">Descendo</div>
+            <div class="sensor-value">${r.descendo ? 'Sim' : 'Não'}</div>
+          </div>
+          <div class="sensor-item ${r.moega_cheia ? 'alert' : ''}">
+            <div class="sensor-label">Moega</div>
+            <div class="sensor-value">${r.moega_cheia ? 'CHEIA' : 'OK'}</div>
+          </div>
+          <div class="sensor-item ${r.fosso_cheio ? 'alert' : ''}">
+            <div class="sensor-label">Fosso</div>
+            <div class="sensor-value">${r.fosso_cheio ? 'CHEIO' : 'OK'}</div>
+          </div>
+        </div>
+
+        <div class="device-stats">
+          <div class="device-stat">
+            <div class="device-stat-value">${r.ciclos_hoje || 0}</div>
+            <div class="device-stat-label">Ciclos Hoje</div>
+          </div>
+          <div class="device-stat">
+            <div class="device-stat-value">${r.ciclos_total || 0}</div>
+            <div class="device-stat-label">Total</div>
+          </div>
+          <div class="device-stat">
+            <div class="device-stat-value">${r.horas_operacao || 0}h</div>
+            <div class="device-stat-label">Horímetro</div>
+          </div>
+        </div>
+        ` : `
+        <div style="text-align:center;padding:20px;color:#6b7280;font-size:13px">
+          Aguardando primeira leitura...
+        </div>
+        `}
+
+        ${r.timestamp ? `
+        <div style="font-size:10px;color:#6b7280;margin-top:12px;text-align:center;border-top:1px solid #e5e7eb;padding-top:8px">
+          Última leitura: ${new Date(r.timestamp).toLocaleString('pt-BR')}
+        </div>
+        ` : ''}
+      </div>
+    `;
+  }).join('');
+}
+
+function renderAlerts(alerts) {
+  const list = document.getElementById('alertsList');
+
+  if (alerts.length === 0) {
+    list.innerHTML = '<div style="text-align:center;padding:20px;color:#6b7280;font-size:13px">Nenhum alerta nas últimas 24 horas</div>';
+    return;
+  }
+
+  list.innerHTML = alerts.map(a => `
+    <div class="alert-item">
+      <div class="alert-header">
+        <span class="alert-device">${a.serial_number} - ${a.name || 'Tombador'}</span>
+        <span class="alert-time">${new Date(a.timestamp).toLocaleString('pt-BR')}</span>
+      </div>
+      <div class="alert-message">${a.message}</div>
+    </div>
+  `).join('');
+}
+
+function startAutoRefresh() {
+  // Atualização a cada 30 segundos
+  autoRefreshTimer = setInterval(() => {
+    loadData();
+  }, 30000);
+
+  // Contador visual
+  countdownTimer = setInterval(() => {
+    secondsUntilRefresh--;
+    if (secondsUntilRefresh <= 0) {
+      secondsUntilRefresh = 30;
+    }
+    document.getElementById('autoRefreshStatus').textContent =
+      `Atualização automática: ${secondsUntilRefresh}s`;
+  }, 1000);
+}
+
+// Inicializar
+loadData();
+startAutoRefresh();
+</script>
+</body>
+</html>
