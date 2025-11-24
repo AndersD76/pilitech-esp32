@@ -75,7 +75,7 @@ const char index_html[] PROGMEM = R"rawliteral(<!DOCTYPE html>
 <title>PILI TECH v1.0</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
-body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;background:linear-gradient(135deg,#667eea 0%,#764ba2 100%);width:1024px;height:600px;overflow:hidden}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;background:linear-gradient(135deg,#dc2626 0%,#7f1d1d 50%,#000 100%);width:1024px;height:600px;overflow:hidden}
 .header{height:60px;background:#fff;border-bottom:1px solid #e5e7eb;display:flex;align-items:center;justify-content:space-between;padding:0 24px;box-shadow:0 1px 3px rgba(0,0,0,0.1)}
 .logo{display:flex;align-items:center;gap:12px;font-size:20px;font-weight:700;color:#dc2626}
 .logo svg{width:28px;height:28px;stroke:#dc2626;fill:none}

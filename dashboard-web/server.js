@@ -115,6 +115,31 @@ app.get('/api/recent-alerts', async (req, res) => {
   }
 });
 
+// API: Logs recentes (últimas 24h) - todos os tipos de eventos
+app.get('/api/logs', async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT
+        d.serial_number,
+        d.name,
+        e.timestamp,
+        e.event_type,
+        e.message,
+        e.sensor_name,
+        e.sensor_value
+      FROM event_logs e
+      JOIN devices d ON d.id = e.device_id
+      WHERE e.timestamp > NOW() - INTERVAL '24 hours'
+      ORDER BY e.timestamp DESC
+      LIMIT 100
+    `);
+    res.json(result.rows);
+  } catch (err) {
+    console.error('Erro ao buscar logs:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // API: Estatísticas gerais
 app.get('/api/stats', async (req, res) => {
   try {

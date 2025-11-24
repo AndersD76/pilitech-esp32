@@ -6,7 +6,7 @@
 <title>Portal PILI TECH - Monitoramento</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
-body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;background:linear-gradient(135deg,#667eea 0%,#764ba2 100%);min-height:100vh;padding:20px}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;background:linear-gradient(135deg,#dc2626 0%,#7f1d1d 50%,#000 100%);min-height:100vh;padding:20px}
 .container{max-width:1400px;margin:0 auto}
 .header{background:#fff;border-radius:12px;padding:24px;margin-bottom:20px;box-shadow:0 4px 6px rgba(0,0,0,0.1)}
 .logo{display:flex;align-items:center;gap:12px;font-size:24px;font-weight:700;color:#dc2626}
@@ -50,6 +50,21 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;ba
 .refresh-btn:hover{background:#b91c1c}
 .refresh-btn svg{width:16px;height:16px;stroke:currentColor;fill:none}
 .auto-refresh{font-size:11px;color:#6b7280;margin-top:4px}
+.logs-section{background:#fff;border-radius:12px;padding:20px;box-shadow:0 4px 6px rgba(0,0,0,0.1);margin-bottom:20px}
+.log-item{background:#f9fafb;border-left:4px solid #6b7280;padding:10px 12px;border-radius:6px;margin-bottom:6px;font-size:12px}
+.log-item.info{border-left-color:#3b82f6;background:#eff6ff}
+.log-item.warning{border-left-color:#f59e0b;background:#fffbeb}
+.log-item.error{border-left-color:#ef4444;background:#fef2f2}
+.log-item.alert{border-left-color:#991b1b;background:#fef2f2;font-weight:600}
+.log-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:4px}
+.log-device{font-weight:700;color:#111827;font-size:12px}
+.log-time{font-size:10px;color:#6b7280}
+.log-type{display:inline-block;padding:2px 8px;border-radius:4px;font-size:9px;font-weight:700;text-transform:uppercase;margin-left:8px}
+.log-type.info{background:#dbeafe;color:#1e40af}
+.log-type.warning{background:#fef3c7;color:#92400e}
+.log-type.error{background:#fecaca;color:#991b1b}
+.log-type.alert{background:#fee2e2;color:#7f1d1d}
+.log-message{color:#374151;line-height:1.5}
 </style>
 </head>
 <body>
@@ -96,6 +111,16 @@ Atualizar
 <div class="loading">Carregando dispositivos...</div>
 </div>
 
+<div class="logs-section">
+<div class="section-title">
+<svg viewBox="0 0 24 24" stroke-width="2"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/></svg>
+Registro de Eventos (24h)
+</div>
+<div id="logsList">
+<div class="loading" style="color:#6b7280;font-size:14px">Carregando logs...</div>
+</div>
+</div>
+
 <div class="alerts-section">
 <div class="section-title">
 <svg viewBox="0 0 24 24" stroke-width="2"><path d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
@@ -130,6 +155,12 @@ async function loadData() {
     const readings = await readingsRes.json();
 
     renderDevices(readings);
+
+    // Buscar logs
+    const logsRes = await fetch('/api/logs');
+    const logs = await logsRes.json();
+
+    renderLogs(logs);
 
     // Buscar alertas
     const alertsRes = await fetch('/api/recent-alerts');
@@ -256,6 +287,31 @@ function renderAlerts(alerts) {
       <div class="alert-message">${a.message}</div>
     </div>
   `).join('');
+}
+
+function renderLogs(logs) {
+  const list = document.getElementById('logsList');
+
+  if (logs.length === 0) {
+    list.innerHTML = '<div style="text-align:center;padding:20px;color:#6b7280;font-size:13px">Nenhum evento registrado nas últimas 24 horas</div>';
+    return;
+  }
+
+  list.innerHTML = logs.map(log => {
+    const eventType = (log.event_type || 'INFO').toLowerCase();
+    return `
+      <div class="log-item ${eventType}">
+        <div class="log-header">
+          <div>
+            <span class="log-device">${log.serial_number}</span>
+            <span class="log-type ${eventType}">${log.event_type || 'INFO'}</span>
+          </div>
+          <span class="log-time">${new Date(log.timestamp).toLocaleString('pt-BR')}</span>
+        </div>
+        <div class="log-message">${log.message}</div>
+      </div>
+    `;
+  }).join('');
 }
 
 function startAutoRefresh() {
