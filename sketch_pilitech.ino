@@ -121,10 +121,19 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;ba
 .info-value{color:#111827;font-weight:700}
 .input{width:100%;padding:10px;border:2px solid #e5e7eb;border-radius:6px;font-size:13px;margin:6px 0;font-family:inherit}
 .input:focus{outline:none;border-color:#dc2626}
-.logs-area{background:#f9fafb;padding:10px;border-radius:6px;font-size:11px;font-family:monospace;line-height:1.6;color:#374151;height:400px;overflow-y:auto}
+.logs-area{background:#f9fafb;padding:10px;border-radius:6px;font-size:11px;font-family:monospace;line-height:1.6;color:#374151;height:420px;overflow-y:auto}
 .faq-item{background:#f9fafb;padding:12px;border-radius:6px;margin:8px 0;border-left:3px solid #dc2626}
 .faq-q{font-weight:700;color:#111827;font-size:13px;margin-bottom:6px}
 .faq-a{color:#4b5563;font-size:12px;line-height:1.6}
+.modal{display:none;position:fixed;z-index:999;left:0;top:0;width:100%;height:100%;background:rgba(0,0,0,0.7);align-items:center;justify-content:center}
+.modal.show{display:flex}
+.modal-content{background:#fff;border-radius:12px;padding:24px;width:500px;max-height:80%;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,0.3)}
+.modal-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;padding-bottom:12px;border-bottom:2px solid #f3f4f6}
+.modal-title{font-size:18px;font-weight:700;color:#111827}
+.modal-close{background:none;border:none;font-size:24px;color:#6b7280;cursor:pointer;padding:0;width:32px;height:32px;display:flex;align-items:center;justify-content:center;border-radius:6px;transition:all 0.2s}
+.modal-close:hover{background:#f3f4f6;color:#111827}
+.modal-body{margin-bottom:20px}
+.modal-footer{display:flex;gap:10px;justify-content:flex-end}
 </style>
 </head>
 <body>
@@ -150,12 +159,12 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;ba
 Dashboard
 </button>
 <button class="tab" onclick="switchTab(1)">
-<svg viewBox="0 0 24 24" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 1v6m0 6v6M5.6 5.6l4.2 4.2m5.6 5.6l4.2 4.2m0-16.4l-4.2 4.2M9.8 14.2l-4.2 4.2"/></svg>
-Sistema
-</button>
-<button class="tab" onclick="switchTab(2)">
 <svg viewBox="0 0 24 24" stroke-width="2"><path d="M14.7 6.3a1 1 0 000 1.4l1.6 1.6a1 1 0 001.4 0l3.77-3.77a6 6 0 01-7.94 7.94l-6.91 6.91a2.12 2.12 0 01-3-3l6.91-6.91a6 6 0 017.94-7.94l-3.76 3.76z"/></svg>
 Manutenção
+</button>
+<button class="tab" onclick="switchTab(2)">
+<svg viewBox="0 0 24 24" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 1v6m0 6v6M5.6 5.6l4.2 4.2m5.6 5.6l4.2 4.2m0-16.4l-4.2 4.2M9.8 14.2l-4.2 4.2"/></svg>
+Sistema
 </button>
 <button class="tab" onclick="switchTab(3)">
 <svg viewBox="0 0 24 24" stroke-width="2"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/></svg>
@@ -242,7 +251,53 @@ Produção e Horímetro
 </div>
 </div>
 </div>
-<div class="panel" style="grid-template-rows:180px 250px">
+<div class="panel" style="grid-template-rows:220px 240px">
+<div class="card">
+<div class="card-title">
+<svg viewBox="0 0 24 24" stroke-width="2"><path d="M14.7 6.3a1 1 0 000 1.4l1.6 1.6a1 1 0 001.4 0l3.77-3.77a6 6 0 01-7.94 7.94l-6.91 6.91a2.12 2.12 0 01-3-3l6.91-6.91a6 6 0 017.94-7.94l-3.76 3.76z"/></svg>
+Manutenção Preventiva
+</div>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px">
+<div class="info-row" style="flex-direction:column;align-items:flex-start;gap:4px">
+<span class="info-label">Última Manutenção</span>
+<span class="info-value" id="lastMaint" style="font-size:11px">Não registrada</span>
+</div>
+<div class="info-row" style="flex-direction:column;align-items:flex-start;gap:4px">
+<span class="info-label">Intervalo</span>
+<span class="info-value">2000 horas</span>
+</div>
+</div>
+<div style="margin-top:20px">
+<button onclick="openMaintModal()" class="btn btn-success" style="width:100%">
+<svg viewBox="0 0 24 24" stroke-width="2"><path d="M12 4v16m8-8H4"/></svg>
+Nova Manutenção
+</button>
+</div>
+</div>
+<div class="card">
+<div class="card-title">
+<svg viewBox="0 0 24 24" stroke-width="2"><path d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"/></svg>
+Contatos de Suporte
+</div>
+<div class="info-row">
+<span class="info-label">Telefone</span>
+<span class="info-value">(54) 3321-4976</span>
+</div>
+<div class="info-row">
+<span class="info-label">Email</span>
+<span class="info-value">suporte@pili.ind.br</span>
+</div>
+<div class="info-row">
+<span class="info-label">Suporte Técnico</span>
+<span class="info-value">suporte@pili.ind.br</span>
+</div>
+<div class="info-row">
+<span class="info-label">Website</span>
+<span class="info-value">www.pili.ind.br</span>
+</div>
+</div>
+</div>
+<div class="panel" style="grid-template-rows:200px 260px">
 <div class="card">
 <div class="card-title">
 <svg viewBox="0 0 24 24" stroke-width="2"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
@@ -278,54 +333,6 @@ Configuração WiFi
 Conectar WiFi
 </button>
 <div id="wifiMsg" style="margin-top:12px;padding:10px;border-radius:6px;display:none;font-size:12px;font-weight:600"></div>
-</div>
-</div>
-<div class="panel" style="grid-template-rows:auto">
-<div class="card" style="max-height:460px;overflow-y:auto">
-<div class="card-title">
-<svg viewBox="0 0 24 24" stroke-width="2"><path d="M14.7 6.3a1 1 0 000 1.4l1.6 1.6a1 1 0 001.4 0l3.77-3.77a6 6 0 01-7.94 7.94l-6.91 6.91a2.12 2.12 0 01-3-3l6.91-6.91a6 6 0 017.94-7.94l-3.76 3.76z"/></svg>
-Manutenção Preventiva
-</div>
-<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px">
-<div class="info-row" style="flex-direction:column;align-items:flex-start;gap:4px">
-<span class="info-label">Última Manutenção</span>
-<span class="info-value" id="lastMaint" style="font-size:11px">Não registrada</span>
-</div>
-<div class="info-row" style="flex-direction:column;align-items:flex-start;gap:4px">
-<span class="info-label">Intervalo</span>
-<span class="info-value">2000 horas</span>
-</div>
-</div>
-<div style="border-top:1px solid #e5e7eb;padding-top:12px;margin-top:12px">
-<p style="font-weight:700;color:#111827;font-size:13px;margin-bottom:10px">Registrar Nova Manutenção</p>
-<input type="text" id="maintDesc" placeholder="Descrição da manutenção" class="input">
-<input type="text" id="maintTech" placeholder="Nome do técnico" class="input">
-<button onclick="registrarManutencao()" class="btn btn-success" style="width:100%;margin-top:6px">
-Registrar Manutenção
-</button>
-</div>
-</div>
-<div class="card">
-<div class="card-title">
-<svg viewBox="0 0 24 24" stroke-width="2"><path d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"/></svg>
-Contatos de Suporte
-</div>
-<div class="info-row">
-<span class="info-label">Telefone</span>
-<span class="info-value">(54) 3321-4976</span>
-</div>
-<div class="info-row">
-<span class="info-label">Email</span>
-<span class="info-value">suporte@pili.ind.br</span>
-</div>
-<div class="info-row">
-<span class="info-label">Suporte Técnico</span>
-<span class="info-value">suporte@pili.ind.br</span>
-</div>
-<div class="info-row">
-<span class="info-label">Website</span>
-<span class="info-value">www.pili.ind.br</span>
-</div>
 </div>
 </div>
 <div class="panel" style="grid-template-rows:auto">
@@ -399,6 +406,27 @@ Contato PILI Equipamentos
 <p style="font-size:11px;color:#6b7280;font-weight:700;text-transform:uppercase;letter-spacing:0.5px">Principais Clientes</p>
 <p style="font-size:14px;color:#111827;font-weight:700;margin-top:8px">Cargill • JBS • BRF • COFCO</p>
 </div>
+</div>
+</div>
+</div>
+<div class="modal" id="maintModal">
+<div class="modal-content">
+<div class="modal-header">
+<div class="modal-title">Registrar Manutenção</div>
+<button class="modal-close" onclick="closeMaintModal()">✕</button>
+</div>
+<div class="modal-body">
+<label style="display:block;margin-bottom:6px;font-size:13px;font-weight:600;color:#374151">Descrição da Manutenção</label>
+<textarea id="modalMaintDesc" class="input" rows="4" placeholder="Descreva o serviço realizado..." style="resize:vertical;min-height:80px"></textarea>
+<label style="display:block;margin-bottom:6px;margin-top:12px;font-size:13px;font-weight:600;color:#374151">Responsável pela Manutenção</label>
+<input type="text" id="modalMaintTech" class="input" placeholder="Nome do técnico">
+</div>
+<div class="modal-footer">
+<button onclick="closeMaintModal()" class="btn" style="background:#e5e7eb;color:#374151">Cancelar</button>
+<button onclick="salvarManutencao()" class="btn btn-success">
+<svg viewBox="0 0 24 24" stroke-width="2"><path d="M5 13l4 4L19 7"/></svg>
+Registrar
+</button>
 </div>
 </div>
 </div>
@@ -514,14 +542,22 @@ ws.send(JSON.stringify({cmd:'SAVE_DATA'}));
 addLog('Dados salvos');
 }
 }
-function registrarManutencao(){
-var desc=document.getElementById('maintDesc').value;
-var tech=document.getElementById('maintTech').value;
+function openMaintModal(){
+document.getElementById('maintModal').classList.add('show');
+document.getElementById('modalMaintDesc').value='';
+document.getElementById('modalMaintTech').value='';
+document.getElementById('modalMaintDesc').focus();
+}
+function closeMaintModal(){
+document.getElementById('maintModal').classList.remove('show');
+}
+function salvarManutencao(){
+var desc=document.getElementById('modalMaintDesc').value;
+var tech=document.getElementById('modalMaintTech').value;
 if(!desc||!tech){
 alert('Preencha a descricao e o nome do tecnico');
 return;
 }
-if(confirm('Confirmar registro de manutencao?')){
 lastMaint=new Date();
 var d=lastMaint.toLocaleDateString('pt-BR')+' '+lastMaint.toLocaleTimeString('pt-BR');
 var maintData={
@@ -535,10 +571,8 @@ if(ws && ws.readyState===1){
 ws.send(JSON.stringify({cmd:'MAINT_LOG',data:maintData}));
 }
 addLog('Manutencao: '+desc+' ('+tech+')');
-document.getElementById('maintDesc').value='';
-document.getElementById('maintTech').value='';
+closeMaintModal();
 alert('Manutencao registrada com sucesso!');
-}
 }
 function addLog(msg){
 var t=new Date().toLocaleTimeString('pt-BR');
