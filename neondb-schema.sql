@@ -28,7 +28,8 @@ CREATE TABLE IF NOT EXISTS sensor_readings (
     horas_operacao INTEGER,
     minutos_operacao INTEGER,
     free_heap INTEGER,
-    uptime_seconds INTEGER
+    uptime_seconds INTEGER,
+    wifi_connected BOOLEAN DEFAULT false
 );
 
 -- Tabela de eventos/logs

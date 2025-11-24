@@ -35,7 +35,14 @@ bool lastWiFiConnected = false;  // Rastreia mudança de estado WiFi
 bool lastMoegaCheia = false;
 bool lastFossoCheio = false;
 
+// Rastrear ciclo de operação (subida + descida = 1 ciclo)
+bool emCiclo = false;        // Está executando um ciclo?
+bool cicloSubiu = false;     // Já subiu neste ciclo?
+bool lastSubindo = false;
+bool lastDescendo = false;
+
 // Pinos - Mapeamento WaveShare ESP32-S3 Digital Inputs
+// ⚠️ IMPORTANTE: Os Digital Inputs (DI1-DI8) da WaveShare são ISOLADOS e requerem 12V/24V
 // DI1=GPIO4, DI2=GPIO5, DI3=GPIO6, DI4=GPIO7, DI5=GPIO8, DI6=GPIO9, DI7=GPIO10, DI8=GPIO11
 #define TENSAO_PLATAFORMA   4   // DI1
 #define SENSOR_0_GRAUS      5   // DI2
@@ -66,6 +73,11 @@ bool descendo = false;
 unsigned long uptimeSeconds = 0;
 String lastMaintenanceDate = "";
 
+// Forward declarations
+bool enviarLeituraSensores();
+bool enviarEvento(const char* eventType, const char* message, const char* sensorName = "", bool sensorValue = false);
+bool enviarManutencao(const char* technician, const char* description);
+
 // HTML MELHORADO
 const char index_html[] PROGMEM = R"rawliteral(<!DOCTYPE html>
 <html lang="pt-BR">
@@ -83,6 +95,9 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;ba
 .status-area{display:flex;align-items:center;gap:10px;background:#f9fafb;padding:6px 14px;border-radius:20px;font-size:12px;font-weight:600}
 .dot{width:8px;height:8px;border-radius:50%;background:#ef4444}
 .dot.online{background:#10b981;animation:pulse 2s infinite}
+.wifi-status{display:flex;align-items:center;gap:6px;background:#f9fafb;padding:6px 12px;border-radius:20px;font-size:11px;font-weight:600;color:#6b7280}
+.wifi-status.connected{background:#d1fae5;color:#065f46}
+.wifi-status svg{width:14px;height:14px}
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:0.6}}
 .tabs{height:50px;background:#fff;border-bottom:1px solid #e5e7eb;display:flex;padding:6px;gap:4px}
 .tab{flex:1;border:none;background:transparent;padding:8px;font-size:12px;cursor:pointer;border-radius:6px;font-weight:700;color:#6b7280;transition:all 0.2s;display:flex;align-items:center;justify-content:center;gap:6px}
@@ -148,9 +163,15 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;ba
 <span id="time">--:--:--</span>
 </div>
 </div>
+<div style="display:flex;align-items:center;gap:12px">
+<div class="wifi-status" id="wifiStatus">
+<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12.55a11 11 0 0114.08 0M8.38 15.86a7 7 0 017.24 0M12 20h.01"/></svg>
+<span id="wifiText">Offline</span>
+</div>
 <div class="status-area">
 <div class="dot" id="dot"></div>
 <span id="status">Conectando...</span>
+</div>
 </div>
 </div>
 <div class="tabs">
@@ -412,6 +433,7 @@ Registrar
 console.log('PILI TECH v1.0');
 var ws=null,data={},logs=[],lastMaint=null;
 var lastMoegaCheia=false,lastFossoCheio=false;
+try{logs=JSON.parse(localStorage.getItem('pilitech_logs')||'[]');}catch(e){logs=[];}
 function switchTab(n){
 var tabs=document.querySelectorAll('.tab');
 var panels=document.querySelectorAll('.panel');
@@ -447,15 +469,27 @@ if(msg.status==='connecting'){
 wifiMsg.style.background='#dbeafe';
 wifiMsg.style.color='#1e40af';
 wifiMsg.textContent='Conectando... tentativa '+msg.attempt+'/10';
+document.getElementById('wifiStatus').classList.remove('connected');
+document.getElementById('wifiText').textContent='Conectando...';
 }else if(msg.status==='connected'){
 wifiMsg.style.background='#d1fae5';
 wifiMsg.style.color='#065f46';
 wifiMsg.textContent='✓ '+msg.message+' | SSID: '+msg.ssid+' | IP: '+msg.ip;
 addLog('WiFi conectado: '+msg.ssid+' ('+msg.ip+')');
+document.getElementById('wifiStatus').classList.add('connected');
+document.getElementById('wifiText').textContent='WiFi';
+}else if(msg.status==='already_connected'){
+wifiMsg.style.background='#dbeafe';
+wifiMsg.style.color='#1e40af';
+wifiMsg.textContent='ℹ️ '+msg.message+' | SSID: '+msg.ssid+' | IP: '+msg.ip;
+document.getElementById('wifiStatus').classList.add('connected');
+document.getElementById('wifiText').textContent='WiFi';
 }else if(msg.status==='failed'){
 wifiMsg.style.background='#fef2f2';
 wifiMsg.style.color='#991b1b';
 wifiMsg.textContent='Falha ao conectar WiFi (erro '+msg.error+')';
+document.getElementById('wifiStatus').classList.remove('connected');
+document.getElementById('wifiText').textContent='Offline';
 }
 }else{
 data=msg;
@@ -480,6 +514,13 @@ document.getElementById('m').textContent=data.minutosOperacao||0;
 document.getElementById('mem').textContent=Math.round((data.freeHeap||0)/1024);
 document.getElementById('up').textContent=data.uptime||0;
 if(data.lastMaint)document.getElementById('lastMaint').textContent=data.lastMaint;
+if(data.wifiConnected){
+document.getElementById('wifiStatus').classList.add('connected');
+document.getElementById('wifiText').textContent='WiFi';
+}else{
+document.getElementById('wifiStatus').classList.remove('connected');
+document.getElementById('wifiText').textContent='Offline';
+}
 var si=document.querySelectorAll('.sensor-item');
 si[0].classList.toggle('active',data.sistema_ligado);
 si[1].classList.toggle('active',data.sensor_0_graus);
@@ -555,7 +596,8 @@ alert('Manutencao registrada com sucesso!');
 function addLog(msg){
 var t=new Date().toLocaleTimeString('pt-BR');
 logs.unshift('['+t+'] '+msg);
-if(logs.length>50)logs.pop();
+if(logs.length>200)logs.pop();
+try{localStorage.setItem('pilitech_logs',JSON.stringify(logs));}catch(e){}
 document.getElementById('logs').innerHTML=logs.join('<br>')||'Nenhum log registrado';
 }
 function connectWiFi(){
@@ -590,6 +632,7 @@ document.getElementById('time').textContent=now.toLocaleTimeString('pt-BR');
 }
 setInterval(updateClock,1000);
 updateClock();
+if(logs.length>0)document.getElementById('logs').innerHTML=logs.join('<br>');
 connectWS();
 </script>
 </body>
@@ -609,6 +652,7 @@ void setupPins() {
 }
 
 void readSensors() {
+  // INPUT_PULLDOWN → sem tensão = LOW (0/false), com tensão = HIGH (1/true)
   sistema_ligado = digitalRead(TENSAO_PLATAFORMA);
   sensor_0_graus = digitalRead(SENSOR_0_GRAUS);
   sensor_40_graus = digitalRead(SENSOR_40_GRAUS);
@@ -617,6 +661,21 @@ void readSensors() {
   fosso_cheio = digitalRead(SENSOR_FOSSO_CHEIO);
   subindo = digitalRead(SUBINDO_PLATAFORMA);
   descendo = digitalRead(DESCENDO_PLATAFORMA);
+
+  // DEBUG: Imprimir valores lidos a cada 5 segundos
+  static unsigned long lastDebug = 0;
+  if (millis() - lastDebug >= 5000) {
+    lastDebug = millis();
+    Serial.printf("DEBUG SENSORES:\n");
+    Serial.printf("  GPIO4 (TENSAO): %d -> sistema_ligado=%d\n", digitalRead(TENSAO_PLATAFORMA), sistema_ligado);
+    Serial.printf("  GPIO5 (0°): %d -> sensor_0_graus=%d\n", digitalRead(SENSOR_0_GRAUS), sensor_0_graus);
+    Serial.printf("  GPIO6 (40°): %d -> sensor_40_graus=%d\n", digitalRead(SENSOR_40_GRAUS), sensor_40_graus);
+    Serial.printf("  GPIO7 (TRAVA): %d -> trava_roda=%d\n", digitalRead(SENSOR_TRAVA_RODA), trava_roda);
+    Serial.printf("  GPIO8 (MOEGA): %d -> moega_cheia=%d\n", digitalRead(SENSOR_MOEGA_CHEIA), moega_cheia);
+    Serial.printf("  GPIO9 (FOSSO): %d -> fosso_cheio=%d\n", digitalRead(SENSOR_FOSSO_CHEIO), fosso_cheio);
+    Serial.printf("  GPIO10 (SUBINDO): %d -> subindo=%d\n", digitalRead(SUBINDO_PLATAFORMA), subindo);
+    Serial.printf("  GPIO11 (DESCENDO): %d -> descendo=%d\n\n", digitalRead(DESCENDO_PLATAFORMA), descendo);
+  }
 }
 
 String createJsonData() {
@@ -636,6 +695,7 @@ String createJsonData() {
   doc["freeHeap"] = ESP.getFreeHeap();
   doc["uptime"] = uptimeSeconds;
   doc["lastMaint"] = lastMaintenanceDate;
+  doc["wifiConnected"] = (WiFi.status() == WL_CONNECTED);
 
   String jsonData;
   serializeJson(doc, jsonData);
@@ -672,7 +732,30 @@ void onWebSocketEvent(uint8_t num, WStype_t type, uint8_t *payload, size_t lengt
           Serial.printf("SSID: %s\n", ssid.c_str());
           Serial.printf("Modo atual: %d\n", WiFi.getMode());
 
-          // Desconecta qualquer conexão anterior
+          // Verificar se já está conectado ao mesmo SSID
+          if (WiFi.status() == WL_CONNECTED && WiFi.SSID() == ssid) {
+            Serial.println("✓ Já conectado a este WiFi!");
+            Serial.printf("  SSID: %s\n", WiFi.SSID().c_str());
+            Serial.printf("  IP: %s\n", WiFi.localIP().toString().c_str());
+            Serial.printf("  RSSI: %d dBm\n", WiFi.RSSI());
+
+            // Envia aviso de já conectado
+            StaticJsonDocument<256> alreadyDoc;
+            alreadyDoc["cmd"] = "WIFI_STATUS";
+            alreadyDoc["status"] = "already_connected";
+            alreadyDoc["ip"] = WiFi.localIP().toString();
+            alreadyDoc["ssid"] = WiFi.SSID();
+            alreadyDoc["message"] = "Já conectado a esta rede WiFi.";
+            String alreadyJson;
+            serializeJson(alreadyDoc, alreadyJson);
+            webSocket.broadcastTXT(alreadyJson);
+            break;  // Não faz nada, sai do comando
+          }
+
+          // Desconecta qualquer conexão anterior (se for diferente ou não conectado)
+          if (WiFi.status() == WL_CONNECTED) {
+            Serial.printf("Desconectando de: %s\n", WiFi.SSID().c_str());
+          }
           WiFi.disconnect();
           delay(100);
 
@@ -710,6 +793,13 @@ void onWebSocketEvent(uint8_t num, WStype_t type, uint8_t *payload, size_t lengt
             Serial.printf("  DNS: %s\n", WiFi.dnsIP().toString().c_str());
             Serial.printf("  RSSI: %d dBm\n", WiFi.RSSI());
             Serial.println("  ✓ Internet disponível - dados serão sincronizados com NeonDB");
+
+            // ENVIAR DADOS IMEDIATAMENTE ao conectar para aparecer como Online
+            Serial.println("📤 Enviando dados IMEDIATAMENTE para atualizar status Online...");
+            if (enviarLeituraSensores()) {
+              Serial.println("✓ Status ONLINE atualizado no banco!");
+              enviarEvento("INFO", "WiFi conectado via interface - Dispositivo online", "wifi", true);
+            }
 
             // Envia confirmação com mensagem melhorada
             StaticJsonDocument<256> successDoc;
@@ -764,10 +854,8 @@ void onWebSocketEvent(uint8_t num, WStype_t type, uint8_t *payload, size_t lengt
           Serial.println("  Técnico: " + tech);
           Serial.println("  Descrição: " + desc);
 
-          // Envia para o NeonDB se conectado na internet
-          if (WiFi.status() == WL_CONNECTED) {
-            enviarManutencao(tech.c_str(), desc.c_str());
-          }
+          // Sempre tenta enviar para o NeonDB (sendToAPI fará a verificação de conectividade)
+          enviarManutencao(tech.c_str(), desc.c_str());
         }
       }
       break;
@@ -819,6 +907,9 @@ bool enviarLeituraSensores() {
   doc["minutos_operacao"] = stats.minutosOperacao;
   doc["free_heap"] = ESP.getFreeHeap();
   doc["uptime_seconds"] = uptimeSeconds;
+  // Se esta função está sendo chamada, o WiFi deve estar conectado
+  // A verificação real é feita dentro de sendToAPI()
+  doc["wifi_connected"] = true;
 
   String payload;
   serializeJson(doc, payload);
@@ -828,7 +919,7 @@ bool enviarLeituraSensores() {
 }
 
 // Enviar evento/log
-bool enviarEvento(const char* eventType, const char* message, const char* sensorName = "", bool sensorValue = false) {
+bool enviarEvento(const char* eventType, const char* message, const char* sensorName, bool sensorValue) {
   StaticJsonDocument<256> doc;
   doc["serial_number"] = SERIAL_NUMBER;
   doc["event_type"] = eventType;
@@ -994,6 +1085,18 @@ void setup() {
   setupPins();
   digitalWrite(LED_STATUS, HIGH);
 
+  // Teste inicial dos pinos
+  Serial.println("🔍 Testando leitura dos pinos digitais:");
+  Serial.printf("  GPIO4 (TENSAO): %d\n", digitalRead(TENSAO_PLATAFORMA));
+  Serial.printf("  GPIO5 (0°): %d\n", digitalRead(SENSOR_0_GRAUS));
+  Serial.printf("  GPIO6 (40°): %d\n", digitalRead(SENSOR_40_GRAUS));
+  Serial.printf("  GPIO7 (TRAVA): %d\n", digitalRead(SENSOR_TRAVA_RODA));
+  Serial.printf("  GPIO8 (MOEGA): %d\n", digitalRead(SENSOR_MOEGA_CHEIA));
+  Serial.printf("  GPIO9 (FOSSO): %d\n", digitalRead(SENSOR_FOSSO_CHEIO));
+  Serial.printf("  GPIO10 (SUBINDO): %d\n", digitalRead(SUBINDO_PLATAFORMA));
+  Serial.printf("  GPIO11 (DESCENDO): %d\n", digitalRead(DESCENDO_PLATAFORMA));
+  Serial.println("✓ Se todos estão em 0, INPUT_PULLDOWN está funcionando\n");
+
   // Inicializar SPIFFS
   if (!SPIFFS.begin(true)) {
     Serial.println("✗ Erro ao montar SPIFFS!");
@@ -1071,6 +1174,70 @@ void loop() {
     readSensors();
   }
 
+  // ====== DETECÇÃO DE CICLOS (Subida + Descida = 1 ciclo) ======
+  // Detecta início de subida
+  if (subindo && !lastSubindo) {
+    Serial.println("↑ Iniciando SUBIDA");
+    emCiclo = true;
+    cicloSubiu = false;  // Ainda não completou a subida
+  }
+
+  // Detecta fim de subida (completou a subida)
+  if (!subindo && lastSubindo && emCiclo) {
+    Serial.println("↑ Subida COMPLETA");
+    cicloSubiu = true;  // Marca que subiu
+  }
+
+  // Detecta início de descida
+  if (descendo && !lastDescendo && emCiclo) {
+    Serial.println("↓ Iniciando DESCIDA");
+  }
+
+  // Detecta fim de descida (ciclo completo!)
+  if (!descendo && lastDescendo && emCiclo && cicloSubiu) {
+    Serial.println("✓ CICLO COMPLETO!");
+    stats.ciclosHoje++;
+    stats.ciclosTotal++;
+
+    // Salvar ciclo total na memória
+    preferences.begin("pilitech", false);
+    preferences.putULong("ciclosTotal", stats.ciclosTotal);
+    preferences.end();
+
+    // Enviar evento de ciclo completo
+    if (WiFi.status() == WL_CONNECTED) {
+      char msg[64];
+      snprintf(msg, sizeof(msg), "Ciclo completo - Total hoje: %lu", stats.ciclosHoje);
+      enviarEvento("INFO", msg, "ciclo", true);
+    }
+
+    // Resetar estado do ciclo
+    emCiclo = false;
+    cicloSubiu = false;
+  }
+
+  // Atualizar estados anteriores
+  lastSubindo = subindo;
+  lastDescendo = descendo;
+
+  // ====== HORÍMETRO (contagem de tempo de operação) ======
+  static unsigned long lastHorimetro = 0;
+  if (sistema_ligado && currentMillis - lastHorimetro >= 60000) {  // A cada 60 segundos
+    lastHorimetro = currentMillis;
+    stats.minutosOperacao++;
+
+    if (stats.minutosOperacao >= 60) {
+      stats.minutosOperacao = 0;
+      stats.horasOperacao++;
+
+      // Auto-salvar a cada hora
+      preferences.begin("pilitech", false);
+      preferences.putULong("horasOp", stats.horasOperacao);
+      preferences.end();
+      Serial.printf("✓ Horímetro: %luh%um\n", stats.horasOperacao, stats.minutosOperacao);
+    }
+  }
+
   // ====== DETECÇÃO E ENVIO AUTOMÁTICO DE ALERTAS ======
   // Verifica mudanças nos sensores críticos e envia para NeonDB
   if (WiFi.status() == WL_CONNECTED) {
@@ -1108,6 +1275,15 @@ void loop() {
     if (webSocket.connectedClients() > 0) {
       String jsonData = createJsonData();
       webSocket.broadcastTXT(jsonData);
+
+      // DEBUG: Mostrar JSON enviado a cada 10 segundos
+      static unsigned long lastJsonDebug = 0;
+      if (currentMillis - lastJsonDebug >= 10000) {
+        lastJsonDebug = currentMillis;
+        Serial.println("📡 JSON enviado via WebSocket:");
+        Serial.println(jsonData);
+        Serial.println();
+      }
     }
   }
 
@@ -1127,9 +1303,22 @@ void loop() {
 
   bool wifiConnected = (WiFi.status() == WL_CONNECTED);
 
+  // ====== GERENCIAMENTO ONLINE/OFFLINE E SINCRONIZAÇÃO ======
+  static unsigned long lastAPISync = 0;
+
   // Detecta RECONEXÃO WiFi (mudança de estado offline->online)
   if (wifiConnected && !lastWiFiConnected) {
     Serial.println("\n✓ WiFi RECONECTADO!");
+
+    // ENVIAR DADOS IMEDIATAMENTE ao conectar
+    Serial.println("📤 Enviando dados ao vivo IMEDIATAMENTE...");
+    if (enviarLeituraSensores()) {
+      Serial.println("✓ Status ONLINE atualizado no banco!");
+      enviarEvento("INFO", "WiFi conectado - Dispositivo online", "wifi", true);
+    }
+
+    // Resetar timer para próxima sincronização (5min a partir de agora)
+    lastAPISync = currentMillis;
 
     // Sincronizar buffer pendente
     int buffered = countBufferedSnapshots();
@@ -1156,7 +1345,6 @@ void loop() {
   }
 
   // ====== SINCRONIZAÇÃO ONLINE A CADA 5 MINUTOS ======
-  static unsigned long lastAPISync = 0;
   if (wifiConnected && currentMillis - lastAPISync >= 300000) {
     lastAPISync = currentMillis;
     Serial.println("\n🌐 WiFi online - sincronizando dados ao vivo...");

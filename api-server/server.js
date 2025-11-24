@@ -70,7 +70,8 @@ app.post('/api/sensor-reading', authenticate, async (req, res) => {
       horas_operacao,
       minutos_operacao,
       free_heap,
-      uptime_seconds
+      uptime_seconds,
+      wifi_connected
     } = req.body;
 
     // Busca ou cria o device
@@ -91,13 +92,13 @@ app.post('/api/sensor-reading', authenticate, async (req, res) => {
         device_id, sistema_ligado, sensor_0_graus, sensor_40_graus,
         trava_roda, moega_cheia, fosso_cheio, subindo, descendo,
         ciclos_hoje, ciclos_total, horas_operacao, minutos_operacao,
-        free_heap, uptime_seconds
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)`,
+        free_heap, uptime_seconds, wifi_connected
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)`,
       [
         deviceId, sistema_ligado, sensor_0_graus, sensor_40_graus,
         trava_roda, moega_cheia, fosso_cheio, subindo, descendo,
         ciclos_hoje, ciclos_total, horas_operacao, minutos_operacao,
-        free_heap, uptime_seconds
+        free_heap, uptime_seconds, wifi_connected
       ]
     );
 
