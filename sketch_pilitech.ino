@@ -251,7 +251,7 @@ Produção e Horímetro
 </div>
 </div>
 </div>
-<div class="panel" style="grid-template-rows:220px 240px">
+<div class="panel" style="grid-template-rows:auto">
 <div class="card">
 <div class="card-title">
 <svg viewBox="0 0 24 24" stroke-width="2"><path d="M14.7 6.3a1 1 0 000 1.4l1.6 1.6a1 1 0 001.4 0l3.77-3.77a6 6 0 01-7.94 7.94l-6.91 6.91a2.12 2.12 0 01-3-3l6.91-6.91a6 6 0 017.94-7.94l-3.76 3.76z"/></svg>
@@ -272,28 +272,6 @@ Manutenção Preventiva
 <svg viewBox="0 0 24 24" stroke-width="2"><path d="M12 4v16m8-8H4"/></svg>
 Nova Manutenção
 </button>
-</div>
-</div>
-<div class="card">
-<div class="card-title">
-<svg viewBox="0 0 24 24" stroke-width="2"><path d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"/></svg>
-Contatos de Suporte
-</div>
-<div class="info-row">
-<span class="info-label">Telefone</span>
-<span class="info-value">(54) 3321-4976</span>
-</div>
-<div class="info-row">
-<span class="info-label">Email</span>
-<span class="info-value">suporte@pili.ind.br</span>
-</div>
-<div class="info-row">
-<span class="info-label">Suporte Técnico</span>
-<span class="info-value">suporte@pili.ind.br</span>
-</div>
-<div class="info-row">
-<span class="info-label">Website</span>
-<span class="info-value">www.pili.ind.br</span>
 </div>
 </div>
 </div>

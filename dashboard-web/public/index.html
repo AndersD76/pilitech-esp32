@@ -16,7 +16,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;ba
 .stat-value{font-size:36px;font-weight:700;color:#dc2626;line-height:1}
 .stat-label{font-size:12px;color:#6b7280;margin-top:8px;text-transform:uppercase;letter-spacing:0.5px;font-weight:600}
 .devices-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(400px,1fr));gap:16px;margin-bottom:20px}
-.device-card{background:#fff;border-radius:12px;padding:20px;box-shadow:0 4px 6px rgba(0,0,0,0.1);position:relative;overflow:hidden}
+.device-card{background:#fff;border-radius:12px;padding:20px;box-shadow:0 4px 6px rgba(0,0,0,0.1);position:relative;overflow:hidden;cursor:pointer;transition:all 0.3s}
+.device-card:hover{transform:translateY(-4px);box-shadow:0 8px 16px rgba(0,0,0,0.15)}
 .device-card.offline{opacity:0.6}
 .device-card.offline::after{content:'OFFLINE';position:absolute;top:10px;right:10px;background:#ef4444;color:#fff;padding:4px 12px;border-radius:12px;font-size:10px;font-weight:700}
 .device-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;padding-bottom:12px;border-bottom:2px solid #f3f4f6}
@@ -65,6 +66,25 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;ba
 .log-type.error{background:#fecaca;color:#991b1b}
 .log-type.alert{background:#fee2e2;color:#7f1d1d}
 .log-message{color:#374151;line-height:1.5}
+.device-modal{display:none;position:fixed;z-index:1000;left:0;top:0;width:100%;height:100%;background:rgba(0,0,0,0.8);align-items:center;justify-content:center;padding:20px}
+.device-modal.show{display:flex}
+.device-modal-content{background:#fff;border-radius:16px;max-width:900px;width:100%;max-height:90vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,0.3)}
+.device-modal-header{background:linear-gradient(135deg,#dc2626 0%,#7f1d1d 100%);color:#fff;padding:24px;border-radius:16px 16px 0 0;display:flex;justify-content:space-between;align-items:center}
+.device-modal-title{font-size:24px;font-weight:700}
+.device-modal-close{background:rgba(255,255,255,0.2);border:none;color:#fff;font-size:28px;cursor:pointer;padding:0;width:40px;height:40px;display:flex;align-items:center;justify-content:center;border-radius:8px;transition:all 0.2s}
+.device-modal-close:hover{background:rgba(255,255,255,0.3)}
+.device-modal-body{padding:24px}
+.detail-section{margin-bottom:24px}
+.detail-section-title{font-size:16px;font-weight:700;color:#111827;margin-bottom:12px;display:flex;align-items:center;gap:8px;padding-bottom:8px;border-bottom:2px solid #f3f4f6}
+.detail-section-title svg{width:20px;height:20px;stroke:#dc2626;fill:none}
+.detail-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+.detail-item{background:#f9fafb;padding:12px;border-radius:8px;border-left:3px solid #dc2626}
+.detail-label{font-size:11px;color:#6b7280;font-weight:600;text-transform:uppercase;letter-spacing:0.5px}
+.detail-value{font-size:16px;color:#111827;font-weight:700;margin-top:4px}
+.history-table{width:100%;border-collapse:collapse;margin-top:12px}
+.history-table th{background:#f9fafb;padding:10px;text-align:left;font-size:11px;color:#6b7280;font-weight:700;text-transform:uppercase;border-bottom:2px solid #e5e7eb}
+.history-table td{padding:10px;font-size:12px;color:#374151;border-bottom:1px solid #f3f4f6}
+.history-table tr:hover{background:#f9fafb}
 </style>
 </head>
 <body>
@@ -134,6 +154,18 @@ Alertas Recentes (24h)
 <div class="timestamp" id="lastUpdate">Última atualização: --:--:--</div>
 </div>
 
+<div class="device-modal" id="deviceModal">
+<div class="device-modal-content">
+<div class="device-modal-header">
+<div class="device-modal-title" id="modalDeviceTitle">Dispositivo</div>
+<button class="device-modal-close" onclick="closeDeviceModal()">×</button>
+</div>
+<div class="device-modal-body" id="modalDeviceBody">
+<div class="loading" style="color:#6b7280">Carregando detalhes...</div>
+</div>
+</div>
+</div>
+
 <script>
 let autoRefreshTimer = null;
 let countdownTimer = null;
@@ -193,7 +225,7 @@ function renderDevices(readings) {
     const offlineClass = isOnline ? '' : 'offline';
 
     return `
-      <div class="device-card ${offlineClass}">
+      <div class="device-card ${offlineClass}" onclick="openDeviceModal('${r.serial_number}')">
         <div class="device-header">
           <div>
             <div class="device-serial">${r.serial_number}</div>
@@ -330,6 +362,164 @@ function startAutoRefresh() {
       `Atualização automática: ${secondsUntilRefresh}s`;
   }, 1000);
 }
+
+async function openDeviceModal(serialNumber) {
+  const modal = document.getElementById('deviceModal');
+  const modalTitle = document.getElementById('modalDeviceTitle');
+  const modalBody = document.getElementById('modalDeviceBody');
+
+  modal.classList.add('show');
+  modalTitle.textContent = `Dispositivo ${serialNumber}`;
+  modalBody.innerHTML = '<div class="loading" style="color:#6b7280">Carregando detalhes...</div>';
+
+  try {
+    // Buscar dados do dispositivo
+    const deviceRes = await fetch(`/api/device/${serialNumber}`);
+    const device = await deviceRes.json();
+
+    // Buscar últimas 10 leituras
+    const readingsRes = await fetch(`/api/device/${serialNumber}/readings?limit=10`);
+    const readings = await readingsRes.json();
+
+    // Buscar alertas do dispositivo
+    const alertsRes = await fetch(`/api/device/${serialNumber}/alerts?limit=10`);
+    const alerts = await alertsRes.json();
+
+    // Buscar manutenções
+    const maintRes = await fetch(`/api/device/${serialNumber}/maintenances?limit=5`);
+    const maintenances = await maintRes.json();
+
+    // Renderizar conteúdo do modal
+    modalBody.innerHTML = `
+      <div class="detail-section">
+        <div class="detail-section-title">
+          <svg viewBox="0 0 24 24" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 1v6m0 6v6M5.6 5.6l4.2 4.2m5.6 5.6l4.2 4.2m0-16.4l-4.2 4.2M9.8 14.2l-4.2 4.2"/></svg>
+          Informações do Dispositivo
+        </div>
+        <div class="detail-grid">
+          <div class="detail-item">
+            <div class="detail-label">Nome</div>
+            <div class="detail-value">${device.name || 'N/A'}</div>
+          </div>
+          <div class="detail-item">
+            <div class="detail-label">Status</div>
+            <div class="detail-value">${device.last_seen ? 'Online' : 'Offline'}</div>
+          </div>
+          <div class="detail-item">
+            <div class="detail-label">Última Conexão</div>
+            <div class="detail-value">${device.last_seen ? new Date(device.last_seen).toLocaleString('pt-BR') : 'N/A'}</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="detail-section">
+        <div class="detail-section-title">
+          <svg viewBox="0 0 24 24" stroke-width="2"><path d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
+          Histórico de Leituras (Últimas 10)
+        </div>
+        ${readings.length > 0 ? `
+          <table class="history-table">
+            <thead>
+              <tr>
+                <th>Data/Hora</th>
+                <th>Sistema</th>
+                <th>Ciclos Hoje</th>
+                <th>Ciclos Total</th>
+                <th>Horímetro</th>
+                <th>Moega</th>
+                <th>Fosso</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${readings.map(r => `
+                <tr>
+                  <td>${new Date(r.timestamp).toLocaleString('pt-BR')}</td>
+                  <td>${r.sistema_ligado ? '✓ ON' : '✗ OFF'}</td>
+                  <td>${r.ciclos_hoje || 0}</td>
+                  <td>${r.ciclos_total || 0}</td>
+                  <td>${r.horas_operacao || 0}h ${r.minutos_operacao || 0}m</td>
+                  <td>${r.moega_cheia ? '⚠ CHEIA' : '✓ OK'}</td>
+                  <td>${r.fosso_cheio ? '⚠ CHEIO' : '✓ OK'}</td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        ` : '<p style="text-align:center;color:#6b7280;padding:20px">Nenhuma leitura registrada</p>'}
+      </div>
+
+      <div class="detail-section">
+        <div class="detail-section-title">
+          <svg viewBox="0 0 24 24" stroke-width="2"><path d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+          Alertas Recentes
+        </div>
+        ${alerts.length > 0 ? `
+          <table class="history-table">
+            <thead>
+              <tr>
+                <th>Data/Hora</th>
+                <th>Tipo</th>
+                <th>Mensagem</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${alerts.map(a => `
+                <tr>
+                  <td>${new Date(a.timestamp).toLocaleString('pt-BR')}</td>
+                  <td><span style="color:#ef4444;font-weight:700">${a.event_type}</span></td>
+                  <td>${a.message}</td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        ` : '<p style="text-align:center;color:#6b7280;padding:20px">Nenhum alerta registrado</p>'}
+      </div>
+
+      <div class="detail-section">
+        <div class="detail-section-title">
+          <svg viewBox="0 0 24 24" stroke-width="2"><path d="M14.7 6.3a1 1 0 000 1.4l1.6 1.6a1 1 0 001.4 0l3.77-3.77a6 6 0 01-7.94 7.94l-6.91 6.91a2.12 2.12 0 01-3-3l6.91-6.91a6 6 0 017.94-7.94l-3.76 3.76z"/></svg>
+          Histórico de Manutenções
+        </div>
+        ${maintenances.length > 0 ? `
+          <table class="history-table">
+            <thead>
+              <tr>
+                <th>Data/Hora</th>
+                <th>Técnico</th>
+                <th>Descrição</th>
+                <th>Horímetro</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${maintenances.map(m => `
+                <tr>
+                  <td>${new Date(m.timestamp).toLocaleString('pt-BR')}</td>
+                  <td>${m.technician || 'N/A'}</td>
+                  <td>${m.description || 'N/A'}</td>
+                  <td>${m.horas_operacao || 0}h</td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        ` : '<p style="text-align:center;color:#6b7280;padding:20px">Nenhuma manutenção registrada</p>'}
+      </div>
+    `;
+  } catch (err) {
+    console.error('Erro ao carregar detalhes:', err);
+    modalBody.innerHTML = '<div style="text-align:center;padding:40px;color:#ef4444">Erro ao carregar detalhes do dispositivo</div>';
+  }
+}
+
+function closeDeviceModal() {
+  document.getElementById('deviceModal').classList.remove('show');
+}
+
+// Fechar modal ao clicar fora
+document.addEventListener('click', function(e) {
+  const modal = document.getElementById('deviceModal');
+  if (e.target === modal) {
+    closeDeviceModal();
+  }
+});
 
 // Inicializar
 loadData();

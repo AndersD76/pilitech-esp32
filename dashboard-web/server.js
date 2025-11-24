@@ -180,38 +180,96 @@ app.get('/api/device/:serial', async (req, res) => {
       return res.status(404).json({ error: 'Dispositivo não encontrado' });
     }
 
-    // Últimas 100 leituras
+    res.json(device.rows[0]);
+  } catch (err) {
+    console.error('Erro ao buscar dispositivo:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// API: Leituras de um dispositivo
+app.get('/api/device/:serial/readings', async (req, res) => {
+  try {
+    const { serial } = req.params;
+    const limit = parseInt(req.query.limit) || 100;
+
+    const device = await pool.query(
+      'SELECT id FROM devices WHERE serial_number = $1',
+      [serial]
+    );
+
+    if (device.rows.length === 0) {
+      return res.status(404).json({ error: 'Dispositivo não encontrado' });
+    }
+
     const readings = await pool.query(`
       SELECT * FROM sensor_readings
       WHERE device_id = $1
       ORDER BY timestamp DESC
-      LIMIT 100
-    `, [device.rows[0].id]);
+      LIMIT $2
+    `, [device.rows[0].id, limit]);
 
-    // Últimos alertas
+    res.json(readings.rows);
+  } catch (err) {
+    console.error('Erro ao buscar leituras:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// API: Alertas de um dispositivo
+app.get('/api/device/:serial/alerts', async (req, res) => {
+  try {
+    const { serial } = req.params;
+    const limit = parseInt(req.query.limit) || 20;
+
+    const device = await pool.query(
+      'SELECT id FROM devices WHERE serial_number = $1',
+      [serial]
+    );
+
+    if (device.rows.length === 0) {
+      return res.status(404).json({ error: 'Dispositivo não encontrado' });
+    }
+
     const alerts = await pool.query(`
       SELECT * FROM event_logs
       WHERE device_id = $1 AND event_type = 'ALERT'
       ORDER BY timestamp DESC
-      LIMIT 20
-    `, [device.rows[0].id]);
+      LIMIT $2
+    `, [device.rows[0].id, limit]);
 
-    // Manutenções
+    res.json(alerts.rows);
+  } catch (err) {
+    console.error('Erro ao buscar alertas:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// API: Manutenções de um dispositivo
+app.get('/api/device/:serial/maintenances', async (req, res) => {
+  try {
+    const { serial } = req.params;
+    const limit = parseInt(req.query.limit) || 10;
+
+    const device = await pool.query(
+      'SELECT id FROM devices WHERE serial_number = $1',
+      [serial]
+    );
+
+    if (device.rows.length === 0) {
+      return res.status(404).json({ error: 'Dispositivo não encontrado' });
+    }
+
     const maintenances = await pool.query(`
       SELECT * FROM maintenances
       WHERE device_id = $1
       ORDER BY timestamp DESC
-      LIMIT 10
-    `, [device.rows[0].id]);
+      LIMIT $2
+    `, [device.rows[0].id, limit]);
 
-    res.json({
-      device: device.rows[0],
-      readings: readings.rows,
-      alerts: alerts.rows,
-      maintenances: maintenances.rows
-    });
+    res.json(maintenances.rows);
   } catch (err) {
-    console.error('Erro ao buscar detalhes:', err);
+    console.error('Erro ao buscar manutenções:', err);
     res.status(500).json({ error: err.message });
   }
 });
