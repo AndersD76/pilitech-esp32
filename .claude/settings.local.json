@@ -20,7 +20,11 @@
       "Bash(powershell:*)",
       "Bash(del \"c:\\Users\\danie\\OneDrive\\4. APLICATIVOS\\sketch_pilitech\\sketch_pilitech_backup.ino\")",
       "Bash(del \"c:\\Users\\danie\\OneDrive\\4. APLICATIVOS\\sketch_pilitech\\sketch_pilitech_v8.ino\")",
-      "Bash(del \"c:\\Users\\danie\\OneDrive\\4. APLICATIVOS\\sketch_pilitech\\test_simple.ino\")"
+      "Bash(del \"c:\\Users\\danie\\OneDrive\\4. APLICATIVOS\\sketch_pilitech\\test_simple.ino\")",
+      "Bash(railway --version:*)",
+      "Bash(npm install:*)",
+      "Bash(node:*)",
+      "Bash(set PORT=3001)"
     ],
     "deny": [],
     "ask": []

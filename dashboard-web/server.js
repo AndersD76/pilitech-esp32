@@ -1,10 +1,12 @@
+require('dotenv').config();
+
 const express = require('express');
 const { Pool } = require('pg');
 const path = require('path');
 const cors = require('cors');
 
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 3001;
 
 // Configurar PostgreSQL
 const pool = new Pool({
