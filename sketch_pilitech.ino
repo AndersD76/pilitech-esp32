@@ -719,7 +719,7 @@ void onWebSocketEvent(uint8_t num, WStype_t type, uint8_t *payload, size_t lengt
             errorDoc["status"] = "failed";
             errorDoc["error"] = WiFi.status();
             String errorJson;
-            serializeJson(errorDoc, errorDoc);
+            serializeJson(errorDoc, errorJson);
             webSocket.broadcastTXT(errorJson);
           }
         }
