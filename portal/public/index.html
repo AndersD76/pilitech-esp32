@@ -266,7 +266,7 @@
           </h1>
 
           <p class="text-lg text-gray-400 mb-8 max-w-xl mx-auto lg:mx-0 fade-in stagger-2">
-            Monitore temperatura, pressão, ciclos e alarmes dos seus tombadores à distância.
+            Monitore ciclos, horímetro, sensores e alarmes dos seus tombadores à distância.
             Previna falhas, reduza custos e aumente a vida útil dos equipamentos.
           </p>
 
@@ -323,16 +323,16 @@
                     <!-- Mini stats -->
                     <div class="grid grid-cols-2 gap-3 mb-4">
                       <div class="bg-black/50 rounded-lg p-3">
-                        <p class="text-xs text-gray-500">Temperatura</p>
-                        <p class="text-xl font-bold text-green-400">42°C</p>
+                        <p class="text-xs text-gray-500">Ciclos Hoje</p>
+                        <p class="text-xl font-bold text-green-400">47</p>
                       </div>
                       <div class="bg-black/50 rounded-lg p-3">
-                        <p class="text-xs text-gray-500">Pressão</p>
-                        <p class="text-xl font-bold text-blue-400">180 bar</p>
+                        <p class="text-xs text-gray-500">Horímetro</p>
+                        <p class="text-xl font-bold text-blue-400">1.247h</p>
                       </div>
                       <div class="bg-black/50 rounded-lg p-3">
-                        <p class="text-xs text-gray-500">Ciclos</p>
-                        <p class="text-xl font-bold text-yellow-400">1.247</p>
+                        <p class="text-xs text-gray-500">Sensores</p>
+                        <p class="text-xl font-bold text-yellow-400">8/8</p>
                       </div>
                       <div class="bg-black/50 rounded-lg p-3">
                         <p class="text-xs text-gray-500">Status</p>
@@ -390,40 +390,12 @@
         <span class="text-pili-red font-semibold text-sm tracking-wider uppercase">Telemetria</span>
         <h2 class="text-3xl sm:text-4xl font-bold mt-2 mb-4">O Que Você Monitora</h2>
         <p class="text-gray-400 max-w-2xl mx-auto">
-          Sensores de alta precisão instalados no seu equipamento enviam dados em tempo real para a nuvem.
+          8 sensores digitais monitoram posição, travas e status do tombador em tempo real, com dados sincronizados na nuvem.
         </p>
       </div>
 
       <div class="grid md:grid-cols-2 lg:grid-cols-4 gap-6 mb-16">
-        <!-- Sensor 1 - Temperatura -->
-        <div class="feature-card bg-gradient-to-br from-gray-900 to-gray-800 rounded-2xl p-6 border border-gray-800 text-center">
-          <div class="w-20 h-20 mx-auto bg-gradient-to-br from-orange-500/20 to-red-500/20 rounded-full flex items-center justify-center mb-4">
-            <svg class="w-10 h-10 text-orange-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
-            </svg>
-          </div>
-          <h3 class="text-2xl font-bold mb-1 text-orange-500">Temperatura</h3>
-          <p class="text-gray-400 text-sm">do óleo hidráulico</p>
-          <div class="mt-4 bg-black/30 rounded-lg p-3">
-            <span class="text-3xl font-black text-white">42°C</span>
-          </div>
-        </div>
-
-        <!-- Sensor 2 - Pressão -->
-        <div class="feature-card bg-gradient-to-br from-gray-900 to-gray-800 rounded-2xl p-6 border border-gray-800 text-center">
-          <div class="w-20 h-20 mx-auto bg-gradient-to-br from-blue-500/20 to-cyan-500/20 rounded-full flex items-center justify-center mb-4">
-            <svg class="w-10 h-10 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
-            </svg>
-          </div>
-          <h3 class="text-2xl font-bold mb-1 text-blue-500">Pressão</h3>
-          <p class="text-gray-400 text-sm">do sistema hidráulico</p>
-          <div class="mt-4 bg-black/30 rounded-lg p-3">
-            <span class="text-3xl font-black text-white">180 bar</span>
-          </div>
-        </div>
-
-        <!-- Sensor 3 - Ciclos -->
+        <!-- Sensor 1 - Ciclos -->
         <div class="feature-card bg-gradient-to-br from-gray-900 to-gray-800 rounded-2xl p-6 border border-gray-800 text-center">
           <div class="w-20 h-20 mx-auto bg-gradient-to-br from-green-500/20 to-emerald-500/20 rounded-full flex items-center justify-center mb-4">
             <svg class="w-10 h-10 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -431,9 +403,37 @@
             </svg>
           </div>
           <h3 class="text-2xl font-bold mb-1 text-green-500">Ciclos</h3>
-          <p class="text-gray-400 text-sm">de operação diários</p>
+          <p class="text-gray-400 text-sm">contagem automática</p>
           <div class="mt-4 bg-black/30 rounded-lg p-3">
             <span class="text-3xl font-black text-white">1.247</span>
+          </div>
+        </div>
+
+        <!-- Sensor 2 - Horímetro -->
+        <div class="feature-card bg-gradient-to-br from-gray-900 to-gray-800 rounded-2xl p-6 border border-gray-800 text-center">
+          <div class="w-20 h-20 mx-auto bg-gradient-to-br from-blue-500/20 to-cyan-500/20 rounded-full flex items-center justify-center mb-4">
+            <svg class="w-10 h-10 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+            </svg>
+          </div>
+          <h3 class="text-2xl font-bold mb-1 text-blue-500">Horímetro</h3>
+          <p class="text-gray-400 text-sm">tempo de operação</p>
+          <div class="mt-4 bg-black/30 rounded-lg p-3">
+            <span class="text-3xl font-black text-white">847h</span>
+          </div>
+        </div>
+
+        <!-- Sensor 3 - Sensores -->
+        <div class="feature-card bg-gradient-to-br from-gray-900 to-gray-800 rounded-2xl p-6 border border-gray-800 text-center">
+          <div class="w-20 h-20 mx-auto bg-gradient-to-br from-purple-500/20 to-violet-500/20 rounded-full flex items-center justify-center mb-4">
+            <svg class="w-10 h-10 text-purple-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z"/>
+            </svg>
+          </div>
+          <h3 class="text-2xl font-bold mb-1 text-purple-500">8 Sensores</h3>
+          <p class="text-gray-400 text-sm">posição e travas</p>
+          <div class="mt-4 bg-black/30 rounded-lg p-3">
+            <span class="text-3xl font-black text-green-400">OK</span>
           </div>
         </div>
 
@@ -445,7 +445,7 @@
             </svg>
           </div>
           <h3 class="text-2xl font-bold mb-1 text-yellow-500">Alarmes</h3>
-          <p class="text-gray-400 text-sm">alertas automáticos</p>
+          <p class="text-gray-400 text-sm">moega/fosso cheio</p>
           <div class="mt-4 bg-black/30 rounded-lg p-3">
             <span class="text-3xl font-black text-green-400">OK</span>
           </div>
