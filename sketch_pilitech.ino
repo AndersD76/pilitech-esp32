@@ -1026,17 +1026,18 @@ String createJsonData() {
   // Sistema iniciado
   doc["sistemaIniciado"] = sistemaIniciado;
 
-  // Tempos das 9 etapas do último ciclo completo (em segundos)
+  // Tempos das 10 etapas do último ciclo completo (em segundos)
   JsonObject lastCycle = doc.createNestedObject("lastCycle");
-  lastCycle["etapa1"] = lastCompleteCycle.etapa1_portaoAberto_portaoFechado / 1000;
-  lastCycle["etapa2"] = lastCompleteCycle.etapa2_portaoFechado_travaRoda / 1000;
-  lastCycle["etapa3"] = lastCompleteCycle.etapa3_travaRoda_travaChassi / 1000;
-  lastCycle["etapa4"] = lastCompleteCycle.etapa4_travaChassi_travaPinos / 1000;
-  lastCycle["etapa5"] = lastCompleteCycle.etapa5_travaPinos_sensor0Inativo / 1000;
-  lastCycle["etapa6"] = lastCompleteCycle.etapa6_sensor0Ativo_travaPinosInativo / 1000;
-  lastCycle["etapa7"] = lastCompleteCycle.etapa7_travaPinosInativo_travaChassiInativo / 1000;
-  lastCycle["etapa8"] = lastCompleteCycle.etapa8_travaChassiInativo_travaRodaInativo / 1000;
-  lastCycle["etapa9"] = lastCompleteCycle.etapa9_travaRodaInativo_portaoAberto / 1000;
+  lastCycle["etapa1"] = lastCompleteCycle.etapa1_portaoFechado / 1000;
+  lastCycle["etapa2"] = lastCompleteCycle.etapa2_sensor0Inativo / 1000;
+  lastCycle["etapa3"] = lastCompleteCycle.etapa3_travaRoda / 1000;
+  lastCycle["etapa4"] = lastCompleteCycle.etapa4_travaChassi / 1000;
+  lastCycle["etapa5"] = lastCompleteCycle.etapa5_travaPinos / 1000;
+  lastCycle["etapa6"] = lastCompleteCycle.etapa6_sensor0Ativo / 1000;
+  lastCycle["etapa7"] = lastCompleteCycle.etapa7_travaRodaInativo / 1000;
+  lastCycle["etapa8"] = lastCompleteCycle.etapa8_travaChassiInativo / 1000;
+  lastCycle["etapa9"] = lastCompleteCycle.etapa9_travaPinosInativo / 1000;
+  lastCycle["etapa10"] = lastCompleteCycle.etapa10_portaoAberto / 1000;
   lastCycle["total"] = lastCompleteCycle.cicloTotal / 1000;
 
   // Tempos do ciclo atual em andamento (em segundos)
@@ -1045,15 +1046,16 @@ String createJsonData() {
     unsigned long now = millis();
     currCycle["elapsed"] = (now - cycleStartTime) / 1000;
     currCycle["etapaAtual"] = currentCycle.etapaAtual;
-    currCycle["etapa1"] = currentCycle.etapa1_portaoAberto_portaoFechado / 1000;
-    currCycle["etapa2"] = currentCycle.etapa2_portaoFechado_travaRoda / 1000;
-    currCycle["etapa3"] = currentCycle.etapa3_travaRoda_travaChassi / 1000;
-    currCycle["etapa4"] = currentCycle.etapa4_travaChassi_travaPinos / 1000;
-    currCycle["etapa5"] = currentCycle.etapa5_travaPinos_sensor0Inativo / 1000;
-    currCycle["etapa6"] = currentCycle.etapa6_sensor0Ativo_travaPinosInativo / 1000;
-    currCycle["etapa7"] = currentCycle.etapa7_travaPinosInativo_travaChassiInativo / 1000;
-    currCycle["etapa8"] = currentCycle.etapa8_travaChassiInativo_travaRodaInativo / 1000;
-    currCycle["etapa9"] = currentCycle.etapa9_travaRodaInativo_portaoAberto / 1000;
+    currCycle["etapa1"] = currentCycle.etapa1_portaoFechado / 1000;
+    currCycle["etapa2"] = currentCycle.etapa2_sensor0Inativo / 1000;
+    currCycle["etapa3"] = currentCycle.etapa3_travaRoda / 1000;
+    currCycle["etapa4"] = currentCycle.etapa4_travaChassi / 1000;
+    currCycle["etapa5"] = currentCycle.etapa5_travaPinos / 1000;
+    currCycle["etapa6"] = currentCycle.etapa6_sensor0Ativo / 1000;
+    currCycle["etapa7"] = currentCycle.etapa7_travaRodaInativo / 1000;
+    currCycle["etapa8"] = currentCycle.etapa8_travaChassiInativo / 1000;
+    currCycle["etapa9"] = currentCycle.etapa9_travaPinosInativo / 1000;
+    currCycle["etapa10"] = currentCycle.etapa10_portaoAberto / 1000;
   }
 
   // Tempo padrão de ciclo (em segundos)
@@ -1375,21 +1377,22 @@ bool enviarManutencao(const char* technician, const char* description) {
 
 // Enviar dados do ciclo completo com as 9 etapas para análise de produtividade
 bool enviarDadosCiclo() {
-  StaticJsonDocument<768> doc;
+  StaticJsonDocument<1024> doc;
   doc["serial_number"] = SERIAL_NUMBER;
   doc["ciclo_numero"] = stats.ciclosTotal;
 
-  // Tempos das 9 etapas em segundos
+  // Tempos das 10 etapas em segundos
   doc["tempo_total"] = lastCompleteCycle.cicloTotal / 1000;
-  doc["etapa1_portao_aberto_fechado"] = lastCompleteCycle.etapa1_portaoAberto_portaoFechado / 1000;
-  doc["etapa2_portao_fechado_trava_roda"] = lastCompleteCycle.etapa2_portaoFechado_travaRoda / 1000;
-  doc["etapa3_trava_roda_trava_chassi"] = lastCompleteCycle.etapa3_travaRoda_travaChassi / 1000;
-  doc["etapa4_trava_chassi_trava_pinos"] = lastCompleteCycle.etapa4_travaChassi_travaPinos / 1000;
-  doc["etapa5_trava_pinos_sensor0_inativo"] = lastCompleteCycle.etapa5_travaPinos_sensor0Inativo / 1000;
-  doc["etapa6_sensor0_ativo_trava_pinos_inativo"] = lastCompleteCycle.etapa6_sensor0Ativo_travaPinosInativo / 1000;
-  doc["etapa7_trava_pinos_inativo_trava_chassi_inativo"] = lastCompleteCycle.etapa7_travaPinosInativo_travaChassiInativo / 1000;
-  doc["etapa8_trava_chassi_inativo_trava_roda_inativo"] = lastCompleteCycle.etapa8_travaChassiInativo_travaRodaInativo / 1000;
-  doc["etapa9_trava_roda_inativo_portao_aberto"] = lastCompleteCycle.etapa9_travaRodaInativo_portaoAberto / 1000;
+  doc["etapa1_portao_fechado"] = lastCompleteCycle.etapa1_portaoFechado / 1000;
+  doc["etapa2_sensor0_inativo"] = lastCompleteCycle.etapa2_sensor0Inativo / 1000;
+  doc["etapa3_trava_roda"] = lastCompleteCycle.etapa3_travaRoda / 1000;
+  doc["etapa4_trava_chassi"] = lastCompleteCycle.etapa4_travaChassi / 1000;
+  doc["etapa5_trava_pinos"] = lastCompleteCycle.etapa5_travaPinos / 1000;
+  doc["etapa6_sensor0_ativo"] = lastCompleteCycle.etapa6_sensor0Ativo / 1000;
+  doc["etapa7_solta_roda"] = lastCompleteCycle.etapa7_travaRodaInativo / 1000;
+  doc["etapa8_solta_chassi"] = lastCompleteCycle.etapa8_travaChassiInativo / 1000;
+  doc["etapa9_solta_pinos"] = lastCompleteCycle.etapa9_travaPinosInativo / 1000;
+  doc["etapa10_portao_aberto"] = lastCompleteCycle.etapa10_portaoAberto / 1000;
 
   // Tempo padrão e eficiência
   doc["tempo_padrao"] = CICLO_PADRAO_MS / 1000;
@@ -1400,7 +1403,7 @@ bool enviarDadosCiclo() {
   String payload;
   serializeJson(doc, payload);
 
-  Serial.println("📤 Enviando dados do ciclo (9 etapas) para análise de produtividade...");
+  Serial.println("📤 Enviando dados do ciclo (10 etapas) para análise de produtividade...");
   Serial.printf("  Tempo total: %lu seg | Eficiência: %.1f%%\n",
                 lastCompleteCycle.cicloTotal / 1000, eficiencia);
 
