@@ -58,24 +58,25 @@ struct {
   unsigned long minutosOperacao;
 } stats = {0, 0, 0, 0, 0};
 
-// ====== TRACKING DE ETAPAS DO CICLO (9 ETAPAS) ======
-// Tempo de cada transição em milissegundos
+// ====== TRACKING DE ETAPAS DO CICLO (10 ETAPAS) ======
+// Tempo de cada etapa em milissegundos (conforme solicitado)
 struct CycleStages {
-  unsigned long etapa1_portaoAberto_portaoFechado;     // 1. portão aberto → portão fechado
-  unsigned long etapa2_portaoFechado_travaRoda;        // 2. portão fechado → trava roda ativo
-  unsigned long etapa3_travaRoda_travaChassi;          // 3. trava roda ativo → trava chassi ativo
-  unsigned long etapa4_travaChassi_travaPinos;         // 4. trava chassi ativo → trava pino d/e ativo
-  unsigned long etapa5_travaPinos_sensor0Inativo;      // 5. trava pino d/e ativo → sensor 0° inativo
-  unsigned long etapa6_sensor0Ativo_travaPinosInativo; // 6. sensor 0° ativo → trava pino d/e inativo
-  unsigned long etapa7_travaPinosInativo_travaChassiInativo;   // 7. trava pino d/e inativo → trava chassi inativo
-  unsigned long etapa8_travaChassiInativo_travaRodaInativo;    // 8. trava chassi inativo → trava roda inativo
-  unsigned long etapa9_travaRodaInativo_portaoAberto;  // 9. trava roda inativo → portão aberto
-  unsigned long cicloTotal;                            // Tempo total do ciclo
-  int etapaAtual;                                      // Etapa atual (1-9)
+  unsigned long etapa1_portaoFechado;      // 1. portão ativo (fechado)
+  unsigned long etapa2_sensor0Inativo;     // 2. sensor 0° inativo
+  unsigned long etapa3_travaRoda;          // 3. trava roda ativo
+  unsigned long etapa4_travaChassi;        // 4. trava chassi ativo
+  unsigned long etapa5_travaPinos;         // 5. trava pino e/d ativo
+  unsigned long etapa6_sensor0Ativo;       // 6. sensor 0° ativo
+  unsigned long etapa7_travaRodaInativo;   // 7. trava roda inativo
+  unsigned long etapa8_travaChassiInativo; // 8. trava chassi inativo
+  unsigned long etapa9_travaPinosInativo;  // 9. trava pino e/d inativo
+  unsigned long etapa10_portaoAberto;      // 10. portão aberto
+  unsigned long cicloTotal;                // Tempo total do ciclo
+  int etapaAtual;                          // Etapa atual (1-10)
 };
 
-CycleStages currentCycle = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
-CycleStages lastCompleteCycle = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+CycleStages currentCycle = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+CycleStages lastCompleteCycle = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
 
 // Timestamps de início de cada etapa
 unsigned long stageStartTime = 0;
@@ -289,22 +290,23 @@ Sensores do Sistema
 </div>
 <div style="margin-top:12px;padding:10px;background:#f9fafb;border-radius:6px">
 <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
-<span style="font-size:11px;font-weight:700;color:#6b7280">TIMELINE DAS 9 ETAPAS DO CICLO</span>
+<span style="font-size:11px;font-weight:700;color:#6b7280">TIMELINE DAS 10 ETAPAS DO CICLO</span>
 <span style="font-size:11px;color:#6b7280">Etapa: <span id="etapaAtual">-</span> | <span id="cycleTimer">--:--</span></span>
 </div>
 <div id="timeline" style="display:flex;gap:2px;height:28px">
-<div class="tl-item" id="tl1" title="1.Portão fecha" style="flex:1;border-radius:4px;background:#e5e7eb;transition:all 0.3s;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;color:#fff"></div>
-<div class="tl-item" id="tl2" title="2.Trava Roda" style="flex:1;border-radius:4px;background:#e5e7eb;transition:all 0.3s;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;color:#fff"></div>
-<div class="tl-item" id="tl3" title="3.Trava Chassi" style="flex:1;border-radius:4px;background:#e5e7eb;transition:all 0.3s;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;color:#fff"></div>
-<div class="tl-item" id="tl4" title="4.Trava Pinos" style="flex:1;border-radius:4px;background:#e5e7eb;transition:all 0.3s;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;color:#fff"></div>
-<div class="tl-item" id="tl5" title="5.Sensor0 Inativo" style="flex:1;border-radius:4px;background:#e5e7eb;transition:all 0.3s;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;color:#fff"></div>
-<div class="tl-item" id="tl6" title="6.Pinos Soltam" style="flex:1;border-radius:4px;background:#e5e7eb;transition:all 0.3s;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;color:#fff"></div>
-<div class="tl-item" id="tl7" title="7.Chassi Solta" style="flex:1;border-radius:4px;background:#e5e7eb;transition:all 0.3s;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;color:#fff"></div>
-<div class="tl-item" id="tl8" title="8.Roda Solta" style="flex:1;border-radius:4px;background:#e5e7eb;transition:all 0.3s;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;color:#fff"></div>
-<div class="tl-item" id="tl9" title="9.Portão Abre" style="flex:1;border-radius:4px;background:#e5e7eb;transition:all 0.3s;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;color:#fff"></div>
+<div class="tl-item" id="tl1" title="1.Portao Fechado" style="flex:1;border-radius:4px;background:#e5e7eb;transition:all 0.3s;display:flex;align-items:center;justify-content:center;font-size:8px;font-weight:700;color:#fff"></div>
+<div class="tl-item" id="tl2" title="2.Sensor 0 Inativo" style="flex:1;border-radius:4px;background:#e5e7eb;transition:all 0.3s;display:flex;align-items:center;justify-content:center;font-size:8px;font-weight:700;color:#fff"></div>
+<div class="tl-item" id="tl3" title="3.Trava Roda" style="flex:1;border-radius:4px;background:#e5e7eb;transition:all 0.3s;display:flex;align-items:center;justify-content:center;font-size:8px;font-weight:700;color:#fff"></div>
+<div class="tl-item" id="tl4" title="4.Trava Chassi" style="flex:1;border-radius:4px;background:#e5e7eb;transition:all 0.3s;display:flex;align-items:center;justify-content:center;font-size:8px;font-weight:700;color:#fff"></div>
+<div class="tl-item" id="tl5" title="5.Trava Pinos" style="flex:1;border-radius:4px;background:#e5e7eb;transition:all 0.3s;display:flex;align-items:center;justify-content:center;font-size:8px;font-weight:700;color:#fff"></div>
+<div class="tl-item" id="tl6" title="6.Sensor 0 Ativo" style="flex:1;border-radius:4px;background:#e5e7eb;transition:all 0.3s;display:flex;align-items:center;justify-content:center;font-size:8px;font-weight:700;color:#fff"></div>
+<div class="tl-item" id="tl7" title="7.Roda Solta" style="flex:1;border-radius:4px;background:#e5e7eb;transition:all 0.3s;display:flex;align-items:center;justify-content:center;font-size:8px;font-weight:700;color:#fff"></div>
+<div class="tl-item" id="tl8" title="8.Chassi Solta" style="flex:1;border-radius:4px;background:#e5e7eb;transition:all 0.3s;display:flex;align-items:center;justify-content:center;font-size:8px;font-weight:700;color:#fff"></div>
+<div class="tl-item" id="tl9" title="9.Pinos Soltam" style="flex:1;border-radius:4px;background:#e5e7eb;transition:all 0.3s;display:flex;align-items:center;justify-content:center;font-size:8px;font-weight:700;color:#fff"></div>
+<div class="tl-item" id="tl10" title="10.Portao Abre" style="flex:1;border-radius:4px;background:#e5e7eb;transition:all 0.3s;display:flex;align-items:center;justify-content:center;font-size:8px;font-weight:700;color:#fff"></div>
 </div>
-<div style="display:flex;justify-content:space-between;margin-top:4px;font-size:8px;color:#9ca3af">
-<span>1</span><span>2</span><span>3</span><span>4</span><span>5</span><span>6</span><span>7</span><span>8</span><span>9</span>
+<div style="display:flex;justify-content:space-between;margin-top:4px;font-size:7px;color:#9ca3af">
+<span>1</span><span>2</span><span>3</span><span>4</span><span>5</span><span>6</span><span>7</span><span>8</span><span>9</span><span>10</span>
 </div>
 </div>
 </div>
@@ -454,8 +456,8 @@ Perguntas Frequentes - PILI TECH
 <div class="faq-a">O ciclo é contado quando o sensor de 0° passa de ATIVO para INATIVO (plataforma começa a subir). O tempo padrão é 20 minutos.</div>
 </div>
 <div class="faq-item">
-<div class="faq-q">4. Quais são as 9 etapas do ciclo?</div>
-<div class="faq-a">1.Portão fecha 2.Trava roda 3.Trava chassi 4.Trava pinos 5.Sensor 0° inativo 6.Solta pinos 7.Solta chassi 8.Solta roda 9.Portão abre</div>
+<div class="faq-q">4. Quais são as 10 etapas do ciclo?</div>
+<div class="faq-a">1.Portão fecha 2.Sensor 0° inativo 3.Trava roda 4.Trava chassi 5.Trava pinos 6.Sensor 0° ativo 7.Solta roda 8.Solta chassi 9.Solta pinos 10.Portão abre</div>
 </div>
 <div class="faq-item">
 <div class="faq-q">5. Para que serve o horímetro?</div>
@@ -706,8 +708,8 @@ updateTimeline();
 }
 function updateTimeline(){
 var etapaAtual=data.currentCycle?data.currentCycle.etapaAtual:0;
-document.getElementById('etapaAtual').textContent=data.cycleInProgress?etapaAtual+'/9':'-';
-for(var i=1;i<=9;i++){
+document.getElementById('etapaAtual').textContent=data.cycleInProgress?etapaAtual+'/10':'-';
+for(var i=1;i<=10;i++){
 var tl=document.getElementById('tl'+i);
 if(data.cycleInProgress&&i<etapaAtual){
 tl.style.background='#10b981';
@@ -1679,124 +1681,127 @@ void loop() {
   bool travaPinosAtivo = trava_pino_e && trava_pino_d;
   bool lastTravaPinosAtivo = lastTravaPinoE && lastTravaPinoD;
 
-  // === ETAPA 1: Portão aberto → Portão fechado (INÍCIO DO CICLO) ===
+  // ====== TRACKING DAS 10 ETAPAS DO CICLO ======
+  // 1.Portão fechado 2.Sensor 0° inativo 3.Trava roda 4.Trava chassi 5.Trava pinos
+  // 6.Sensor 0° ativo 7.Solta roda 8.Solta chassi 9.Solta pinos 10.Portão abre
+
+  // === ETAPA 1: Portão fecha (INÍCIO DO CICLO) ===
   if (portao_fechado && !lastPortaoFechado && !cycleInProgress) {
     cycleInProgress = true;
     cycleStartTime = currentMillis;
     stageStartTime = currentMillis;
-    currentCycle = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1};
+    currentCycle = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1};
+    Serial.println("🚀 CICLO INICIADO - Etapa 1 (Portão fechou)");
+  }
 
-    // Calcular tempo da etapa 1 (portão estava aberto)
-    currentCycle.etapa1_portaoAberto_portaoFechado = currentMillis - stageStartTime;
+  // === ETAPA 1→2: Sensor 0° fica inativo ===
+  if (cycleInProgress && currentCycle.etapaAtual == 1 && !sensor_0_graus && lastSensor0Graus) {
+    currentCycle.etapa1_portaoFechado = currentMillis - stageStartTime;
     stageStartTime = currentMillis;
     currentCycle.etapaAtual = 2;
+    Serial.printf("  Etapa 1 completa: %lu seg | Etapa 2 (Sensor 0° inativo)\n", currentCycle.etapa1_portaoFechado / 1000);
 
-    Serial.println("🚀 CICLO INICIADO - Etapa 1 completa (Portão fechou)");
-
-    if (WiFi.status() == WL_CONNECTED) {
-      enviarEvento("INFO", "Ciclo iniciado - Portão fechou", "etapa_1", true);
-    }
-  }
-
-  // === ETAPA 2: Portão fechado → Trava roda ativo ===
-  if (cycleInProgress && currentCycle.etapaAtual == 2 && trava_roda && !lastTravaRoda) {
-    currentCycle.etapa2_portaoFechado_travaRoda = currentMillis - stageStartTime;
-    stageStartTime = currentMillis;
-    currentCycle.etapaAtual = 3;
-    Serial.printf("  Etapa 2 completa: %lu seg (Trava roda ativou)\n", currentCycle.etapa2_portaoFechado_travaRoda / 1000);
-  }
-
-  // === ETAPA 3: Trava roda ativo → Trava chassi ativo ===
-  if (cycleInProgress && currentCycle.etapaAtual == 3 && trava_chassi && !lastTravaChassi) {
-    currentCycle.etapa3_travaRoda_travaChassi = currentMillis - stageStartTime;
-    stageStartTime = currentMillis;
-    currentCycle.etapaAtual = 4;
-    Serial.printf("  Etapa 3 completa: %lu seg (Trava chassi ativou)\n", currentCycle.etapa3_travaRoda_travaChassi / 1000);
-  }
-
-  // === ETAPA 4: Trava chassi ativo → Trava pino D/E ativo ===
-  if (cycleInProgress && currentCycle.etapaAtual == 4 && travaPinosAtivo && !lastTravaPinosAtivo) {
-    currentCycle.etapa4_travaChassi_travaPinos = currentMillis - stageStartTime;
-    stageStartTime = currentMillis;
-    currentCycle.etapaAtual = 5;
-    Serial.printf("  Etapa 4 completa: %lu seg (Travas pino D/E ativaram)\n", currentCycle.etapa4_travaChassi_travaPinos / 1000);
-  }
-
-  // === ETAPA 5: Trava pino D/E ativo → Sensor 0° inativo (PLATAFORMA SUBINDO) ===
-  if (cycleInProgress && currentCycle.etapaAtual == 5 && !sensor_0_graus && lastSensor0Graus) {
-    currentCycle.etapa5_travaPinos_sensor0Inativo = currentMillis - stageStartTime;
-    stageStartTime = currentMillis;
-    currentCycle.etapaAtual = 6;
-    Serial.printf("  Etapa 5 completa: %lu seg (Sensor 0° inativo - plataforma subindo)\n", currentCycle.etapa5_travaPinos_sensor0Inativo / 1000);
-
-    // *** CONTAGEM DO CICLO AQUI ***
-    // Ciclo é contado quando sensor 0° vai de ATIVO para INATIVO
+    // *** CONTAGEM DO CICLO: sensor 0° ATIVO → INATIVO ***
     stats.ciclosHoje++;
     stats.ciclosTotal++;
-
     preferences.begin("pilitech", false);
     preferences.putULong("ciclosTotal", stats.ciclosTotal);
     preferences.end();
-
-    Serial.printf("✓ CICLO CONTADO! Ciclos hoje: %lu | Total: %lu\n", stats.ciclosHoje, stats.ciclosTotal);
-
+    Serial.printf("✓ CICLO CONTADO! Hoje: %lu | Total: %lu\n", stats.ciclosHoje, stats.ciclosTotal);
     if (WiFi.status() == WL_CONNECTED) {
       char msg[128];
-      snprintf(msg, sizeof(msg), "Ciclo contado - Total hoje: %lu | Total geral: %lu", stats.ciclosHoje, stats.ciclosTotal);
+      snprintf(msg, sizeof(msg), "Ciclo contado - Hoje: %lu | Total: %lu", stats.ciclosHoje, stats.ciclosTotal);
       enviarEvento("INFO", msg, "ciclo_contado", true);
     }
   }
 
-  // === ETAPA 6: Sensor 0° ativo → Trava pino D/E inativo (PLATAFORMA DESCENDO) ===
-  if (cycleInProgress && currentCycle.etapaAtual == 6 && !travaPinosAtivo && lastTravaPinosAtivo) {
-    currentCycle.etapa6_sensor0Ativo_travaPinosInativo = currentMillis - stageStartTime;
+  // === ETAPA 2→3: Trava roda ativa ===
+  if (cycleInProgress && currentCycle.etapaAtual == 2 && trava_roda && !lastTravaRoda) {
+    currentCycle.etapa2_sensor0Inativo = currentMillis - stageStartTime;
+    stageStartTime = currentMillis;
+    currentCycle.etapaAtual = 3;
+    Serial.printf("  Etapa 2 completa: %lu seg | Etapa 3 (Trava roda)\n", currentCycle.etapa2_sensor0Inativo / 1000);
+  }
+
+  // === ETAPA 3→4: Trava chassi ativa ===
+  if (cycleInProgress && currentCycle.etapaAtual == 3 && trava_chassi && !lastTravaChassi) {
+    currentCycle.etapa3_travaRoda = currentMillis - stageStartTime;
+    stageStartTime = currentMillis;
+    currentCycle.etapaAtual = 4;
+    Serial.printf("  Etapa 3 completa: %lu seg | Etapa 4 (Trava chassi)\n", currentCycle.etapa3_travaRoda / 1000);
+  }
+
+  // === ETAPA 4→5: Trava pinos ativa ===
+  if (cycleInProgress && currentCycle.etapaAtual == 4 && travaPinosAtivo && !lastTravaPinosAtivo) {
+    currentCycle.etapa4_travaChassi = currentMillis - stageStartTime;
+    stageStartTime = currentMillis;
+    currentCycle.etapaAtual = 5;
+    Serial.printf("  Etapa 4 completa: %lu seg | Etapa 5 (Trava pinos)\n", currentCycle.etapa4_travaChassi / 1000);
+  }
+
+  // === ETAPA 5→6: Sensor 0° fica ativo (plataforma desceu) ===
+  if (cycleInProgress && currentCycle.etapaAtual == 5 && sensor_0_graus && !lastSensor0Graus) {
+    currentCycle.etapa5_travaPinos = currentMillis - stageStartTime;
+    stageStartTime = currentMillis;
+    currentCycle.etapaAtual = 6;
+    Serial.printf("  Etapa 5 completa: %lu seg | Etapa 6 (Sensor 0° ativo)\n", currentCycle.etapa5_travaPinos / 1000);
+  }
+
+  // === ETAPA 6→7: Trava roda solta ===
+  if (cycleInProgress && currentCycle.etapaAtual == 6 && !trava_roda && lastTravaRoda) {
+    currentCycle.etapa6_sensor0Ativo = currentMillis - stageStartTime;
     stageStartTime = currentMillis;
     currentCycle.etapaAtual = 7;
-    Serial.printf("  Etapa 6 completa: %lu seg (Travas pino D/E desativaram)\n", currentCycle.etapa6_sensor0Ativo_travaPinosInativo / 1000);
+    Serial.printf("  Etapa 6 completa: %lu seg | Etapa 7 (Solta roda)\n", currentCycle.etapa6_sensor0Ativo / 1000);
   }
 
-  // === ETAPA 7: Trava pino D/E inativo → Trava chassi inativo ===
+  // === ETAPA 7→8: Trava chassi solta ===
   if (cycleInProgress && currentCycle.etapaAtual == 7 && !trava_chassi && lastTravaChassi) {
-    currentCycle.etapa7_travaPinosInativo_travaChassiInativo = currentMillis - stageStartTime;
+    currentCycle.etapa7_travaRodaInativo = currentMillis - stageStartTime;
     stageStartTime = currentMillis;
     currentCycle.etapaAtual = 8;
-    Serial.printf("  Etapa 7 completa: %lu seg (Trava chassi desativou)\n", currentCycle.etapa7_travaPinosInativo_travaChassiInativo / 1000);
+    Serial.printf("  Etapa 7 completa: %lu seg | Etapa 8 (Solta chassi)\n", currentCycle.etapa7_travaRodaInativo / 1000);
   }
 
-  // === ETAPA 8: Trava chassi inativo → Trava roda inativo ===
-  if (cycleInProgress && currentCycle.etapaAtual == 8 && !trava_roda && lastTravaRoda) {
-    currentCycle.etapa8_travaChassiInativo_travaRodaInativo = currentMillis - stageStartTime;
+  // === ETAPA 8→9: Trava pinos solta ===
+  if (cycleInProgress && currentCycle.etapaAtual == 8 && !travaPinosAtivo && lastTravaPinosAtivo) {
+    currentCycle.etapa8_travaChassiInativo = currentMillis - stageStartTime;
     stageStartTime = currentMillis;
     currentCycle.etapaAtual = 9;
-    Serial.printf("  Etapa 8 completa: %lu seg (Trava roda desativou)\n", currentCycle.etapa8_travaChassiInativo_travaRodaInativo / 1000);
+    Serial.printf("  Etapa 8 completa: %lu seg | Etapa 9 (Solta pinos)\n", currentCycle.etapa8_travaChassiInativo / 1000);
   }
 
-  // === ETAPA 9: Trava roda inativo → Portão aberto (FIM DO CICLO) ===
+  // === ETAPA 9→10: Portão abre (FIM DO CICLO) ===
   if (cycleInProgress && currentCycle.etapaAtual == 9 && !portao_fechado && lastPortaoFechado) {
-    currentCycle.etapa9_travaRodaInativo_portaoAberto = currentMillis - stageStartTime;
-    currentCycle.cicloTotal = currentMillis - cycleStartTime;
+    currentCycle.etapa9_travaPinosInativo = currentMillis - stageStartTime;
+    stageStartTime = currentMillis;
+    currentCycle.etapaAtual = 10;
+    Serial.printf("  Etapa 9 completa: %lu seg | Etapa 10 (Portão abre)\n", currentCycle.etapa9_travaPinosInativo / 1000);
+  }
 
-    // Copiar ciclo atual para último ciclo completo
+  // === ETAPA 10 COMPLETA: Ciclo finalizado ===
+  if (cycleInProgress && currentCycle.etapaAtual == 10) {
+    currentCycle.etapa10_portaoAberto = currentMillis - stageStartTime;
+    currentCycle.cicloTotal = currentMillis - cycleStartTime;
     lastCompleteCycle = currentCycle;
 
     Serial.printf("✓ CICLO COMPLETO! Tempo total: %lu segundos\n", currentCycle.cicloTotal / 1000);
-    Serial.println("  Tempos das 9 etapas:");
-    Serial.printf("    1. Portão abriu→fechou: %lu s\n", currentCycle.etapa1_portaoAberto_portaoFechado / 1000);
-    Serial.printf("    2. Portão fechado→trava roda: %lu s\n", currentCycle.etapa2_portaoFechado_travaRoda / 1000);
-    Serial.printf("    3. Trava roda→trava chassi: %lu s\n", currentCycle.etapa3_travaRoda_travaChassi / 1000);
-    Serial.printf("    4. Trava chassi→trava pinos: %lu s\n", currentCycle.etapa4_travaChassi_travaPinos / 1000);
-    Serial.printf("    5. Trava pinos→sensor 0° inativo: %lu s\n", currentCycle.etapa5_travaPinos_sensor0Inativo / 1000);
-    Serial.printf("    6. Sensor 0° ativo→trava pinos inativo: %lu s\n", currentCycle.etapa6_sensor0Ativo_travaPinosInativo / 1000);
-    Serial.printf("    7. Trava pinos inativo→trava chassi inativo: %lu s\n", currentCycle.etapa7_travaPinosInativo_travaChassiInativo / 1000);
-    Serial.printf("    8. Trava chassi inativo→trava roda inativo: %lu s\n", currentCycle.etapa8_travaChassiInativo_travaRodaInativo / 1000);
-    Serial.printf("    9. Trava roda inativo→portão aberto: %lu s\n", currentCycle.etapa9_travaRodaInativo_portaoAberto / 1000);
+    Serial.println("  Tempos das 10 etapas:");
+    Serial.printf("    1. Portão fechado: %lu s\n", currentCycle.etapa1_portaoFechado / 1000);
+    Serial.printf("    2. Sensor 0° inativo: %lu s\n", currentCycle.etapa2_sensor0Inativo / 1000);
+    Serial.printf("    3. Trava roda: %lu s\n", currentCycle.etapa3_travaRoda / 1000);
+    Serial.printf("    4. Trava chassi: %lu s\n", currentCycle.etapa4_travaChassi / 1000);
+    Serial.printf("    5. Trava pinos: %lu s\n", currentCycle.etapa5_travaPinos / 1000);
+    Serial.printf("    6. Sensor 0° ativo: %lu s\n", currentCycle.etapa6_sensor0Ativo / 1000);
+    Serial.printf("    7. Solta roda: %lu s\n", currentCycle.etapa7_travaRodaInativo / 1000);
+    Serial.printf("    8. Solta chassi: %lu s\n", currentCycle.etapa8_travaChassiInativo / 1000);
+    Serial.printf("    9. Solta pinos: %lu s\n", currentCycle.etapa9_travaPinosInativo / 1000);
+    Serial.printf("   10. Portão aberto: %lu s\n", currentCycle.etapa10_portaoAberto / 1000);
 
     if (WiFi.status() == WL_CONNECTED) {
       char msg[128];
       snprintf(msg, sizeof(msg), "Ciclo completo em %lu seg", currentCycle.cicloTotal / 1000);
       enviarEvento("INFO", msg, "ciclo_completo", true);
-
-      // Enviar dados do ciclo para análise de produtividade
       enviarDadosCiclo();
     }
 
