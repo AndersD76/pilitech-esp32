@@ -741,7 +741,7 @@ app.post('/api/usuarios', authenticateToken, async (req, res) => {
 app.put('/api/usuarios/:id', authenticateToken, async (req, res) => {
   try {
     const { id } = req.params;
-    const { nome, telefone, role, active, password, empresa_id, unidade_id } = req.body;
+    const { nome, email, telefone, role, active, password, empresa_id, unidade_id } = req.body;
 
     // Buscar usuário atual
     const userResult = await pool.query('SELECT * FROM usuarios WHERE id = $1', [id]);
@@ -768,14 +768,14 @@ app.put('/api/usuarios/:id', authenticateToken, async (req, res) => {
     if (password) {
       const hashedPassword = await bcrypt.hash(password, 10);
       await pool.query(`
-        UPDATE usuarios SET nome = $1, telefone = $2, role = $3, active = $4, password = $5, empresa_id = $6, unidade_id = $7
-        WHERE id = $8
-      `, [nome, telefone, role, active !== false, hashedPassword, finalEmpresaId, unidade_id || null, id]);
+        UPDATE usuarios SET nome = $1, email = $2, telefone = $3, role = $4, active = $5, password = $6, empresa_id = $7, unidade_id = $8
+        WHERE id = $9
+      `, [nome, email, telefone, role, active !== false, hashedPassword, finalEmpresaId, unidade_id || null, id]);
     } else {
       await pool.query(`
-        UPDATE usuarios SET nome = $1, telefone = $2, role = $3, active = $4, empresa_id = $5, unidade_id = $6
-        WHERE id = $7
-      `, [nome, telefone, role, active !== false, finalEmpresaId, unidade_id || null, id]);
+        UPDATE usuarios SET nome = $1, email = $2, telefone = $3, role = $4, active = $5, empresa_id = $6, unidade_id = $7
+        WHERE id = $8
+      `, [nome, email, telefone, role, active !== false, finalEmpresaId, unidade_id || null, id]);
     }
 
     res.json({ success: true, message: 'Usuário atualizado' });
