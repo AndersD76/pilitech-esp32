@@ -902,11 +902,12 @@ app.delete('/api/devices/:serialNumber', authenticateToken, requireSuperAdmin, a
 
     const deviceId = deviceResult.rows[0].id;
 
-    // Excluir dados relacionados
+    // Excluir dados relacionados (ordem importante por causa das foreign keys)
     await pool.query('DELETE FROM sensor_readings WHERE device_id = $1', [deviceId]);
     await pool.query('DELETE FROM event_logs WHERE device_id = $1', [deviceId]);
     await pool.query('DELETE FROM cycle_data WHERE device_id = $1', [deviceId]);
     await pool.query('DELETE FROM device_sessions WHERE device_id = $1', [deviceId]);
+    await pool.query('DELETE FROM maintenances WHERE device_id = $1', [deviceId]);
 
     // Excluir dispositivo
     await pool.query('DELETE FROM devices WHERE id = $1', [deviceId]);

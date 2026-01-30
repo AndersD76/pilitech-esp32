@@ -58,29 +58,31 @@ struct {
   unsigned long minutosOperacao;
 } stats = {0, 0, 0, 0, 0};
 
-// ====== TRACKING DE ETAPAS DO CICLO ======
-// Tempo de cada etapa em milissegundos
-struct CycleStage {
-  unsigned long portaoFechado;      // Tempo com portão fechado
-  unsigned long sensor0Inativo;     // Tempo com sensor 0° inativo (subindo)
-  unsigned long travaRodaAtivo;     // Tempo com trava roda ativo
-  unsigned long travaChassiAtivo;   // Tempo com trava chassi ativo
-  unsigned long travaPinosAtivo;    // Tempo com travas pinos E/D ativos
-  unsigned long sensor0Ativo;       // Tempo com sensor 0° ativo (descido)
-  unsigned long cicloTotal;         // Tempo total do ciclo (portão fecha -> portão abre)
+// ====== TRACKING DE ETAPAS DO CICLO (9 ETAPAS) ======
+// Tempo de cada transição em milissegundos
+struct CycleStages {
+  unsigned long etapa1_portaoAberto_portaoFechado;     // 1. portão aberto → portão fechado
+  unsigned long etapa2_portaoFechado_travaRoda;        // 2. portão fechado → trava roda ativo
+  unsigned long etapa3_travaRoda_travaChassi;          // 3. trava roda ativo → trava chassi ativo
+  unsigned long etapa4_travaChassi_travaPinos;         // 4. trava chassi ativo → trava pino d/e ativo
+  unsigned long etapa5_travaPinos_sensor0Inativo;      // 5. trava pino d/e ativo → sensor 0° inativo
+  unsigned long etapa6_sensor0Ativo_travaPinosInativo; // 6. sensor 0° ativo → trava pino d/e inativo
+  unsigned long etapa7_travaPinosInativo_travaChassiInativo;   // 7. trava pino d/e inativo → trava chassi inativo
+  unsigned long etapa8_travaChassiInativo_travaRodaInativo;    // 8. trava chassi inativo → trava roda inativo
+  unsigned long etapa9_travaRodaInativo_portaoAberto;  // 9. trava roda inativo → portão aberto
+  unsigned long cicloTotal;                            // Tempo total do ciclo
+  int etapaAtual;                                      // Etapa atual (1-9)
 };
 
-CycleStage currentCycle = {0, 0, 0, 0, 0, 0, 0};
-CycleStage lastCompleteCycle = {0, 0, 0, 0, 0, 0, 0};
+CycleStages currentCycle = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+CycleStages lastCompleteCycle = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
 
 // Timestamps de início de cada etapa
-unsigned long stageStartPortao = 0;
-unsigned long stageStartSensor0Inativo = 0;
-unsigned long stageStartTravaRoda = 0;
-unsigned long stageStartTravaChassi = 0;
-unsigned long stageStartTravaPinos = 0;
-unsigned long stageStartSensor0Ativo = 0;
+unsigned long stageStartTime = 0;
 unsigned long cycleStartTime = 0;
+
+// Flag para sistema iniciado (START do técnico)
+bool sistemaIniciado = false;
 
 // Estados anteriores para detectar transições
 bool lastPortaoFechado = false;
@@ -91,6 +93,9 @@ bool lastTravaPinoD = false;
 
 // Flag para indicar se ciclo está em andamento
 bool cycleInProgress = false;
+
+// Para detectar transição do sensor 0° (contagem de ciclo)
+// CICLO = sensor 0° ATIVO → INATIVO
 
 // Tempo padrão de ciclo (20 minutos em ms)
 const unsigned long CICLO_PADRAO_MS = 20 * 60 * 1000;
@@ -113,6 +118,7 @@ String lastMaintenanceDate = "";
 bool enviarLeituraSensores();
 bool enviarEvento(const char* eventType, const char* message, const char* sensorName = "", bool sensorValue = false);
 bool enviarManutencao(const char* technician, const char* description);
+bool autoRegistrarDispositivo();
 
 // HTML MELHORADO
 const char index_html[] PROGMEM = R"rawliteral(<!DOCTYPE html>
@@ -283,20 +289,22 @@ Sensores do Sistema
 </div>
 <div style="margin-top:12px;padding:10px;background:#f9fafb;border-radius:6px">
 <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
-<span style="font-size:11px;font-weight:700;color:#6b7280">LINHA DO TEMPO DO CICLO</span>
-<span style="font-size:11px;color:#6b7280" id="cycleTimer">--:--</span>
+<span style="font-size:11px;font-weight:700;color:#6b7280">TIMELINE DAS 9 ETAPAS DO CICLO</span>
+<span style="font-size:11px;color:#6b7280">Etapa: <span id="etapaAtual">-</span> | <span id="cycleTimer">--:--</span></span>
 </div>
-<div id="timeline" style="display:flex;gap:4px;height:24px">
-<div class="tl-item" id="tl0" title="Portão" style="flex:1;border-radius:4px;background:#e5e7eb;transition:all 0.3s"></div>
-<div class="tl-item" id="tl1" title="Sensor 0°" style="flex:1;border-radius:4px;background:#e5e7eb;transition:all 0.3s"></div>
-<div class="tl-item" id="tl2" title="Trava Roda" style="flex:1;border-radius:4px;background:#e5e7eb;transition:all 0.3s"></div>
-<div class="tl-item" id="tl3" title="Trava Chassi" style="flex:1;border-radius:4px;background:#e5e7eb;transition:all 0.3s"></div>
-<div class="tl-item" id="tl4" title="Travas Pino" style="flex:1;border-radius:4px;background:#e5e7eb;transition:all 0.3s"></div>
-<div class="tl-item" id="tl5" title="Sensor 40°" style="flex:1;border-radius:4px;background:#e5e7eb;transition:all 0.3s"></div>
-<div class="tl-item" id="tl6" title="Moega/Fosso" style="flex:1;border-radius:4px;background:#e5e7eb;transition:all 0.3s"></div>
+<div id="timeline" style="display:flex;gap:2px;height:28px">
+<div class="tl-item" id="tl1" title="1.Portão fecha" style="flex:1;border-radius:4px;background:#e5e7eb;transition:all 0.3s;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;color:#fff"></div>
+<div class="tl-item" id="tl2" title="2.Trava Roda" style="flex:1;border-radius:4px;background:#e5e7eb;transition:all 0.3s;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;color:#fff"></div>
+<div class="tl-item" id="tl3" title="3.Trava Chassi" style="flex:1;border-radius:4px;background:#e5e7eb;transition:all 0.3s;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;color:#fff"></div>
+<div class="tl-item" id="tl4" title="4.Trava Pinos" style="flex:1;border-radius:4px;background:#e5e7eb;transition:all 0.3s;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;color:#fff"></div>
+<div class="tl-item" id="tl5" title="5.Sensor0 Inativo" style="flex:1;border-radius:4px;background:#e5e7eb;transition:all 0.3s;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;color:#fff"></div>
+<div class="tl-item" id="tl6" title="6.Pinos Soltam" style="flex:1;border-radius:4px;background:#e5e7eb;transition:all 0.3s;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;color:#fff"></div>
+<div class="tl-item" id="tl7" title="7.Chassi Solta" style="flex:1;border-radius:4px;background:#e5e7eb;transition:all 0.3s;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;color:#fff"></div>
+<div class="tl-item" id="tl8" title="8.Roda Solta" style="flex:1;border-radius:4px;background:#e5e7eb;transition:all 0.3s;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;color:#fff"></div>
+<div class="tl-item" id="tl9" title="9.Portão Abre" style="flex:1;border-radius:4px;background:#e5e7eb;transition:all 0.3s;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;color:#fff"></div>
 </div>
-<div style="display:flex;justify-content:space-between;margin-top:4px;font-size:9px;color:#9ca3af">
-<span>PRT</span><span>0°</span><span>TR</span><span>TC</span><span>TP</span><span>40°</span><span>MF</span>
+<div style="display:flex;justify-content:space-between;margin-top:4px;font-size:8px;color:#9ca3af">
+<span>1</span><span>2</span><span>3</span><span>4</span><span>5</span><span>6</span><span>7</span><span>8</span><span>9</span>
 </div>
 </div>
 </div>
@@ -354,27 +362,20 @@ Nova Manutenção
 </div>
 </div>
 </div>
-<div class="panel" style="grid-template-rows:200px 260px">
+<div class="panel" style="grid-template-rows:auto auto auto">
 <div class="card">
 <div class="card-title">
 <svg viewBox="0 0 24 24" stroke-width="2"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
 Informações do Sistema
 </div>
-<div class="info-row">
-<span class="info-label">Memória Livre</span>
-<span class="info-value"><span id="mem">0</span> KB</span>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+<div class="info-row"><span class="info-label">Memória Livre</span><span class="info-value"><span id="mem">0</span> KB</span></div>
+<div class="info-row"><span class="info-label">Tempo Ativo</span><span class="info-value"><span id="up">0</span> s</span></div>
+<div class="info-row"><span class="info-label">Número de Série</span><span class="info-value">00002025</span></div>
+<div class="info-row"><span class="info-label">Versão Firmware</span><span class="info-value">1.0</span></div>
 </div>
-<div class="info-row">
-<span class="info-label">Tempo Ativo</span>
-<span class="info-value"><span id="up">0</span> s</span>
-</div>
-<div class="info-row">
-<span class="info-label">Número de Série</span>
-<span class="info-value">00002025</span>
-</div>
-<div class="info-row">
-<span class="info-label">Versão Firmware</span>
-<span class="info-value">1.0</span>
+<div id="sistemaStatus" style="margin-top:12px;padding:10px;border-radius:6px;background:#fef2f2;border:2px solid #fecaca;text-align:center">
+<span style="font-size:12px;font-weight:700;color:#991b1b">SISTEMA NÃO INICIADO</span>
 </div>
 </div>
 <div class="card">
@@ -382,19 +383,46 @@ Informações do Sistema
 <svg viewBox="0 0 24 24" stroke-width="2"><path d="M5 12.55a11 11 0 0114.08 0M1.42 9a16 16 0 0121.16 0M8.53 16.11a6 6 0 016.95 0M12 20h.01"/></svg>
 Configuração WiFi
 </div>
-<p style="color:#6b7280;font-size:12px;margin-bottom:12px">Conecte o sistema à sua rede WiFi para acesso remoto</p>
 <input type="text" id="wifiSSID" placeholder="Nome da Rede (SSID)" class="input">
 <input type="password" id="wifiPass" placeholder="Senha WiFi" class="input">
 <button onclick="connectWiFi()" class="btn btn-primary" style="width:100%;margin-top:6px">
-<svg viewBox="0 0 24 24" stroke-width="2"><path d="M5 12.55a11 11 0 0114.08 0M1.42 9a16 16 0 0121.16 0M8.53 16.11a6 6 0 016.95 0M12 20h.01"/></svg>
+<svg viewBox="0 0 24 24" stroke-width="2"><path d="M5 12.55a11 11 0 0114.08 0"/></svg>
 Conectar WiFi
 </button>
-<div id="wifiMsg" style="margin-top:12px;padding:10px;border-radius:6px;display:none;font-size:12px;font-weight:600"></div>
-<div style="margin-top:16px;border-top:1px solid #e5e7eb;padding-top:16px">
-<button onclick="openConfigModal()" class="btn btn-primary" style="width:100%;background:#374151">
+<div id="wifiMsg" style="margin-top:8px;padding:8px;border-radius:6px;display:none;font-size:11px;font-weight:600"></div>
+</div>
+<div class="card">
+<div class="card-title">
 <svg viewBox="0 0 24 24" stroke-width="2"><path d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><circle cx="12" cy="12" r="3"/></svg>
-Configurações Avançadas
+Controles do Técnico (Requer Internet)
+</div>
+<div id="techControls">
+<div id="techLogin" style="text-align:center;padding:10px">
+<p style="color:#6b7280;font-size:11px;margin-bottom:8px">Digite a senha do técnico para acessar os controles</p>
+<input type="password" id="techPass" class="input" placeholder="Senha do técnico" style="text-align:center">
+<button onclick="checkTechPass()" class="btn btn-primary" style="width:100%;margin-top:8px">Entrar</button>
+<div id="techError" style="display:none;color:#dc2626;font-size:11px;margin-top:6px">Senha incorreta</div>
+</div>
+<div id="techPanel" style="display:none">
+<div style="display:grid;gap:8px">
+<button onclick="startSistema()" class="btn btn-success" style="width:100%" id="btnStart">
+<svg viewBox="0 0 24 24" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+START - Iniciar Sistema
 </button>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+<button onclick="resetCiclosHoje()" class="btn" style="background:#f59e0b;color:#fff">Resetar Ciclos Hoje</button>
+<button onclick="resetCiclosTotal()" class="btn" style="background:#f97316;color:#fff">Resetar Ciclos Total</button>
+</div>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+<button onclick="resetHorimetro()" class="btn" style="background:#ef4444;color:#fff">Resetar Horímetro</button>
+<button onclick="restartIoT()" class="btn" style="background:#7f1d1d;color:#fff">Reiniciar IoT</button>
+</div>
+</div>
+<button onclick="openConfigModal()" class="btn" style="width:100%;margin-top:8px;background:#374151;color:#fff">Configurar Sensores</button>
+</div>
+</div>
+<div id="noWifiWarning" style="display:none;padding:12px;background:#fef2f2;border-radius:6px;text-align:center">
+<span style="font-size:11px;color:#991b1b;font-weight:600">Conecte o WiFi para acessar os controles do técnico</span>
 </div>
 </div>
 </div>
@@ -411,31 +439,39 @@ Registro de Eventos
 <div class="card" style="max-height:460px;overflow-y:auto">
 <div class="card-title">
 <svg viewBox="0 0 24 24" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 015.83 1c0 2-3 3-3 3m.08 4h.01"/></svg>
-Perguntas Frequentes
+Perguntas Frequentes - PILI TECH
 </div>
 <div class="faq-item">
 <div class="faq-q">1. O que é o PILI TECH?</div>
-<div class="faq-a">Sistema de telemetria IoT que monitora 8 sensores digitais do tombador em tempo real, contabiliza ciclos, horímetro e envia dados para a nuvem.</div>
+<div class="faq-a">Sistema de telemetria IoT que monitora 8 sensores do tombador em tempo real, conta ciclos, horímetro e envia dados para a nuvem.</div>
 </div>
 <div class="faq-item">
-<div class="faq-q">2. Como acessar o PILI TECH?</div>
-<div class="faq-a">Conecte ao WiFi "PILI-TECH" (senha: 00002025) e acesse 192.168.4.1 no navegador. Com internet, acesse o portal web remotamente.</div>
+<div class="faq-q">2. Como acessar localmente?</div>
+<div class="faq-a">Conecte ao WiFi "PILI-TECH" (senha: 00002025) e acesse 192.168.4.1 no navegador.</div>
 </div>
 <div class="faq-item">
 <div class="faq-q">3. Como é contado um ciclo?</div>
-<div class="faq-a">Ciclo inicia quando o portão fecha e termina quando o portão abre. O sistema mede o tempo de cada etapa para análise de produtividade.</div>
+<div class="faq-a">O ciclo é contado quando o sensor de 0° passa de ATIVO para INATIVO (plataforma começa a subir). O tempo padrão é 20 minutos.</div>
 </div>
 <div class="faq-item">
-<div class="faq-q">4. Os dados ficam salvos offline?</div>
-<div class="faq-a">Sim! Quando sem internet, os dados são salvos localmente a cada 15 minutos e sincronizados automaticamente ao reconectar.</div>
+<div class="faq-q">4. Quais são as 9 etapas do ciclo?</div>
+<div class="faq-a">1.Portão fecha 2.Trava roda 3.Trava chassi 4.Trava pinos 5.Sensor 0° inativo 6.Solta pinos 7.Solta chassi 8.Solta roda 9.Portão abre</div>
 </div>
 <div class="faq-item">
 <div class="faq-q">5. Para que serve o horímetro?</div>
-<div class="faq-a">Conta as horas de operação do equipamento para programar manutenções preventivas a cada 2000 horas.</div>
+<div class="faq-a">Conta as horas de operação para programar manutenções preventivas a cada 2000 horas de uso.</div>
 </div>
 <div class="faq-item">
-<div class="faq-q">6. Qual o tempo padrão de ciclo?</div>
-<div class="faq-a">O ciclo padrão é 20 minutos. O sistema calcula a eficiência comparando o tempo real com o padrão.</div>
+<div class="faq-q">6. Os dados ficam salvos offline?</div>
+<div class="faq-a">Sim! Sem internet, os dados são salvos a cada 15 min e sincronizados automaticamente ao reconectar.</div>
+</div>
+<div class="faq-item">
+<div class="faq-q">7. O que significa o alerta de Moega/Fosso?</div>
+<div class="faq-a">Indica que o fosso está cheio e precisa ser esvaziado. O sistema emite alerta visual e sonoro.</div>
+</div>
+<div class="faq-item">
+<div class="faq-q">8. Como iniciar o sistema?</div>
+<div class="faq-a">Na aba Sistema, com WiFi conectado, o técnico deve digitar a senha e clicar em START para iniciar operação.</div>
 </div>
 </div>
 </div>
@@ -469,24 +505,20 @@ Contato PILI Equipamentos
 <span class="info-value">(54) 3522-2828</span>
 </div>
 <div class="info-row">
-<span class="info-label">Comercial</span>
+<span class="info-label">Suporte Comercial</span>
 <span class="info-value">comercial1@pili.com.br</span>
 </div>
 <div class="info-row">
-<span class="info-label">Engenharia</span>
-<span class="info-value">engenharia@pili.com.br</span>
-</div>
-<div class="info-row">
-<span class="info-label">Website</span>
-<span class="info-value">www.pili.ind.br</span>
+<span class="info-label">Suporte Técnico</span>
+<span class="info-value">engenharia@pili.ind.br</span>
 </div>
 <div class="info-row">
 <span class="info-label">Endereço</span>
-<span class="info-value">Erechim - RS</span>
+<span class="info-value">Erechim - RS, Brasil</span>
 </div>
-<div style="margin-top:20px;padding:16px;background:#f9fafb;border-radius:6px;text-align:center">
-<p style="font-size:11px;color:#6b7280;font-weight:700;text-transform:uppercase;letter-spacing:0.5px">Principais Clientes</p>
-<p style="font-size:14px;color:#111827;font-weight:700;margin-top:8px">Cargill • JBS • BRF • COFCO</p>
+<div style="margin-top:20px;padding:16px;background:linear-gradient(135deg,#dc2626,#991b1b);border-radius:6px;text-align:center">
+<p style="font-size:24px;color:#fff;font-weight:700">PILI</p>
+<p style="font-size:11px;color:rgba(255,255,255,0.8);margin-top:4px">Equipamentos Industriais</p>
 </div>
 </div>
 </div>
@@ -668,14 +700,21 @@ document.getElementById('maintHrs').textContent=Math.max(2000-hrs,0);
 updateTimeline();
 }
 function updateTimeline(){
-var tl=document.querySelectorAll('.tl-item');
-tl[0].style.background=data.portao_fechado?'#10b981':'#ef4444';
-tl[1].style.background=data.sensor_0_graus?'#10b981':'#ef4444';
-tl[2].style.background=data.trava_roda?'#10b981':'#ef4444';
-tl[3].style.background=data.trava_chassi?'#10b981':'#ef4444';
-tl[4].style.background=(data.trava_pino_e&&data.trava_pino_d)?'#10b981':'#ef4444';
-tl[5].style.background=data.sensor_40_graus?'#10b981':'#ef4444';
-tl[6].style.background=data.moega_fosso?'#ef4444':'#10b981';
+var etapaAtual=data.currentCycle?data.currentCycle.etapaAtual:0;
+document.getElementById('etapaAtual').textContent=data.cycleInProgress?etapaAtual+'/9':'-';
+for(var i=1;i<=9;i++){
+var tl=document.getElementById('tl'+i);
+if(data.cycleInProgress&&i<etapaAtual){
+tl.style.background='#10b981';
+tl.textContent='OK';
+}else if(data.cycleInProgress&&i==etapaAtual){
+tl.style.background='#f59e0b';
+tl.textContent='...';
+}else{
+tl.style.background='#e5e7eb';
+tl.textContent='';
+}
+}
 var timer=document.getElementById('cycleTimer');
 if(data.cycleInProgress&&data.currentCycle){
 var elapsed=data.currentCycle.elapsed||0;
@@ -692,6 +731,28 @@ timer.style.color='#6b7280';
 }else{
 timer.textContent='--:--';
 timer.style.color='#6b7280';
+}
+updateSistemaStatus();
+}
+function updateSistemaStatus(){
+var status=document.getElementById('sistemaStatus');
+var techControls=document.getElementById('techControls');
+var noWifi=document.getElementById('noWifiWarning');
+if(data.sistemaIniciado){
+status.style.background='#d1fae5';
+status.style.borderColor='#6ee7b7';
+status.innerHTML='<span style="font-size:12px;font-weight:700;color:#065f46">SISTEMA EM OPERACAO</span>';
+}else{
+status.style.background='#fef2f2';
+status.style.borderColor='#fecaca';
+status.innerHTML='<span style="font-size:12px;font-weight:700;color:#991b1b">SISTEMA NAO INICIADO</span>';
+}
+if(data.wifiConnected){
+techControls.style.display='block';
+noWifi.style.display='none';
+}else{
+techControls.style.display='none';
+noWifi.style.display='block';
 }
 }
 function openConfigModal(){
@@ -742,6 +803,56 @@ if(confirm('Resetar contagem de ciclos de hoje?')){
 if(ws && ws.readyState===1){
 ws.send(JSON.stringify({cmd:'RESET_CICLOS'}));
 addLog('Ciclos resetados');
+}
+}
+}
+var TECH_PASS='pilitech2025';
+function checkTechPass(){
+var pass=document.getElementById('techPass').value;
+if(pass===TECH_PASS){
+document.getElementById('techLogin').style.display='none';
+document.getElementById('techPanel').style.display='block';
+addLog('Tecnico acessou controles do sistema');
+}else{
+document.getElementById('techError').style.display='block';
+}
+}
+function startSistema(){
+if(confirm('Iniciar o sistema? O tombador entrara em operacao.')){
+if(ws&&ws.readyState===1){
+ws.send(JSON.stringify({cmd:'START_SISTEMA'}));
+addLog('SISTEMA INICIADO pelo tecnico');
+alert('Sistema iniciado com sucesso!');
+}
+}
+}
+function resetCiclosTotal(){
+if(confirm('ATENCAO: Isso vai zerar os ciclos TOTAIS. Continuar?')){
+if(confirm('Tem certeza? Esta acao nao pode ser desfeita!')){
+if(ws&&ws.readyState===1){
+ws.send(JSON.stringify({cmd:'RESET_CICLOS_TOTAL'}));
+addLog('Ciclos totais resetados pelo tecnico');
+}
+}
+}
+}
+function resetHorimetro(){
+if(confirm('ATENCAO: Isso vai zerar o HORIMETRO. Continuar?')){
+if(confirm('Tem certeza? Esta acao nao pode ser desfeita!')){
+if(ws&&ws.readyState===1){
+ws.send(JSON.stringify({cmd:'RESET_HORIMETRO'}));
+addLog('Horimetro resetado pelo tecnico');
+}
+}
+}
+}
+function restartIoT(){
+if(confirm('ATENCAO: Isso vai REINICIAR o IoT. Continuar?')){
+if(confirm('O sistema sera desconectado. Continuar?')){
+if(ws&&ws.readyState===1){
+ws.send(JSON.stringify({cmd:'RESTART_IOT'}));
+addLog('IoT reiniciado pelo tecnico');
+}
 }
 }
 }
@@ -884,7 +995,7 @@ void readSensors() {
 
 
 String createJsonData() {
-  StaticJsonDocument<1024> doc;
+  StaticJsonDocument<1536> doc;
   doc["sensor_0_graus"] = sensor_0_graus;
   doc["sensor_40_graus"] = sensor_40_graus;
   doc["trava_roda"] = trava_roda;
@@ -905,14 +1016,20 @@ String createJsonData() {
   // Dados do ciclo atual (em andamento ou último completo)
   doc["cycleInProgress"] = cycleInProgress;
 
-  // Tempos das etapas do último ciclo completo (em segundos)
+  // Sistema iniciado
+  doc["sistemaIniciado"] = sistemaIniciado;
+
+  // Tempos das 9 etapas do último ciclo completo (em segundos)
   JsonObject lastCycle = doc.createNestedObject("lastCycle");
-  lastCycle["portaoFechado"] = lastCompleteCycle.portaoFechado / 1000;
-  lastCycle["sensor0Inativo"] = lastCompleteCycle.sensor0Inativo / 1000;
-  lastCycle["travaRoda"] = lastCompleteCycle.travaRodaAtivo / 1000;
-  lastCycle["travaChassi"] = lastCompleteCycle.travaChassiAtivo / 1000;
-  lastCycle["travaPinos"] = lastCompleteCycle.travaPinosAtivo / 1000;
-  lastCycle["sensor0Ativo"] = lastCompleteCycle.sensor0Ativo / 1000;
+  lastCycle["etapa1"] = lastCompleteCycle.etapa1_portaoAberto_portaoFechado / 1000;
+  lastCycle["etapa2"] = lastCompleteCycle.etapa2_portaoFechado_travaRoda / 1000;
+  lastCycle["etapa3"] = lastCompleteCycle.etapa3_travaRoda_travaChassi / 1000;
+  lastCycle["etapa4"] = lastCompleteCycle.etapa4_travaChassi_travaPinos / 1000;
+  lastCycle["etapa5"] = lastCompleteCycle.etapa5_travaPinos_sensor0Inativo / 1000;
+  lastCycle["etapa6"] = lastCompleteCycle.etapa6_sensor0Ativo_travaPinosInativo / 1000;
+  lastCycle["etapa7"] = lastCompleteCycle.etapa7_travaPinosInativo_travaChassiInativo / 1000;
+  lastCycle["etapa8"] = lastCompleteCycle.etapa8_travaChassiInativo_travaRodaInativo / 1000;
+  lastCycle["etapa9"] = lastCompleteCycle.etapa9_travaRodaInativo_portaoAberto / 1000;
   lastCycle["total"] = lastCompleteCycle.cicloTotal / 1000;
 
   // Tempos do ciclo atual em andamento (em segundos)
@@ -920,12 +1037,16 @@ String createJsonData() {
     JsonObject currCycle = doc.createNestedObject("currentCycle");
     unsigned long now = millis();
     currCycle["elapsed"] = (now - cycleStartTime) / 1000;
-    currCycle["portaoFechado"] = currentCycle.portaoFechado / 1000;
-    currCycle["sensor0Inativo"] = currentCycle.sensor0Inativo / 1000;
-    currCycle["travaRoda"] = currentCycle.travaRodaAtivo / 1000;
-    currCycle["travaChassi"] = currentCycle.travaChassiAtivo / 1000;
-    currCycle["travaPinos"] = currentCycle.travaPinosAtivo / 1000;
-    currCycle["sensor0Ativo"] = currentCycle.sensor0Ativo / 1000;
+    currCycle["etapaAtual"] = currentCycle.etapaAtual;
+    currCycle["etapa1"] = currentCycle.etapa1_portaoAberto_portaoFechado / 1000;
+    currCycle["etapa2"] = currentCycle.etapa2_portaoFechado_travaRoda / 1000;
+    currCycle["etapa3"] = currentCycle.etapa3_travaRoda_travaChassi / 1000;
+    currCycle["etapa4"] = currentCycle.etapa4_travaChassi_travaPinos / 1000;
+    currCycle["etapa5"] = currentCycle.etapa5_travaPinos_sensor0Inativo / 1000;
+    currCycle["etapa6"] = currentCycle.etapa6_sensor0Ativo_travaPinosInativo / 1000;
+    currCycle["etapa7"] = currentCycle.etapa7_travaPinosInativo_travaChassiInativo / 1000;
+    currCycle["etapa8"] = currentCycle.etapa8_travaChassiInativo_travaRodaInativo / 1000;
+    currCycle["etapa9"] = currentCycle.etapa9_travaRodaInativo_portaoAberto / 1000;
   }
 
   // Tempo padrão de ciclo (em segundos)
@@ -1108,6 +1229,51 @@ void onWebSocketEvent(uint8_t num, WStype_t type, uint8_t *payload, size_t lengt
           // Sempre tenta enviar para o NeonDB (sendToAPI fará a verificação de conectividade)
           enviarManutencao(tech.c_str(), desc.c_str());
         }
+        else if (cmd == "RESET_HORIMETRO") {
+          stats.horasOperacao = 0;
+          stats.minutosOperacao = 0;
+
+          preferences.begin("pilitech", false);
+          preferences.putULong("horasOp", 0);
+          preferences.end();
+
+          Serial.println("⚠️ RESET HORÍMETRO: Zerado!");
+
+          if (WiFi.status() == WL_CONNECTED) {
+            enviarEvento("WARNING", "Reset do horímetro realizado pelo técnico", "reset_horimetro", true);
+          }
+        }
+        else if (cmd == "RESET_CICLOS_TOTAL") {
+          stats.ciclosTotal = 0;
+
+          preferences.begin("pilitech", false);
+          preferences.putULong("ciclosTotal", 0);
+          preferences.end();
+
+          Serial.println("⚠️ RESET CICLOS TOTAIS: Zerado!");
+
+          if (WiFi.status() == WL_CONNECTED) {
+            enviarEvento("WARNING", "Reset dos ciclos totais realizado pelo técnico", "reset_ciclos_total", true);
+          }
+        }
+        else if (cmd == "START_SISTEMA") {
+          sistemaIniciado = true;
+          Serial.println("🚀 SISTEMA INICIADO pelo técnico!");
+
+          if (WiFi.status() == WL_CONNECTED) {
+            enviarEvento("INFO", "Sistema iniciado - Tombador entrou em operação", "start_sistema", true);
+          }
+        }
+        else if (cmd == "RESTART_IOT") {
+          Serial.println("🔄 REINICIANDO IoT...");
+
+          if (WiFi.status() == WL_CONNECTED) {
+            enviarEvento("WARNING", "IoT reiniciado pelo técnico", "restart_iot", true);
+          }
+
+          delay(1000);
+          ESP.restart();
+        }
       }
       break;
     }
@@ -1200,20 +1366,23 @@ bool enviarManutencao(const char* technician, const char* description) {
   return sendToAPI("/api/maintenance", payload);
 }
 
-// Enviar dados do ciclo completo para análise de produtividade
+// Enviar dados do ciclo completo com as 9 etapas para análise de produtividade
 bool enviarDadosCiclo() {
-  StaticJsonDocument<512> doc;
+  StaticJsonDocument<768> doc;
   doc["serial_number"] = SERIAL_NUMBER;
   doc["ciclo_numero"] = stats.ciclosTotal;
 
-  // Tempos em segundos
+  // Tempos das 9 etapas em segundos
   doc["tempo_total"] = lastCompleteCycle.cicloTotal / 1000;
-  doc["tempo_portao_fechado"] = lastCompleteCycle.portaoFechado / 1000;
-  doc["tempo_sensor0_inativo"] = lastCompleteCycle.sensor0Inativo / 1000;
-  doc["tempo_trava_roda"] = lastCompleteCycle.travaRodaAtivo / 1000;
-  doc["tempo_trava_chassi"] = lastCompleteCycle.travaChassiAtivo / 1000;
-  doc["tempo_trava_pinos"] = lastCompleteCycle.travaPinosAtivo / 1000;
-  doc["tempo_sensor0_ativo"] = lastCompleteCycle.sensor0Ativo / 1000;
+  doc["etapa1_portao_aberto_fechado"] = lastCompleteCycle.etapa1_portaoAberto_portaoFechado / 1000;
+  doc["etapa2_portao_fechado_trava_roda"] = lastCompleteCycle.etapa2_portaoFechado_travaRoda / 1000;
+  doc["etapa3_trava_roda_trava_chassi"] = lastCompleteCycle.etapa3_travaRoda_travaChassi / 1000;
+  doc["etapa4_trava_chassi_trava_pinos"] = lastCompleteCycle.etapa4_travaChassi_travaPinos / 1000;
+  doc["etapa5_trava_pinos_sensor0_inativo"] = lastCompleteCycle.etapa5_travaPinos_sensor0Inativo / 1000;
+  doc["etapa6_sensor0_ativo_trava_pinos_inativo"] = lastCompleteCycle.etapa6_sensor0Ativo_travaPinosInativo / 1000;
+  doc["etapa7_trava_pinos_inativo_trava_chassi_inativo"] = lastCompleteCycle.etapa7_travaPinosInativo_travaChassiInativo / 1000;
+  doc["etapa8_trava_chassi_inativo_trava_roda_inativo"] = lastCompleteCycle.etapa8_travaChassiInativo_travaRodaInativo / 1000;
+  doc["etapa9_trava_roda_inativo_portao_aberto"] = lastCompleteCycle.etapa9_travaRodaInativo_portaoAberto / 1000;
 
   // Tempo padrão e eficiência
   doc["tempo_padrao"] = CICLO_PADRAO_MS / 1000;
@@ -1224,11 +1393,46 @@ bool enviarDadosCiclo() {
   String payload;
   serializeJson(doc, payload);
 
-  Serial.println("📤 Enviando dados do ciclo para análise de produtividade...");
+  Serial.println("📤 Enviando dados do ciclo (9 etapas) para análise de produtividade...");
   Serial.printf("  Tempo total: %lu seg | Eficiência: %.1f%%\n",
                 lastCompleteCycle.cicloTotal / 1000, eficiencia);
 
   return sendToAPI("/api/cycle-data", payload);
+}
+
+// Auto-registrar dispositivo na API (anuncia existência ao sistema)
+bool autoRegistrarDispositivo() {
+  if (WiFi.status() != WL_CONNECTED) {
+    Serial.println("WiFi não conectado - auto-registro cancelado");
+    return false;
+  }
+
+  StaticJsonDocument<256> doc;
+  doc["serial_number"] = SERIAL_NUMBER;
+  doc["firmware_version"] = "1.0";
+  doc["name"] = "Tombador";
+  doc["ip_address"] = WiFi.localIP().toString();
+  doc["mac_address"] = WiFi.macAddress();
+
+  String payload;
+  serializeJson(doc, payload);
+
+  Serial.println("\n🔗 AUTO-REGISTRO: Anunciando dispositivo para o sistema...");
+  Serial.printf("  Serial: %s\n", SERIAL_NUMBER);
+  Serial.printf("  IP: %s\n", WiFi.localIP().toString().c_str());
+  Serial.printf("  MAC: %s\n", WiFi.macAddress().c_str());
+
+  // Usa o endpoint sensor-reading que já faz auto-detecção
+  bool success = enviarLeituraSensores();
+
+  if (success) {
+    Serial.println("✓ DISPOSITIVO REGISTRADO/ATUALIZADO NO SISTEMA!");
+    enviarEvento("INFO", "Dispositivo auto-registrado no sistema", "startup", true);
+  } else {
+    Serial.println("✗ Falha no auto-registro");
+  }
+
+  return success;
 }
 
 // ====== BUFFER OFFLINE ======
@@ -1454,114 +1658,144 @@ void loop() {
     readSensors();
   }
 
-  // ====== DETECÇÃO DE CICLOS E TRACKING DE ETAPAS ======
-  // Ciclo completo: portão fecha -> operação -> portão abre
-  // Ciclo é contado quando sensor 0° vai de ATIVO para INATIVO (plataforma começa a subir)
+  // ====== DETECÇÃO DE CICLOS E TRACKING DAS 9 ETAPAS ======
+  // CICLO CORRETO: sensor 0° ATIVO → INATIVO (plataforma começa a subir)
+  // 9 ETAPAS:
+  // 1. portão aberto → portão fechado
+  // 2. portão fechado → trava roda ativo
+  // 3. trava roda ativo → trava chassi ativo
+  // 4. trava chassi ativo → trava pino d/e ativo
+  // 5. trava pino d/e ativo → sensor 0° inativo
+  // 6. sensor 0° ativo → trava pino d/e inativo
+  // 7. trava pino d/e inativo → trava chassi inativo
+  // 8. trava chassi inativo → trava roda inativo
+  // 9. trava roda inativo → portão aberto
 
-  // --- INÍCIO DO CICLO: Portão fecha ---
-  if (portao_fechado && !lastPortaoFechado) {
-    // Portão acabou de fechar - INICIA CICLO
+  bool travaPinosAtivo = trava_pino_e && trava_pino_d;
+  bool lastTravaPinosAtivo = lastTravaPinoE && lastTravaPinoD;
+
+  // === ETAPA 1: Portão aberto → Portão fechado (INÍCIO DO CICLO) ===
+  if (portao_fechado && !lastPortaoFechado && !cycleInProgress) {
     cycleInProgress = true;
     cycleStartTime = currentMillis;
-    stageStartPortao = currentMillis;
+    stageStartTime = currentMillis;
+    currentCycle = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1};
 
-    // Resetar tempos do ciclo atual
-    currentCycle = {0, 0, 0, 0, 0, 0, 0};
+    // Calcular tempo da etapa 1 (portão estava aberto)
+    currentCycle.etapa1_portaoAberto_portaoFechado = currentMillis - stageStartTime;
+    stageStartTime = currentMillis;
+    currentCycle.etapaAtual = 2;
 
-    Serial.println("🚀 CICLO INICIADO - Portão fechou");
+    Serial.println("🚀 CICLO INICIADO - Etapa 1 completa (Portão fechou)");
 
     if (WiFi.status() == WL_CONNECTED) {
-      enviarEvento("INFO", "Ciclo iniciado - Portão fechou", "portao_fechado", true);
+      enviarEvento("INFO", "Ciclo iniciado - Portão fechou", "etapa_1", true);
     }
   }
 
-  // --- FIM DO CICLO: Portão abre ---
-  if (!portao_fechado && lastPortaoFechado && cycleInProgress) {
-    // Portão acabou de abrir - FINALIZA CICLO
+  // === ETAPA 2: Portão fechado → Trava roda ativo ===
+  if (cycleInProgress && currentCycle.etapaAtual == 2 && trava_roda && !lastTravaRoda) {
+    currentCycle.etapa2_portaoFechado_travaRoda = currentMillis - stageStartTime;
+    stageStartTime = currentMillis;
+    currentCycle.etapaAtual = 3;
+    Serial.printf("  Etapa 2 completa: %lu seg (Trava roda ativou)\n", currentCycle.etapa2_portaoFechado_travaRoda / 1000);
+  }
+
+  // === ETAPA 3: Trava roda ativo → Trava chassi ativo ===
+  if (cycleInProgress && currentCycle.etapaAtual == 3 && trava_chassi && !lastTravaChassi) {
+    currentCycle.etapa3_travaRoda_travaChassi = currentMillis - stageStartTime;
+    stageStartTime = currentMillis;
+    currentCycle.etapaAtual = 4;
+    Serial.printf("  Etapa 3 completa: %lu seg (Trava chassi ativou)\n", currentCycle.etapa3_travaRoda_travaChassi / 1000);
+  }
+
+  // === ETAPA 4: Trava chassi ativo → Trava pino D/E ativo ===
+  if (cycleInProgress && currentCycle.etapaAtual == 4 && travaPinosAtivo && !lastTravaPinosAtivo) {
+    currentCycle.etapa4_travaChassi_travaPinos = currentMillis - stageStartTime;
+    stageStartTime = currentMillis;
+    currentCycle.etapaAtual = 5;
+    Serial.printf("  Etapa 4 completa: %lu seg (Travas pino D/E ativaram)\n", currentCycle.etapa4_travaChassi_travaPinos / 1000);
+  }
+
+  // === ETAPA 5: Trava pino D/E ativo → Sensor 0° inativo (PLATAFORMA SUBINDO) ===
+  if (cycleInProgress && currentCycle.etapaAtual == 5 && !sensor_0_graus && lastSensor0Graus) {
+    currentCycle.etapa5_travaPinos_sensor0Inativo = currentMillis - stageStartTime;
+    stageStartTime = currentMillis;
+    currentCycle.etapaAtual = 6;
+    Serial.printf("  Etapa 5 completa: %lu seg (Sensor 0° inativo - plataforma subindo)\n", currentCycle.etapa5_travaPinos_sensor0Inativo / 1000);
+
+    // *** CONTAGEM DO CICLO AQUI ***
+    // Ciclo é contado quando sensor 0° vai de ATIVO para INATIVO
+    stats.ciclosHoje++;
+    stats.ciclosTotal++;
+
+    preferences.begin("pilitech", false);
+    preferences.putULong("ciclosTotal", stats.ciclosTotal);
+    preferences.end();
+
+    Serial.printf("✓ CICLO CONTADO! Ciclos hoje: %lu | Total: %lu\n", stats.ciclosHoje, stats.ciclosTotal);
+
+    if (WiFi.status() == WL_CONNECTED) {
+      char msg[128];
+      snprintf(msg, sizeof(msg), "Ciclo contado - Total hoje: %lu | Total geral: %lu", stats.ciclosHoje, stats.ciclosTotal);
+      enviarEvento("INFO", msg, "ciclo_contado", true);
+    }
+  }
+
+  // === ETAPA 6: Sensor 0° ativo → Trava pino D/E inativo (PLATAFORMA DESCENDO) ===
+  if (cycleInProgress && currentCycle.etapaAtual == 6 && !travaPinosAtivo && lastTravaPinosAtivo) {
+    currentCycle.etapa6_sensor0Ativo_travaPinosInativo = currentMillis - stageStartTime;
+    stageStartTime = currentMillis;
+    currentCycle.etapaAtual = 7;
+    Serial.printf("  Etapa 6 completa: %lu seg (Travas pino D/E desativaram)\n", currentCycle.etapa6_sensor0Ativo_travaPinosInativo / 1000);
+  }
+
+  // === ETAPA 7: Trava pino D/E inativo → Trava chassi inativo ===
+  if (cycleInProgress && currentCycle.etapaAtual == 7 && !trava_chassi && lastTravaChassi) {
+    currentCycle.etapa7_travaPinosInativo_travaChassiInativo = currentMillis - stageStartTime;
+    stageStartTime = currentMillis;
+    currentCycle.etapaAtual = 8;
+    Serial.printf("  Etapa 7 completa: %lu seg (Trava chassi desativou)\n", currentCycle.etapa7_travaPinosInativo_travaChassiInativo / 1000);
+  }
+
+  // === ETAPA 8: Trava chassi inativo → Trava roda inativo ===
+  if (cycleInProgress && currentCycle.etapaAtual == 8 && !trava_roda && lastTravaRoda) {
+    currentCycle.etapa8_travaChassiInativo_travaRodaInativo = currentMillis - stageStartTime;
+    stageStartTime = currentMillis;
+    currentCycle.etapaAtual = 9;
+    Serial.printf("  Etapa 8 completa: %lu seg (Trava roda desativou)\n", currentCycle.etapa8_travaChassiInativo_travaRodaInativo / 1000);
+  }
+
+  // === ETAPA 9: Trava roda inativo → Portão aberto (FIM DO CICLO) ===
+  if (cycleInProgress && currentCycle.etapaAtual == 9 && !portao_fechado && lastPortaoFechado) {
+    currentCycle.etapa9_travaRodaInativo_portaoAberto = currentMillis - stageStartTime;
     currentCycle.cicloTotal = currentMillis - cycleStartTime;
 
     // Copiar ciclo atual para último ciclo completo
     lastCompleteCycle = currentCycle;
 
-    // Contagem do ciclo
-    stats.ciclosHoje++;
-    stats.ciclosTotal++;
-
-    // Salvar ciclo total na memória
-    preferences.begin("pilitech", false);
-    preferences.putULong("ciclosTotal", stats.ciclosTotal);
-    preferences.end();
-
     Serial.printf("✓ CICLO COMPLETO! Tempo total: %lu segundos\n", currentCycle.cicloTotal / 1000);
-    Serial.printf("  Ciclos hoje: %lu | Total: %lu\n", stats.ciclosHoje, stats.ciclosTotal);
+    Serial.println("  Tempos das 9 etapas:");
+    Serial.printf("    1. Portão abriu→fechou: %lu s\n", currentCycle.etapa1_portaoAberto_portaoFechado / 1000);
+    Serial.printf("    2. Portão fechado→trava roda: %lu s\n", currentCycle.etapa2_portaoFechado_travaRoda / 1000);
+    Serial.printf("    3. Trava roda→trava chassi: %lu s\n", currentCycle.etapa3_travaRoda_travaChassi / 1000);
+    Serial.printf("    4. Trava chassi→trava pinos: %lu s\n", currentCycle.etapa4_travaChassi_travaPinos / 1000);
+    Serial.printf("    5. Trava pinos→sensor 0° inativo: %lu s\n", currentCycle.etapa5_travaPinos_sensor0Inativo / 1000);
+    Serial.printf("    6. Sensor 0° ativo→trava pinos inativo: %lu s\n", currentCycle.etapa6_sensor0Ativo_travaPinosInativo / 1000);
+    Serial.printf("    7. Trava pinos inativo→trava chassi inativo: %lu s\n", currentCycle.etapa7_travaPinosInativo_travaChassiInativo / 1000);
+    Serial.printf("    8. Trava chassi inativo→trava roda inativo: %lu s\n", currentCycle.etapa8_travaChassiInativo_travaRodaInativo / 1000);
+    Serial.printf("    9. Trava roda inativo→portão aberto: %lu s\n", currentCycle.etapa9_travaRodaInativo_portaoAberto / 1000);
 
-    // Enviar evento de ciclo completo com tempo
     if (WiFi.status() == WL_CONNECTED) {
       char msg[128];
-      snprintf(msg, sizeof(msg), "Ciclo completo em %lu seg - Total hoje: %lu",
-               currentCycle.cicloTotal / 1000, stats.ciclosHoje);
-      enviarEvento("INFO", msg, "ciclo", true);
+      snprintf(msg, sizeof(msg), "Ciclo completo em %lu seg", currentCycle.cicloTotal / 1000);
+      enviarEvento("INFO", msg, "ciclo_completo", true);
 
       // Enviar dados do ciclo para análise de produtividade
       enviarDadosCiclo();
     }
 
     cycleInProgress = false;
-  }
-
-  // --- TRACKING DE TEMPO POR ETAPA (durante ciclo em andamento) ---
-  if (cycleInProgress) {
-    // Tempo com portão fechado
-    if (portao_fechado) {
-      currentCycle.portaoFechado = currentMillis - stageStartPortao;
-    }
-
-    // Sensor 0° inativo (plataforma subindo/descendo)
-    if (!sensor_0_graus) {
-      if (lastSensor0Graus) {
-        // Acabou de ficar inativo
-        stageStartSensor0Inativo = currentMillis;
-      }
-      currentCycle.sensor0Inativo += (currentMillis - stageStartSensor0Inativo);
-      stageStartSensor0Inativo = currentMillis;
-    }
-
-    // Sensor 0° ativo (plataforma na posição)
-    if (sensor_0_graus) {
-      if (!lastSensor0Graus) {
-        // Acabou de ficar ativo
-        stageStartSensor0Ativo = currentMillis;
-      }
-      currentCycle.sensor0Ativo += (currentMillis - stageStartSensor0Ativo);
-      stageStartSensor0Ativo = currentMillis;
-    }
-
-    // Trava roda ativa
-    if (trava_roda) {
-      if (!lastTravaRoda) {
-        stageStartTravaRoda = currentMillis;
-      }
-      currentCycle.travaRodaAtivo += (currentMillis - stageStartTravaRoda);
-      stageStartTravaRoda = currentMillis;
-    }
-
-    // Trava chassi ativa
-    if (trava_chassi) {
-      if (!lastTravaChassi) {
-        stageStartTravaChassi = currentMillis;
-      }
-      currentCycle.travaChassiAtivo += (currentMillis - stageStartTravaChassi);
-      stageStartTravaChassi = currentMillis;
-    }
-
-    // Travas pinos E/D ativos (conta quando ambos estão ativos)
-    if (trava_pino_e && trava_pino_d) {
-      if (!lastTravaPinoE || !lastTravaPinoD) {
-        stageStartTravaPinos = currentMillis;
-      }
-      currentCycle.travaPinosAtivo += (currentMillis - stageStartTravaPinos);
-      stageStartTravaPinos = currentMillis;
-    }
   }
 
   // Atualizar estados anteriores
