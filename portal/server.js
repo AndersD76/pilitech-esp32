@@ -741,7 +741,7 @@ app.post('/api/usuarios', authenticateToken, async (req, res) => {
 app.put('/api/usuarios/:id', authenticateToken, async (req, res) => {
   try {
     const { id } = req.params;
-    const { nome, telefone, role, active, password, unidade_id } = req.body;
+    const { nome, telefone, role, active, password, empresa_id, unidade_id } = req.body;
 
     // Buscar usuário atual
     const userResult = await pool.query('SELECT * FROM usuarios WHERE id = $1', [id]);
@@ -761,18 +761,21 @@ app.put('/api/usuarios/:id', authenticateToken, async (req, res) => {
       return res.status(403).json({ error: 'Sem permissão para editar este usuário' });
     }
 
+    // Definir empresa_id (super admin pode mudar, outros mantém a atual)
+    const finalEmpresaId = req.user.role === 'super_admin' ? (empresa_id || null) : targetUser.empresa_id;
+
     // Atualizar
     if (password) {
       const hashedPassword = await bcrypt.hash(password, 10);
       await pool.query(`
-        UPDATE usuarios SET nome = $1, telefone = $2, role = $3, active = $4, password = $5, unidade_id = $6
-        WHERE id = $7
-      `, [nome, telefone, role, active !== false, hashedPassword, unidade_id || null, id]);
+        UPDATE usuarios SET nome = $1, telefone = $2, role = $3, active = $4, password = $5, empresa_id = $6, unidade_id = $7
+        WHERE id = $8
+      `, [nome, telefone, role, active !== false, hashedPassword, finalEmpresaId, unidade_id || null, id]);
     } else {
       await pool.query(`
-        UPDATE usuarios SET nome = $1, telefone = $2, role = $3, active = $4, unidade_id = $5
-        WHERE id = $6
-      `, [nome, telefone, role, active !== false, unidade_id || null, id]);
+        UPDATE usuarios SET nome = $1, telefone = $2, role = $3, active = $4, empresa_id = $5, unidade_id = $6
+        WHERE id = $7
+      `, [nome, telefone, role, active !== false, finalEmpresaId, unidade_id || null, id]);
     }
 
     res.json({ success: true, message: 'Usuário atualizado' });
@@ -1123,7 +1126,77 @@ app.get('/api/telemetry/:serialNumber', authenticateToken, checkSubscription, as
 
 // ============ SISTEMA DE PAGAMENTO ============
 
-// Gerar cobrança PIX (Banco do Brasil)
+// Registrar cartão de crédito para trial (não cobra)
+app.post('/api/payment/register-card', authenticateToken, async (req, res) => {
+  try {
+    const empresa_id = req.user.empresa_id;
+
+    if (!empresa_id) {
+      return res.status(400).json({ error: 'Usuario não vinculado a uma empresa' });
+    }
+
+    const { cardName, cardNumber, cardExpiry, cardCvv, cpf } = req.body;
+
+    if (!cardName || !cardNumber || !cardExpiry || !cardCvv || !cpf) {
+      return res.status(400).json({ error: 'Todos os campos são obrigatórios' });
+    }
+
+    // Validar cartão (básico)
+    const cleanNumber = cardNumber.replace(/\s/g, '');
+    if (cleanNumber.length < 13 || cleanNumber.length > 19) {
+      return res.status(400).json({ error: 'Número do cartão inválido' });
+    }
+
+    // Salvar últimos 4 dígitos e dados tokenizados
+    const lastFour = cleanNumber.slice(-4);
+    const cardToken = `token_${Date.now()}_${lastFour}`;
+
+    // Registrar cartão na empresa
+    await pool.query(`
+      UPDATE empresas SET
+        card_token = $1,
+        card_last_four = $2,
+        card_holder_name = $3,
+        card_holder_cpf = $4,
+        card_registered_at = CURRENT_TIMESTAMP
+      WHERE id = $5
+    `, [cardToken, lastFour, cardName, cpf.replace(/\D/g, ''), empresa_id]);
+
+    // Criar registro de assinatura pendente (será cobrada após 30 dias)
+    const trialEnds = new Date();
+    trialEnds.setDate(trialEnds.getDate() + 30);
+
+    await pool.query(`
+      INSERT INTO subscriptions (
+        empresa_id, plan_type, amount, payment_method, status,
+        transaction_id, expires_at
+      ) VALUES ($1, 'anual', 2000.00, 'cartao', 'trial', $2, $3)
+    `, [empresa_id, cardToken, new Date(trialEnds.getTime() + 365 * 24 * 60 * 60 * 1000)]);
+
+    // Atualizar trial da empresa
+    await pool.query(`
+      UPDATE empresas SET
+        trial_ends_at = $1,
+        subscription_active = false
+      WHERE id = $2
+    `, [trialEnds, empresa_id]);
+
+    console.log(`💳 Cartão cadastrado para empresa ${empresa_id} (****${lastFour})`);
+
+    res.json({
+      success: true,
+      message: 'Cartão cadastrado com sucesso',
+      trialEndsAt: trialEnds,
+      cardLastFour: lastFour
+    });
+
+  } catch (err) {
+    console.error('Erro ao registrar cartão:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Gerar cobrança PIX (Banco do Brasil) - DESATIVADO
 app.post('/api/payment/pix', authenticateToken, async (req, res) => {
   try {
     const empresa_id = req.user.empresa_id;
@@ -1544,6 +1617,125 @@ app.post('/api/cycle-data', validateApiKey, async (req, res) => {
     res.json({ success: true, message: 'Dados do ciclo registrados' });
   } catch (err) {
     console.error('Erro ao registrar ciclo:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Estatísticas do dispositivo (para gráficos de produtividade)
+app.get('/api/device-stats/:serialNumber', authenticateToken, checkSubscription, async (req, res) => {
+  try {
+    if (!req.subscriptionStatus.canViewTelemetry) {
+      return res.json({
+        blocked: true,
+        message: req.subscriptionStatus.message
+      });
+    }
+
+    const { serialNumber } = req.params;
+
+    const deviceResult = await pool.query(
+      'SELECT id FROM devices WHERE serial_number = $1',
+      [serialNumber]
+    );
+
+    if (deviceResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Dispositivo não encontrado' });
+    }
+
+    const deviceId = deviceResult.rows[0].id;
+
+    // Ciclos por dia (últimos 7 dias)
+    const ciclosDiariosResult = await pool.query(`
+      SELECT
+        DATE(timestamp) as dia,
+        COUNT(*) as ciclos,
+        AVG(tempo_total) as tempo_medio_ciclo
+      FROM cycle_data
+      WHERE device_id = $1 AND timestamp > NOW() - INTERVAL '7 days'
+      GROUP BY DATE(timestamp)
+      ORDER BY dia ASC
+    `, [deviceId]);
+
+    // Ciclos hoje
+    const ciclosHojeResult = await pool.query(`
+      SELECT COUNT(*) as total
+      FROM cycle_data
+      WHERE device_id = $1 AND DATE(timestamp) = CURRENT_DATE
+    `, [deviceId]);
+
+    // Tempo médio geral
+    const tempoMedioResult = await pool.query(`
+      SELECT AVG(tempo_total) as tempo_medio
+      FROM cycle_data
+      WHERE device_id = $1 AND timestamp > NOW() - INTERVAL '7 days'
+    `, [deviceId]);
+
+    // Produtividade média (tempo padrão 1200 segundos = 20 min)
+    const TEMPO_PADRAO = 1200;
+    const tempoMedio = parseFloat(tempoMedioResult.rows[0].tempo_medio) || TEMPO_PADRAO;
+    const produtividadeMedia = (TEMPO_PADRAO / tempoMedio) * 100;
+
+    res.json({
+      ciclosDiarios: ciclosDiariosResult.rows,
+      ciclosHoje: parseInt(ciclosHojeResult.rows[0].total) || 0,
+      tempoMedioCiclo: tempoMedio,
+      produtividadeMedia: produtividadeMedia
+    });
+  } catch (err) {
+    console.error('Erro ao buscar estatísticas:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Dados de ciclos para gráficos e tabela
+app.get('/api/cycle-data/:serialNumber', authenticateToken, checkSubscription, async (req, res) => {
+  try {
+    if (!req.subscriptionStatus.canViewTelemetry) {
+      return res.json({
+        blocked: true,
+        message: req.subscriptionStatus.message
+      });
+    }
+
+    const { serialNumber } = req.params;
+
+    const deviceResult = await pool.query(
+      'SELECT id FROM devices WHERE serial_number = $1',
+      [serialNumber]
+    );
+
+    if (deviceResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Dispositivo não encontrado' });
+    }
+
+    const deviceId = deviceResult.rows[0].id;
+
+    // Buscar últimos 50 ciclos com todas as etapas
+    // Nota: Colunas adaptadas para compatibilidade com tabela existente
+    const cyclesResult = await pool.query(`
+      SELECT
+        ciclo_numero,
+        tempo_total,
+        COALESCE(tempo_portao_fechado, 0) as etapa1_portao_aberto_fechado,
+        COALESCE(tempo_trava_roda, 0) as etapa2_portao_fechado_trava_roda,
+        COALESCE(tempo_trava_chassi, 0) as etapa3_trava_roda_trava_chassi,
+        COALESCE(tempo_trava_pinos, 0) as etapa4_trava_chassi_trava_pinos,
+        COALESCE(tempo_sensor0_inativo, 0) as etapa5_trava_pinos_sensor0_inativo,
+        COALESCE(tempo_sensor0_ativo, 0) as etapa6_sensor0_ativo_trava_pinos_inativo,
+        0 as etapa7_trava_pinos_inativo_trava_chassi_inativo,
+        0 as etapa8_trava_chassi_inativo_trava_roda_inativo,
+        0 as etapa9_trava_roda_inativo_portao_aberto,
+        eficiencia,
+        created_at as timestamp
+      FROM cycle_data
+      WHERE device_id = $1
+      ORDER BY created_at DESC
+      LIMIT 50
+    `, [deviceId]);
+
+    res.json(cyclesResult.rows);
+  } catch (err) {
+    console.error('Erro ao buscar dados de ciclos:', err);
     res.status(500).json({ error: err.message });
   }
 });

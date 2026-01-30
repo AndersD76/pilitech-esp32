@@ -12,8 +12,8 @@
 #include <HTTPClient.h>
 
 const char* AP_SSID = "PILI-TECH";
-const char* AP_PASSWORD = "00002025";
-const char* SERIAL_NUMBER = "00002025";
+const char* AP_PASSWORD = "00001505";
+const char* SERIAL_NUMBER = "00001505";
 
 // API Configuration - Railway + NeonDB
 const char* API_URL = "https://pilitech-esp32-production.up.railway.app";
