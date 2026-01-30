@@ -121,14 +121,53 @@
     <div class="bg-white rounded-xl shadow-sm p-6 mb-8">
       <div class="flex items-center justify-between mb-6">
         <h3 class="text-xl font-bold text-gray-800">Meus Dispositivos</h3>
-        <button onclick="refreshData()" class="flex items-center gap-2 px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg text-sm font-medium text-gray-600">
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
-          </svg>
-          Atualizar
-        </button>
+        <div class="flex items-center gap-3">
+          <button onclick="toggleViewAll()" id="btnViewAll" class="flex items-center gap-2 px-4 py-2 bg-pili-red text-white hover:bg-pili-darkred rounded-lg text-sm font-medium">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"/>
+            </svg>
+            Ver Todos na Tela
+          </button>
+          <button onclick="refreshData()" class="flex items-center gap-2 px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg text-sm font-medium text-gray-600">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+            </svg>
+            Atualizar
+          </button>
+        </div>
       </div>
       <div id="devicesGrid" class="space-y-4">
+        <div class="text-center py-8 text-gray-500">Carregando...</div>
+      </div>
+    </div>
+
+    <!-- PAINEL TODOS OS IOTs (oculto por padrão) -->
+    <div id="allIoTsPanel" class="hidden bg-gray-900 rounded-xl shadow-2xl p-6 mb-8 relative">
+      <div class="flex items-center justify-between mb-6">
+        <div class="flex items-center gap-4">
+          <div class="w-12 h-12 bg-pili-red rounded-xl flex items-center justify-center">
+            <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2z"/>
+            </svg>
+          </div>
+          <div>
+            <h3 class="text-2xl font-bold text-white">MONITORAMENTO EM TEMPO REAL</h3>
+            <p class="text-gray-400" id="allIoTsSubtitle">Todos os dispositivos da empresa</p>
+          </div>
+        </div>
+        <div class="flex items-center gap-3">
+          <span class="text-gray-400 text-sm" id="allIoTsLastUpdate">Atualizando...</span>
+          <button onclick="toggleViewAll()" class="flex items-center gap-2 px-4 py-2 bg-white/10 text-white hover:bg-white/20 rounded-lg text-sm font-medium">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+            </svg>
+            Fechar
+          </button>
+        </div>
+      </div>
+
+      <!-- Grid de IoTs Compacto -->
+      <div id="allIoTsGrid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
         <div class="text-center py-8 text-gray-500">Carregando...</div>
       </div>
     </div>
@@ -141,77 +180,199 @@
       </div>
     </div>
 
-    <!-- Telemetria e Produtividade -->
+    <!-- Telemetria e Produtividade - DASHBOARD PROFISSIONAL -->
     <div class="bg-white rounded-xl shadow-sm p-6 mb-8">
       <div class="flex items-center justify-between mb-6">
-        <h3 class="text-xl font-bold text-gray-800">Produtividade e Analise de Ciclos</h3>
-        <select id="deviceSelector" onchange="loadTelemetry()" class="px-4 py-2 border rounded-lg text-sm">
+        <div>
+          <h3 class="text-xl font-bold text-gray-800">Dashboard de Produtividade</h3>
+          <p class="text-sm text-gray-500">Analise detalhada de desempenho e eficiencia</p>
+        </div>
+        <select id="deviceSelector" onchange="loadTelemetry()" class="px-4 py-2 border-2 border-pili-red rounded-lg text-sm font-medium focus:ring-2 focus:ring-pili-red">
           <option value="">Selecione um dispositivo</option>
         </select>
       </div>
 
-      <!-- Cards de Produtividade -->
-      <div id="techStats" class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-        <div class="bg-gradient-to-br from-green-50 to-green-100 rounded-lg p-4 text-center border border-green-200">
-          <div class="text-3xl font-bold text-green-600" id="teleProdutividade">-</div>
-          <div class="text-xs text-green-700 font-medium">PRODUTIVIDADE MEDIA</div>
+      <!-- DASHBOARD PRINCIPAL - KPIs -->
+      <div class="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
+        <!-- Gauge de Produtividade -->
+        <div class="col-span-2 md:col-span-1 bg-gradient-to-br from-gray-900 to-gray-800 rounded-2xl p-5 text-center shadow-lg">
+          <div class="relative w-28 h-28 mx-auto mb-2">
+            <svg viewBox="0 0 36 36" class="w-28 h-28 transform -rotate-90">
+              <path d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="#374151" stroke-width="3"/>
+              <path id="gaugeProgress" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="#22c55e" stroke-width="3" stroke-dasharray="0, 100" stroke-linecap="round"/>
+            </svg>
+            <div class="absolute inset-0 flex items-center justify-center">
+              <span class="text-3xl font-black text-white" id="teleProdutividade">-</span>
+            </div>
+          </div>
+          <div class="text-xs text-gray-400 font-medium uppercase tracking-wider">Produtividade</div>
         </div>
-        <div class="bg-gradient-to-br from-blue-50 to-blue-100 rounded-lg p-4 text-center border border-blue-200">
-          <div class="text-2xl font-bold text-blue-600" id="teleTempoCiclo">-</div>
-          <div class="text-xs text-blue-700 font-medium">Tempo Medio/Ciclo</div>
+
+        <div class="bg-gradient-to-br from-blue-500 to-blue-600 rounded-2xl p-5 text-white shadow-lg">
+          <div class="flex items-center gap-2 mb-2">
+            <svg class="w-5 h-5 opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+            </svg>
+            <span class="text-xs font-medium opacity-80">TEMPO MEDIO</span>
+          </div>
+          <div class="text-3xl font-black" id="teleTempoCiclo">-</div>
+          <div class="text-xs opacity-70">por ciclo</div>
         </div>
-        <div class="bg-gradient-to-br from-purple-50 to-purple-100 rounded-lg p-4 text-center border border-purple-200">
-          <div class="text-2xl font-bold text-purple-600" id="teleCiclosHoje">-</div>
-          <div class="text-xs text-purple-700 font-medium">Ciclos Hoje</div>
+
+        <div class="bg-gradient-to-br from-purple-500 to-purple-600 rounded-2xl p-5 text-white shadow-lg">
+          <div class="flex items-center gap-2 mb-2">
+            <svg class="w-5 h-5 opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+            </svg>
+            <span class="text-xs font-medium opacity-80">CICLOS HOJE</span>
+          </div>
+          <div class="text-3xl font-black" id="teleCiclosHoje">-</div>
+          <div class="text-xs opacity-70" id="teleCiclosTendencia">carregando...</div>
         </div>
-        <div class="bg-gradient-to-br from-orange-50 to-orange-100 rounded-lg p-4 text-center border border-orange-200">
-          <div class="text-2xl font-bold text-orange-600" id="teleTempoPadrao">20 min</div>
-          <div class="text-xs text-orange-700 font-medium">Tempo Padrao</div>
+
+        <div class="bg-gradient-to-br from-orange-500 to-orange-600 rounded-2xl p-5 text-white shadow-lg">
+          <div class="flex items-center gap-2 mb-2">
+            <svg class="w-5 h-5 opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
+            </svg>
+            <span class="text-xs font-medium opacity-80">CICLOS SEMANA</span>
+          </div>
+          <div class="text-3xl font-black" id="teleCiclosSemana">-</div>
+          <div class="text-xs opacity-70">ultimos 7 dias</div>
+        </div>
+
+        <div class="bg-gradient-to-br from-emerald-500 to-emerald-600 rounded-2xl p-5 text-white shadow-lg">
+          <div class="flex items-center gap-2 mb-2">
+            <svg class="w-5 h-5 opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"/>
+            </svg>
+            <span class="text-xs font-medium opacity-80">EFICIENCIA</span>
+          </div>
+          <div class="text-3xl font-black" id="teleEficiencia">-</div>
+          <div class="text-xs opacity-70">vs meta 20min</div>
         </div>
       </div>
 
-      <!-- Gráficos -->
+      <!-- GRAFICOS PROFISSIONAIS -->
       <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-        <!-- Gráfico de Produtividade % por Dia -->
-        <div class="border rounded-lg p-4">
-          <h4 class="font-semibold text-gray-700 mb-4">Produtividade % por Dia (7 dias)</h4>
-          <p class="text-xs text-gray-500 mb-2">Meta: 100% = ciclo em 20 minutos</p>
-          <canvas id="chartProdutividade" height="200"></canvas>
+        <!-- Grafico de Area - Produtividade -->
+        <div class="bg-gradient-to-br from-gray-50 to-white border-2 border-gray-100 rounded-2xl p-5 shadow-sm">
+          <div class="flex items-center justify-between mb-4">
+            <div>
+              <h4 class="font-bold text-gray-800">Evolucao da Produtividade</h4>
+              <p class="text-xs text-gray-500">Meta: linha vermelha = 100%</p>
+            </div>
+            <span class="px-3 py-1 bg-green-100 text-green-700 rounded-full text-xs font-bold">7 DIAS</span>
+          </div>
+          <canvas id="chartProdutividade" height="180"></canvas>
         </div>
 
-        <!-- Gráfico de Ciclos por Dia -->
-        <div class="border rounded-lg p-4">
-          <h4 class="font-semibold text-gray-700 mb-4">Ciclos por Dia (7 dias)</h4>
-          <canvas id="chartCiclos" height="200"></canvas>
+        <!-- Grafico de Barras - Ciclos por Dia -->
+        <div class="bg-gradient-to-br from-gray-50 to-white border-2 border-gray-100 rounded-2xl p-5 shadow-sm">
+          <div class="flex items-center justify-between mb-4">
+            <div>
+              <h4 class="font-bold text-gray-800">Ciclos por Dia</h4>
+              <p class="text-xs text-gray-500">Volume de producao diario</p>
+            </div>
+            <span class="px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-xs font-bold">7 DIAS</span>
+          </div>
+          <canvas id="chartCiclos" height="180"></canvas>
         </div>
       </div>
 
-      <!-- Timeline das 9 Etapas -->
+      <!-- GRAFICOS SECUNDARIOS -->
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+        <!-- Grafico de Rosca - Distribuicao por Etapa -->
+        <div class="bg-gradient-to-br from-gray-50 to-white border-2 border-gray-100 rounded-2xl p-5 shadow-sm">
+          <h4 class="font-bold text-gray-800 mb-2">Tempo por Fase</h4>
+          <p class="text-xs text-gray-500 mb-4">Distribuicao do ciclo</p>
+          <canvas id="chartPizza" height="180"></canvas>
+        </div>
+
+        <!-- Grafico de Linha - Tendencia Horaria -->
+        <div class="bg-gradient-to-br from-gray-50 to-white border-2 border-gray-100 rounded-2xl p-5 shadow-sm">
+          <h4 class="font-bold text-gray-800 mb-2">Ciclos por Hora</h4>
+          <p class="text-xs text-gray-500 mb-4">Producao nas ultimas 24h</p>
+          <canvas id="chartHorario" height="180"></canvas>
+        </div>
+
+        <!-- Indicadores de Desempenho -->
+        <div class="bg-gradient-to-br from-gray-900 to-gray-800 rounded-2xl p-5 shadow-lg text-white">
+          <h4 class="font-bold mb-4">Indicadores Chave</h4>
+          <div class="space-y-4">
+            <div>
+              <div class="flex justify-between text-sm mb-1">
+                <span class="text-gray-400">Etapa mais rapida</span>
+                <span class="font-bold text-green-400" id="etapaMaisRapida">-</span>
+              </div>
+              <div class="h-2 bg-gray-700 rounded-full overflow-hidden">
+                <div class="h-full bg-green-500 rounded-full" id="barraRapida" style="width: 0%"></div>
+              </div>
+            </div>
+            <div>
+              <div class="flex justify-between text-sm mb-1">
+                <span class="text-gray-400">Etapa mais lenta</span>
+                <span class="font-bold text-red-400" id="etapaMaisLenta">-</span>
+              </div>
+              <div class="h-2 bg-gray-700 rounded-full overflow-hidden">
+                <div class="h-full bg-red-500 rounded-full" id="barraLenta" style="width: 100%"></div>
+              </div>
+            </div>
+            <div class="pt-3 border-t border-gray-700">
+              <div class="flex justify-between text-sm mb-1">
+                <span class="text-gray-400">Desvio padrao</span>
+                <span class="font-bold" id="desvioPadrao">-</span>
+              </div>
+            </div>
+            <div>
+              <div class="flex justify-between text-sm mb-1">
+                <span class="text-gray-400">Ciclos acima da meta</span>
+                <span class="font-bold text-green-400" id="ciclosAcimaMeta">-</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Timeline das 10 Etapas -->
       <div class="border rounded-lg p-4 mb-6">
-        <h4 class="font-semibold text-gray-700 mb-4">Timeline Media das 9 Etapas do Ciclo</h4>
+        <h4 class="font-semibold text-gray-700 mb-4">Timeline Media das 10 Etapas do Ciclo</h4>
         <p class="text-xs text-gray-500 mb-4">Tempo medio de cada transicao no ultimo ciclo registrado</p>
-        <div class="grid grid-cols-9 gap-1 mb-2" id="timelineEtapas">
-          <div class="bg-gray-200 rounded p-2 text-center"><div class="text-xs font-bold text-gray-600">-</div><div class="text-[8px] text-gray-400">1.Portao</div></div>
-          <div class="bg-gray-200 rounded p-2 text-center"><div class="text-xs font-bold text-gray-600">-</div><div class="text-[8px] text-gray-400">2.Tr.Roda</div></div>
-          <div class="bg-gray-200 rounded p-2 text-center"><div class="text-xs font-bold text-gray-600">-</div><div class="text-[8px] text-gray-400">3.Tr.Chassi</div></div>
-          <div class="bg-gray-200 rounded p-2 text-center"><div class="text-xs font-bold text-gray-600">-</div><div class="text-[8px] text-gray-400">4.Tr.Pinos</div></div>
-          <div class="bg-gray-200 rounded p-2 text-center"><div class="text-xs font-bold text-gray-600">-</div><div class="text-[8px] text-gray-400">5.Sen0Inat</div></div>
-          <div class="bg-gray-200 rounded p-2 text-center"><div class="text-xs font-bold text-gray-600">-</div><div class="text-[8px] text-gray-400">6.Pin.Solt</div></div>
-          <div class="bg-gray-200 rounded p-2 text-center"><div class="text-xs font-bold text-gray-600">-</div><div class="text-[8px] text-gray-400">7.Cha.Solt</div></div>
-          <div class="bg-gray-200 rounded p-2 text-center"><div class="text-xs font-bold text-gray-600">-</div><div class="text-[8px] text-gray-400">8.Rod.Solt</div></div>
-          <div class="bg-gray-200 rounded p-2 text-center"><div class="text-xs font-bold text-gray-600">-</div><div class="text-[8px] text-gray-400">9.Port.Abre</div></div>
+        <div class="grid grid-cols-10 gap-1 mb-2" id="timelineEtapas">
+          <div class="bg-gray-200 rounded p-2 text-center"><div class="text-xs font-bold text-gray-600">-</div><div class="text-[7px] text-gray-400">1.Port.Fecha</div></div>
+          <div class="bg-gray-200 rounded p-2 text-center"><div class="text-xs font-bold text-gray-600">-</div><div class="text-[7px] text-gray-400">2.Sen0°Inat</div></div>
+          <div class="bg-gray-200 rounded p-2 text-center"><div class="text-xs font-bold text-gray-600">-</div><div class="text-[7px] text-gray-400">3.Tr.Roda</div></div>
+          <div class="bg-gray-200 rounded p-2 text-center"><div class="text-xs font-bold text-gray-600">-</div><div class="text-[7px] text-gray-400">4.Tr.Chassi</div></div>
+          <div class="bg-gray-200 rounded p-2 text-center"><div class="text-xs font-bold text-gray-600">-</div><div class="text-[7px] text-gray-400">5.Tr.Pinos</div></div>
+          <div class="bg-gray-200 rounded p-2 text-center"><div class="text-xs font-bold text-gray-600">-</div><div class="text-[7px] text-gray-400">6.Sen0°Ativ</div></div>
+          <div class="bg-gray-200 rounded p-2 text-center"><div class="text-xs font-bold text-gray-600">-</div><div class="text-[7px] text-gray-400">7.Solt.Roda</div></div>
+          <div class="bg-gray-200 rounded p-2 text-center"><div class="text-xs font-bold text-gray-600">-</div><div class="text-[7px] text-gray-400">8.Solt.Chas</div></div>
+          <div class="bg-gray-200 rounded p-2 text-center"><div class="text-xs font-bold text-gray-600">-</div><div class="text-[7px] text-gray-400">9.Solt.Pino</div></div>
+          <div class="bg-gray-200 rounded p-2 text-center"><div class="text-xs font-bold text-gray-600">-</div><div class="text-[7px] text-gray-400">10.Port.Abre</div></div>
         </div>
         <div class="flex justify-between text-[10px] text-gray-400 px-1">
           <span>INICIO</span>
-          <span>CICLO CONTA (5)</span>
+          <span class="text-pili-red font-bold">⬆ CICLO CONTA (6)</span>
           <span>FIM</span>
         </div>
       </div>
 
-      <!-- Gráfico de Tempos das Etapas -->
-      <div class="border rounded-lg p-4">
-        <h4 class="font-semibold text-gray-700 mb-4">Tempo Medio por Etapa (segundos)</h4>
+      <!-- Grafico de Tempos das 10 Etapas -->
+      <div class="bg-gradient-to-br from-gray-50 to-white border-2 border-gray-100 rounded-2xl p-5 shadow-sm">
+        <div class="flex items-center justify-between mb-4">
+          <div>
+            <h4 class="font-bold text-gray-800">Tempo Medio por Etapa</h4>
+            <p class="text-xs text-gray-500">Analise das 10 etapas do ciclo de producao</p>
+          </div>
+          <span class="px-3 py-1 bg-pili-red/10 text-pili-red rounded-full text-xs font-bold">10 ETAPAS</span>
+        </div>
         <canvas id="chartEtapas" height="150"></canvas>
+        <div class="mt-4 flex items-center justify-center gap-6 text-xs text-gray-500">
+          <div class="flex items-center gap-2"><span class="w-3 h-3 rounded bg-blue-500"></span> Portao</div>
+          <div class="flex items-center gap-2"><span class="w-3 h-3 rounded bg-green-500"></span> Travamento</div>
+          <div class="flex items-center gap-2"><span class="w-3 h-3 rounded bg-pili-red"></span> Conta Ciclo</div>
+          <div class="flex items-center gap-2"><span class="w-3 h-3 rounded bg-red-400"></span> Destravamento</div>
+        </div>
       </div>
     </div>
 
@@ -246,7 +407,7 @@
         <div class="flex items-center gap-6 text-sm text-gray-500">
           <span>Tel: (54) 3522-2828</span>
           <span>Comercial: comercial1@pili.com.br</span>
-          <span>Tecnico: engenharia@pili.ind.br</span>
+          <span>Tecnico: engenharia@pili.com.br</span>
         </div>
       </div>
     </div>
@@ -702,8 +863,156 @@
     // Auto refresh every 30 seconds
     setInterval(refreshData, 30000);
 
+    // ========== TOGGLE VIEW ALL IOTs ==========
+    let viewAllMode = false;
+    let allDevicesData = [];
+    let allTelemetryData = {};
+
+    function toggleViewAll() {
+      viewAllMode = !viewAllMode;
+      const panel = document.getElementById('allIoTsPanel');
+      const btn = document.getElementById('btnViewAll');
+
+      if (viewAllMode) {
+        panel.classList.remove('hidden');
+        btn.innerHTML = `
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 10h16M4 14h16M4 18h16"/>
+          </svg>
+          Voltar para Lista
+        `;
+        renderAllIoTs();
+        // Auto refresh a cada 5 segundos
+        if (!window.allIoTsInterval) {
+          window.allIoTsInterval = setInterval(renderAllIoTs, 5000);
+        }
+      } else {
+        panel.classList.add('hidden');
+        btn.innerHTML = `
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"/>
+          </svg>
+          Ver Todos na Tela
+        `;
+        if (window.allIoTsInterval) {
+          clearInterval(window.allIoTsInterval);
+          window.allIoTsInterval = null;
+        }
+      }
+    }
+
+    async function renderAllIoTs() {
+      const grid = document.getElementById('allIoTsGrid');
+      const subtitle = document.getElementById('allIoTsSubtitle');
+      const lastUpdateEl = document.getElementById('allIoTsLastUpdate');
+
+      // Buscar dados
+      const [devResponse, teleResponse] = await Promise.all([
+        api('/api/devices'),
+        api('/api/latest-readings')
+      ]);
+
+      if (!devResponse) {
+        grid.innerHTML = '<div class="text-center py-8 text-gray-400">Erro ao carregar</div>';
+        return;
+      }
+
+      const devices = devResponse.devices || [];
+      const telemetryData = (teleResponse && !teleResponse.blocked) ? (teleResponse.data || []) : [];
+      const telemetryMap = {};
+      telemetryData.forEach(t => { telemetryMap[t.serial_number] = t; });
+
+      const onlineCount = devices.filter(d => d.status_conexao === 'online').length;
+      subtitle.textContent = `${devices.length} dispositivos | ${onlineCount} online`;
+      lastUpdateEl.textContent = new Date().toLocaleTimeString('pt-BR');
+
+      if (devices.length === 0) {
+        grid.innerHTML = '<div class="text-center py-8 text-gray-400">Nenhum dispositivo encontrado</div>';
+        return;
+      }
+
+      grid.innerHTML = devices.map(d => {
+        const t = telemetryMap[d.serial_number] || {};
+        const isOnline = d.status_conexao === 'online';
+        const statusDot = isOnline ? 'bg-green-500 animate-pulse' : 'bg-red-500';
+        const borderClass = isOnline ? 'border-green-500' : 'border-gray-600';
+
+        // Status dos sensores (compacto)
+        const sensorDot = (val) => val ? 'bg-green-500' : 'bg-red-500';
+
+        return `
+          <div class="bg-gray-800 border-2 ${borderClass} rounded-xl overflow-hidden transition-all hover:scale-[1.02]">
+            <!-- Header -->
+            <div class="bg-gradient-to-r from-pili-red to-pili-darkred p-3 flex items-center justify-between">
+              <div>
+                <h4 class="font-bold text-white text-sm">${d.name || 'Tombador'}</h4>
+                <p class="text-white/60 text-xs">${d.serial_number}</p>
+              </div>
+              <div class="flex items-center gap-2">
+                <span class="w-3 h-3 rounded-full ${statusDot}"></span>
+              </div>
+            </div>
+
+            <div class="p-3">
+              <!-- Sensores em grid compacto -->
+              <div class="grid grid-cols-4 gap-1 mb-3">
+                <div class="flex flex-col items-center p-1">
+                  <span class="w-3 h-3 rounded-full ${sensorDot(t.sensor_0_graus)}"></span>
+                  <span class="text-[9px] text-gray-400 mt-1">0°</span>
+                </div>
+                <div class="flex flex-col items-center p-1">
+                  <span class="w-3 h-3 rounded-full ${sensorDot(t.sensor_40_graus)}"></span>
+                  <span class="text-[9px] text-gray-400 mt-1">40°</span>
+                </div>
+                <div class="flex flex-col items-center p-1">
+                  <span class="w-3 h-3 rounded-full ${sensorDot(t.trava_roda)}"></span>
+                  <span class="text-[9px] text-gray-400 mt-1">Roda</span>
+                </div>
+                <div class="flex flex-col items-center p-1">
+                  <span class="w-3 h-3 rounded-full ${sensorDot(t.trava_chassi)}"></span>
+                  <span class="text-[9px] text-gray-400 mt-1">Chassi</span>
+                </div>
+                <div class="flex flex-col items-center p-1">
+                  <span class="w-3 h-3 rounded-full ${sensorDot(t.trava_pino_e)}"></span>
+                  <span class="text-[9px] text-gray-400 mt-1">Pin.E</span>
+                </div>
+                <div class="flex flex-col items-center p-1">
+                  <span class="w-3 h-3 rounded-full ${sensorDot(t.trava_pino_d)}"></span>
+                  <span class="text-[9px] text-gray-400 mt-1">Pin.D</span>
+                </div>
+                <div class="flex flex-col items-center p-1">
+                  <span class="w-3 h-3 rounded-full ${sensorDot(t.moega_cheia)}"></span>
+                  <span class="text-[9px] text-gray-400 mt-1">Moega</span>
+                </div>
+                <div class="flex flex-col items-center p-1">
+                  <span class="w-3 h-3 rounded-full ${sensorDot(t.portao_fechado)}"></span>
+                  <span class="text-[9px] text-gray-400 mt-1">Portao</span>
+                </div>
+              </div>
+
+              <!-- Producao -->
+              <div class="grid grid-cols-3 gap-2 text-center">
+                <div class="bg-gray-700 rounded-lg py-2">
+                  <div class="text-lg font-black text-white">${t.ciclos_hoje || 0}</div>
+                  <div class="text-[9px] text-gray-400">HOJE</div>
+                </div>
+                <div class="bg-gray-700 rounded-lg py-2">
+                  <div class="text-lg font-black text-white">${(t.ciclos_total || 0).toLocaleString()}</div>
+                  <div class="text-[9px] text-gray-400">TOTAL</div>
+                </div>
+                <div class="bg-gray-700 rounded-lg py-2">
+                  <div class="text-lg font-black text-white">${t.horas_operacao || 0}h</div>
+                  <div class="text-[9px] text-gray-400">HORIM.</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
     // ========== TELEMETRIA E PRODUTIVIDADE ==========
-    let chartCiclos, chartProdutividade, chartEtapas;
+    let chartCiclos, chartProdutividade, chartEtapas, chartPizza, chartHorario;
     let devicesList = [];
     const TEMPO_PADRAO_CICLO = 20 * 60; // 20 minutos em segundos
 
@@ -742,7 +1051,14 @@
         // Calcular produtividade media
         const prodMedia = stats.produtividadeMedia || 100;
         document.getElementById('teleProdutividade').textContent = prodMedia.toFixed(0) + '%';
-        document.getElementById('teleProdutividade').className = 'text-3xl font-bold ' + (prodMedia >= 100 ? 'text-green-600' : prodMedia >= 80 ? 'text-yellow-600' : 'text-red-600');
+
+        // Atualizar gauge circular
+        const gaugeProgress = document.getElementById('gaugeProgress');
+        if (gaugeProgress) {
+          const progressValue = Math.min(100, prodMedia);
+          gaugeProgress.setAttribute('stroke-dasharray', `${progressValue}, 100`);
+          gaugeProgress.setAttribute('stroke', prodMedia >= 100 ? '#22c55e' : prodMedia >= 80 ? '#eab308' : '#ef4444');
+        }
 
         // Tempo medio por ciclo
         const tempoMedio = stats.tempoMedioCiclo || 0;
@@ -750,6 +1066,23 @@
 
         // Ciclos hoje
         document.getElementById('teleCiclosHoje').textContent = stats.ciclosHoje || 0;
+
+        // Ciclos semana
+        const ciclosSemana = stats.ciclosDiarios ? stats.ciclosDiarios.reduce((sum, d) => sum + parseInt(d.ciclos || 0), 0) : 0;
+        document.getElementById('teleCiclosSemana').textContent = ciclosSemana;
+
+        // Eficiencia
+        const eficiencia = prodMedia >= 100 ? '+' + (prodMedia - 100).toFixed(0) + '%' : '-' + (100 - prodMedia).toFixed(0) + '%';
+        document.getElementById('teleEficiencia').textContent = eficiencia;
+
+        // Tendencia (comparar com ontem)
+        if (stats.ciclosDiarios && stats.ciclosDiarios.length >= 2) {
+          const hoje = parseInt(stats.ciclosHoje) || 0;
+          const ontem = parseInt(stats.ciclosDiarios[stats.ciclosDiarios.length - 2]?.ciclos) || 0;
+          const diff = hoje - ontem;
+          const tendencia = diff > 0 ? `↑ +${diff} vs ontem` : diff < 0 ? `↓ ${diff} vs ontem` : '= igual ontem';
+          document.getElementById('teleCiclosTendencia').textContent = tendencia;
+        }
 
         // Update charts
         if (stats.ciclosDiarios) {
@@ -764,7 +1097,152 @@
         updateTimelineEtapas(cycleData[0]);
         updateEtapasChart(cycleData);
         updateCyclesTable(cycleData);
+        updatePizzaChart(cycleData);
+        updateIndicadores(cycleData);
       }
+
+      // Load productivity data for hourly chart
+      const prodData = await api('/api/productivity/' + serialNumber + '?days=1');
+      if (prodData && prodData.cycles) {
+        updateHorarioChart(prodData.cycles);
+      }
+    }
+
+    // Update Pizza/Doughnut Chart (tempo por fase)
+    function updatePizzaChart(data) {
+      const ctx = document.getElementById('chartPizza');
+      if (!ctx) return;
+
+      if (chartPizza) chartPizza.destroy();
+
+      // Calcular media das etapas principais
+      const count = data.length || 1;
+      const fases = {
+        'Travamento': 0,
+        'Subida': 0,
+        'Descarga': 0,
+        'Destravamento': 0
+      };
+
+      data.forEach(c => {
+        // Travamento = etapas 1-5 (portao fecha ate travas)
+        fases['Travamento'] += (c.etapa1_portao_aberto_fechado || 0) + (c.etapa2_portao_fechado_trava_roda || 0) + (c.etapa3_trava_roda_trava_chassi || 0) + (c.etapa4_trava_chassi_trava_pinos || 0);
+        // Subida = etapa 5-6
+        fases['Subida'] += (c.etapa5_trava_pinos_sensor0_inativo || 0);
+        // Descarga = etapa 6
+        fases['Descarga'] += (c.etapa6_sensor0_ativo_trava_pinos_inativo || 0);
+        // Destravamento = etapas 7-10
+        fases['Destravamento'] += (c.etapa7_trava_pinos_inativo_trava_chassi_inativo || 0) + (c.etapa8_trava_chassi_inativo_trava_roda_inativo || 0) + (c.etapa9_trava_roda_inativo_portao_aberto || 0);
+      });
+
+      const labels = Object.keys(fases);
+      const values = Object.values(fases).map(v => Math.round(v / count));
+
+      chartPizza = new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+          labels,
+          datasets: [{
+            data: values,
+            backgroundColor: ['#3b82f6', '#f59e0b', '#ef4444', '#10b981'],
+            borderWidth: 0
+          }]
+        },
+        options: {
+          responsive: true,
+          plugins: {
+            legend: { position: 'bottom', labels: { boxWidth: 12, padding: 8, font: { size: 10 } } }
+          }
+        }
+      });
+    }
+
+    // Update Hourly Chart
+    function updateHorarioChart(cycles) {
+      const ctx = document.getElementById('chartHorario');
+      if (!ctx) return;
+
+      if (chartHorario) chartHorario.destroy();
+
+      // Agrupar por hora
+      const hourly = {};
+      for (let i = 0; i < 24; i++) hourly[i] = 0;
+
+      cycles.forEach(c => {
+        if (c.created_at) {
+          const hour = new Date(c.created_at).getHours();
+          hourly[hour]++;
+        }
+      });
+
+      const labels = Object.keys(hourly).map(h => h + 'h');
+      const values = Object.values(hourly);
+
+      chartHorario = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels,
+          datasets: [{
+            label: 'Ciclos',
+            data: values,
+            borderColor: '#8b5cf6',
+            backgroundColor: 'rgba(139, 92, 246, 0.1)',
+            fill: true,
+            tension: 0.4
+          }]
+        },
+        options: {
+          responsive: true,
+          plugins: { legend: { display: false } },
+          scales: { y: { beginAtZero: true } }
+        }
+      });
+    }
+
+    // Update Indicadores
+    function updateIndicadores(data) {
+      if (!data || data.length === 0) return;
+
+      // Calcular medias das etapas
+      const etapasNomes = ['Port.Fecha', 'Sen0°Inat', 'Tr.Roda', 'Tr.Chassi', 'Tr.Pinos', 'Sen0°Ativ', 'Solt.Roda', 'Solt.Chas', 'Solt.Pino', 'Port.Abre'];
+      const etapasMedia = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+      const count = data.length;
+
+      data.forEach(c => {
+        etapasMedia[0] += c.etapa1_portao_aberto_fechado || 0;
+        etapasMedia[1] += c.etapa2_portao_fechado_trava_roda || 0;
+        etapasMedia[2] += c.etapa3_trava_roda_trava_chassi || 0;
+        etapasMedia[3] += c.etapa4_trava_chassi_trava_pinos || 0;
+        etapasMedia[4] += c.etapa5_trava_pinos_sensor0_inativo || 0;
+        etapasMedia[5] += c.etapa6_sensor0_ativo_trava_pinos_inativo || 0;
+        etapasMedia[6] += c.etapa7_trava_pinos_inativo_trava_chassi_inativo || 0;
+        etapasMedia[7] += c.etapa8_trava_chassi_inativo_trava_roda_inativo || 0;
+        etapasMedia[8] += c.etapa9_trava_roda_inativo_portao_aberto || 0;
+        etapasMedia[9] += 0; // etapa 10 se houver
+      });
+
+      const medias = etapasMedia.map(v => Math.round(v / count));
+      const maxTempo = Math.max(...medias);
+      const minTempo = Math.min(...medias.filter(v => v > 0)) || 0;
+
+      const maxIdx = medias.indexOf(maxTempo);
+      const minIdx = medias.indexOf(minTempo);
+
+      document.getElementById('etapaMaisRapida').textContent = `${etapasNomes[minIdx]} (${minTempo}s)`;
+      document.getElementById('etapaMaisLenta').textContent = `${etapasNomes[maxIdx]} (${maxTempo}s)`;
+      document.getElementById('barraRapida').style.width = (minTempo / maxTempo * 100) + '%';
+
+      // Desvio padrao
+      const temposTotal = data.map(c => c.tempo_total || 0);
+      const mediaTempo = temposTotal.reduce((a, b) => a + b, 0) / count;
+      const variancia = temposTotal.reduce((sum, t) => sum + Math.pow(t - mediaTempo, 2), 0) / count;
+      const desvio = Math.sqrt(variancia);
+      document.getElementById('desvioPadrao').textContent = Math.round(desvio) + 's';
+
+      // Ciclos acima da meta
+      const acimaMeta = data.filter(c => (c.tempo_total || 0) <= TEMPO_PADRAO_CICLO).length;
+      const pctAcima = Math.round((acimaMeta / count) * 100);
+      document.getElementById('ciclosAcimaMeta').textContent = `${acimaMeta}/${count} (${pctAcima}%)`;
     }
 
     // Format time in seconds to min:sec
@@ -859,46 +1337,50 @@
       });
     }
 
-    // Update Timeline das 9 Etapas
+    // Update Timeline das 10 Etapas
     function updateTimelineEtapas(lastCycle) {
       const timeline = document.getElementById('timelineEtapas');
       if (!timeline || !lastCycle) return;
 
+      // 10 etapas conforme firmware
       const etapas = [
-        { nome: '1.Portao', tempo: lastCycle.etapa1_portao_aberto_fechado || 0 },
-        { nome: '2.Tr.Roda', tempo: lastCycle.etapa2_portao_fechado_trava_roda || 0 },
-        { nome: '3.Tr.Chassi', tempo: lastCycle.etapa3_trava_roda_trava_chassi || 0 },
-        { nome: '4.Tr.Pinos', tempo: lastCycle.etapa4_trava_chassi_trava_pinos || 0 },
-        { nome: '5.Sen0Inat', tempo: lastCycle.etapa5_trava_pinos_sensor0_inativo || 0 },
-        { nome: '6.Pin.Solt', tempo: lastCycle.etapa6_sensor0_ativo_trava_pinos_inativo || 0 },
-        { nome: '7.Cha.Solt', tempo: lastCycle.etapa7_trava_pinos_inativo_trava_chassi_inativo || 0 },
-        { nome: '8.Rod.Solt', tempo: lastCycle.etapa8_trava_chassi_inativo_trava_roda_inativo || 0 },
-        { nome: '9.Port.Abre', tempo: lastCycle.etapa9_trava_roda_inativo_portao_aberto || 0 }
+        { nome: '1.Port.Fecha', tempo: lastCycle.etapa1_portao_aberto_fechado || 0 },
+        { nome: '2.Sen0°Inat', tempo: lastCycle.etapa2_portao_fechado_trava_roda || 0 },
+        { nome: '3.Tr.Roda', tempo: lastCycle.etapa3_trava_roda_trava_chassi || 0 },
+        { nome: '4.Tr.Chassi', tempo: lastCycle.etapa4_trava_chassi_trava_pinos || 0 },
+        { nome: '5.Tr.Pinos', tempo: lastCycle.etapa5_trava_pinos_sensor0_inativo || 0 },
+        { nome: '6.Sen0°Ativ', tempo: lastCycle.etapa6_sensor0_ativo_trava_pinos_inativo || 0 },
+        { nome: '7.Solt.Roda', tempo: lastCycle.etapa7_trava_pinos_inativo_trava_chassi_inativo || 0 },
+        { nome: '8.Solt.Chas', tempo: lastCycle.etapa8_trava_chassi_inativo_trava_roda_inativo || 0 },
+        { nome: '9.Solt.Pino', tempo: lastCycle.etapa9_trava_roda_inativo_portao_aberto || 0 },
+        { nome: '10.Port.Abre', tempo: 0 } // etapa 10 adicional
       ];
 
       const maxTempo = Math.max(...etapas.map(e => e.tempo), 1);
 
       timeline.innerHTML = etapas.map((e, i) => {
         const pct = (e.tempo / maxTempo) * 100;
-        const bg = pct > 70 ? 'bg-red-400' : pct > 40 ? 'bg-yellow-400' : 'bg-green-400';
+        const bg = i === 5 ? 'bg-pili-red' : pct > 70 ? 'bg-red-400' : pct > 40 ? 'bg-yellow-400' : 'bg-green-400';
+        // Etapa 6 é onde conta o ciclo
+        const special = i === 5 ? 'ring-2 ring-white ring-offset-2 ring-offset-gray-100' : '';
         return `
-          <div class="${bg} rounded p-2 text-center transition-all">
-            <div class="text-xs font-bold text-white">${e.tempo}s</div>
-            <div class="text-[8px] text-white/80">${e.nome}</div>
+          <div class="${bg} ${special} rounded p-1.5 text-center transition-all">
+            <div class="text-[10px] font-bold text-white">${e.tempo}s</div>
+            <div class="text-[6px] text-white/80">${e.nome}</div>
           </div>
         `;
       }).join('');
     }
 
-    // Update Etapas Chart (bar)
+    // Update Etapas Chart (bar) - 10 etapas
     function updateEtapasChart(data) {
       const ctx = document.getElementById('chartEtapas');
       if (!ctx) return;
 
       if (chartEtapas) chartEtapas.destroy();
 
-      // Calcular media das etapas
-      const etapasMedia = [0, 0, 0, 0, 0, 0, 0, 0, 0];
+      // Calcular media das 10 etapas
+      const etapasMedia = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
       const count = data.length;
 
       data.forEach(c => {
@@ -911,10 +1393,11 @@
         etapasMedia[6] += c.etapa7_trava_pinos_inativo_trava_chassi_inativo || 0;
         etapasMedia[7] += c.etapa8_trava_chassi_inativo_trava_roda_inativo || 0;
         etapasMedia[8] += c.etapa9_trava_roda_inativo_portao_aberto || 0;
+        etapasMedia[9] += 0; // etapa 10
       });
 
       const values = etapasMedia.map(v => Math.round(v / count) || 0);
-      const labels = ['1.Portao', '2.Tr.Roda', '3.Tr.Chassi', '4.Tr.Pinos', '5.Subindo', '6.Solt.Pin', '7.Solt.Cha', '8.Solt.Rod', '9.Port.Abre'];
+      const labels = ['1.PortFecha', '2.Sen0°In', '3.TrRoda', '4.TrChas', '5.TrPinos', '6.Sen0°At', '7.SoltRod', '8.SoltCha', '9.SoltPin', '10.PortAb'];
 
       chartEtapas = new Chart(ctx, {
         type: 'bar',
@@ -924,28 +1407,45 @@
             label: 'Tempo (s)',
             data: values,
             backgroundColor: [
-              'rgba(59, 130, 246, 0.7)',
-              'rgba(16, 185, 129, 0.7)',
-              'rgba(16, 185, 129, 0.7)',
-              'rgba(16, 185, 129, 0.7)',
-              'rgba(245, 158, 11, 0.7)',
-              'rgba(239, 68, 68, 0.7)',
-              'rgba(239, 68, 68, 0.7)',
-              'rgba(239, 68, 68, 0.7)',
-              'rgba(59, 130, 246, 0.7)'
+              'rgba(59, 130, 246, 0.8)',   // 1. Portao fecha - azul
+              'rgba(16, 185, 129, 0.8)',   // 2. Sen 0° inativo - verde
+              'rgba(16, 185, 129, 0.8)',   // 3. Trava roda - verde
+              'rgba(16, 185, 129, 0.8)',   // 4. Trava chassi - verde
+              'rgba(16, 185, 129, 0.8)',   // 5. Trava pinos - verde
+              'rgba(220, 38, 38, 0.9)',    // 6. Sen 0° ativo - VERMELHO (conta ciclo)
+              'rgba(239, 68, 68, 0.7)',    // 7. Solta roda - vermelho claro
+              'rgba(239, 68, 68, 0.7)',    // 8. Solta chassi - vermelho claro
+              'rgba(239, 68, 68, 0.7)',    // 9. Solta pinos - vermelho claro
+              'rgba(59, 130, 246, 0.8)'    // 10. Portao abre - azul
             ],
-            borderWidth: 1
+            borderColor: [
+              'rgba(59, 130, 246, 1)',
+              'rgba(16, 185, 129, 1)',
+              'rgba(16, 185, 129, 1)',
+              'rgba(16, 185, 129, 1)',
+              'rgba(16, 185, 129, 1)',
+              'rgba(220, 38, 38, 1)',
+              'rgba(239, 68, 68, 1)',
+              'rgba(239, 68, 68, 1)',
+              'rgba(239, 68, 68, 1)',
+              'rgba(59, 130, 246, 1)'
+            ],
+            borderWidth: 2,
+            borderRadius: 4
           }]
         },
         options: {
           responsive: true,
           plugins: { legend: { display: false } },
-          scales: { y: { beginAtZero: true, title: { display: true, text: 'Segundos' } } }
+          scales: {
+            y: { beginAtZero: true, title: { display: true, text: 'Segundos' }, grid: { color: 'rgba(0,0,0,0.05)' } },
+            x: { ticks: { font: { size: 9 } } }
+          }
         }
       });
     }
 
-    // Update Cycles Table
+    // Update Cycles Table - 10 etapas
     function updateCyclesTable(data) {
       const tbody = document.getElementById('cyclesTable');
       if (!tbody) return;
@@ -959,29 +1459,30 @@
         const produtividade = c.eficiencia || ((TEMPO_PADRAO_CICLO / c.tempo_total) * 100);
         const prodClass = produtividade >= 100 ? 'text-green-600 bg-green-50' : produtividade >= 80 ? 'text-yellow-600 bg-yellow-50' : 'text-red-600 bg-red-50';
 
-        // Encontrar etapa mais lenta
+        // Encontrar etapa mais lenta (10 etapas)
         const etapas = [
-          { nome: 'Portao fecha', tempo: c.etapa1_portao_aberto_fechado || 0 },
-          { nome: 'Trava roda', tempo: c.etapa2_portao_fechado_trava_roda || 0 },
-          { nome: 'Trava chassi', tempo: c.etapa3_trava_roda_trava_chassi || 0 },
-          { nome: 'Trava pinos', tempo: c.etapa4_trava_chassi_trava_pinos || 0 },
-          { nome: 'Subindo', tempo: c.etapa5_trava_pinos_sensor0_inativo || 0 },
-          { nome: 'Solta pinos', tempo: c.etapa6_sensor0_ativo_trava_pinos_inativo || 0 },
-          { nome: 'Solta chassi', tempo: c.etapa7_trava_pinos_inativo_trava_chassi_inativo || 0 },
-          { nome: 'Solta roda', tempo: c.etapa8_trava_chassi_inativo_trava_roda_inativo || 0 },
-          { nome: 'Portao abre', tempo: c.etapa9_trava_roda_inativo_portao_aberto || 0 }
+          { nome: 'Port.Fecha', tempo: c.etapa1_portao_aberto_fechado || 0 },
+          { nome: 'Sen0°Inativo', tempo: c.etapa2_portao_fechado_trava_roda || 0 },
+          { nome: 'Trava Roda', tempo: c.etapa3_trava_roda_trava_chassi || 0 },
+          { nome: 'Trava Chassi', tempo: c.etapa4_trava_chassi_trava_pinos || 0 },
+          { nome: 'Trava Pinos', tempo: c.etapa5_trava_pinos_sensor0_inativo || 0 },
+          { nome: 'Sen0°Ativo ⬆', tempo: c.etapa6_sensor0_ativo_trava_pinos_inativo || 0 },
+          { nome: 'Solta Roda', tempo: c.etapa7_trava_pinos_inativo_trava_chassi_inativo || 0 },
+          { nome: 'Solta Chassi', tempo: c.etapa8_trava_chassi_inativo_trava_roda_inativo || 0 },
+          { nome: 'Solta Pinos', tempo: c.etapa9_trava_roda_inativo_portao_aberto || 0 },
+          { nome: 'Port.Abre', tempo: 0 }
         ];
         const maisLenta = etapas.reduce((a, b) => a.tempo > b.tempo ? a : b);
 
         return `
-          <tr class="hover:bg-gray-50">
-            <td class="px-4 py-2 text-xs text-gray-600">${c.timestamp ? new Date(c.timestamp).toLocaleString('pt-BR') : '-'}</td>
-            <td class="px-4 py-2 text-center font-bold text-gray-800">#${c.ciclo_numero || '-'}</td>
-            <td class="px-4 py-2 text-center font-medium">${Math.round((c.tempo_total || 0) / 60)} min</td>
-            <td class="px-4 py-2 text-center">
+          <tr class="hover:bg-gray-50 border-b">
+            <td class="px-4 py-3 text-xs text-gray-600">${c.timestamp ? new Date(c.timestamp).toLocaleString('pt-BR') : '-'}</td>
+            <td class="px-4 py-3 text-center font-bold text-gray-800">#${c.ciclo_numero || '-'}</td>
+            <td class="px-4 py-3 text-center font-medium">${Math.round((c.tempo_total || 0) / 60)} min</td>
+            <td class="px-4 py-3 text-center">
               <span class="px-3 py-1 rounded-full text-sm font-bold ${prodClass}">${produtividade.toFixed(0)}%</span>
             </td>
-            <td class="px-4 py-2 text-center text-xs text-gray-500">${maisLenta.nome} (${maisLenta.tempo}s)</td>
+            <td class="px-4 py-3 text-center text-xs text-red-500 font-medium">${maisLenta.nome} (${maisLenta.tempo}s)</td>
           </tr>
         `;
       }).join('');
