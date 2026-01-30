@@ -371,6 +371,52 @@ app.put('/api/empresas/:id', authenticateToken, async (req, res) => {
   }
 });
 
+// Excluir empresa (super admin)
+app.delete('/api/empresas/:id', authenticateToken, requireSuperAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    // Verificar se tem unidades vinculadas
+    const unidadesResult = await pool.query(
+      'SELECT COUNT(*) as total FROM unidades WHERE empresa_id = $1',
+      [id]
+    );
+
+    if (parseInt(unidadesResult.rows[0].total) > 0) {
+      return res.status(400).json({
+        error: 'Nao e possivel excluir. Empresa possui unidades vinculadas. Exclua as unidades primeiro.'
+      });
+    }
+
+    // Verificar se tem usuarios vinculados
+    const usuariosResult = await pool.query(
+      'SELECT COUNT(*) as total FROM usuarios WHERE empresa_id = $1',
+      [id]
+    );
+
+    if (parseInt(usuariosResult.rows[0].total) > 0) {
+      return res.status(400).json({
+        error: 'Nao e possivel excluir. Empresa possui usuarios vinculados. Exclua os usuarios primeiro.'
+      });
+    }
+
+    // Excluir assinaturas da empresa
+    await pool.query('DELETE FROM subscriptions WHERE empresa_id = $1', [id]);
+
+    // Excluir empresa
+    const result = await pool.query('DELETE FROM empresas WHERE id = $1 RETURNING id', [id]);
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Empresa nao encontrada' });
+    }
+
+    res.json({ success: true, message: 'Empresa excluida com sucesso' });
+  } catch (err) {
+    console.error('Erro ao excluir empresa:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ============ ROTAS DE UNIDADES ============
 
 // Listar unidades (filtrado por empresa)
@@ -435,6 +481,56 @@ app.post('/api/unidades', authenticateToken, requireAdmin, async (req, res) => {
       return res.status(400).json({ error: 'Código de unidade já existe para esta empresa' });
     }
     console.error('Erro ao criar unidade:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Excluir unidade (super admin ou admin_empresa)
+app.delete('/api/unidades/:id', authenticateToken, requireAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    // Buscar unidade
+    const unidadeResult = await pool.query('SELECT empresa_id FROM unidades WHERE id = $1', [id]);
+    if (unidadeResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Unidade nao encontrada' });
+    }
+
+    // Verificar permissao (admin_empresa so pode excluir da propria empresa)
+    if (req.user.role === 'admin_empresa' && unidadeResult.rows[0].empresa_id !== req.user.empresa_id) {
+      return res.status(403).json({ error: 'Sem permissao para excluir esta unidade' });
+    }
+
+    // Verificar se tem dispositivos vinculados
+    const devicesResult = await pool.query(
+      'SELECT COUNT(*) as total FROM devices WHERE unidade_id = $1',
+      [id]
+    );
+
+    if (parseInt(devicesResult.rows[0].total) > 0) {
+      return res.status(400).json({
+        error: 'Nao e possivel excluir. Unidade possui dispositivos vinculados. Desvincule os dispositivos primeiro.'
+      });
+    }
+
+    // Verificar se tem usuarios vinculados
+    const usuariosResult = await pool.query(
+      'SELECT COUNT(*) as total FROM usuarios WHERE unidade_id = $1',
+      [id]
+    );
+
+    if (parseInt(usuariosResult.rows[0].total) > 0) {
+      return res.status(400).json({
+        error: 'Nao e possivel excluir. Unidade possui usuarios vinculados. Altere os usuarios primeiro.'
+      });
+    }
+
+    // Excluir unidade
+    await pool.query('DELETE FROM unidades WHERE id = $1', [id]);
+
+    res.json({ success: true, message: 'Unidade excluida com sucesso' });
+  } catch (err) {
+    console.error('Erro ao excluir unidade:', err);
     res.status(500).json({ error: err.message });
   }
 });
@@ -645,6 +741,52 @@ app.post('/api/devices/:serialNumber/vincular', authenticateToken, requireAdmin,
     res.json({ success: true, message: 'Dispositivo vinculado' });
   } catch (err) {
     console.error('Erro ao vincular dispositivo:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Excluir dispositivo (super admin)
+app.delete('/api/devices/:serialNumber', authenticateToken, requireSuperAdmin, async (req, res) => {
+  try {
+    const { serialNumber } = req.params;
+
+    // Buscar device
+    const deviceResult = await pool.query('SELECT id FROM devices WHERE serial_number = $1', [serialNumber]);
+    if (deviceResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Dispositivo nao encontrado' });
+    }
+
+    const deviceId = deviceResult.rows[0].id;
+
+    // Excluir dados relacionados
+    await pool.query('DELETE FROM sensor_readings WHERE device_id = $1', [deviceId]);
+    await pool.query('DELETE FROM event_logs WHERE device_id = $1', [deviceId]);
+    await pool.query('DELETE FROM cycle_data WHERE device_id = $1', [deviceId]);
+    await pool.query('DELETE FROM device_sessions WHERE device_id = $1', [deviceId]);
+
+    // Excluir dispositivo
+    await pool.query('DELETE FROM devices WHERE id = $1', [deviceId]);
+
+    res.json({ success: true, message: 'Dispositivo e todos os dados excluidos com sucesso' });
+  } catch (err) {
+    console.error('Erro ao excluir dispositivo:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Desvincular dispositivo de unidade
+app.post('/api/devices/:serialNumber/desvincular', authenticateToken, requireAdmin, async (req, res) => {
+  try {
+    const { serialNumber } = req.params;
+
+    await pool.query(
+      'UPDATE devices SET unidade_id = NULL WHERE serial_number = $1',
+      [serialNumber]
+    );
+
+    res.json({ success: true, message: 'Dispositivo desvinculado' });
+  } catch (err) {
+    console.error('Erro ao desvincular dispositivo:', err);
     res.status(500).json({ error: err.message });
   }
 });
