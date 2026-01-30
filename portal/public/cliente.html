@@ -42,6 +42,13 @@
           </div>
         </div>
         <div class="flex items-center gap-4">
+          <!-- Botão Assinar (visível quando não tem assinatura) -->
+          <a href="/checkout.html" id="btnAssinar" class="hidden flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-yellow-500 to-orange-500 text-white rounded-lg font-bold text-sm hover:from-yellow-600 hover:to-orange-600 shadow-lg animate-pulse">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"/>
+            </svg>
+            Assinar Agora
+          </a>
           <div class="text-right">
             <p class="text-sm font-medium text-gray-800" id="userName">Cliente</p>
             <p class="text-xs text-gray-500" id="lastUpdate">Atualizando...</p>
@@ -465,17 +472,23 @@
             </div>
           </div>
 
-          <div class="p-4 bg-gray-100 rounded-xl text-center">
-            <p class="text-xs text-gray-500 mb-1">Assinatura anual por IoT</p>
-            <p class="text-2xl font-bold text-gray-800">R$ 2.000,00</p>
-            <p class="text-xs text-gray-400">PIX ou Cartao em ate 12x</p>
+          <div class="p-4 bg-gradient-to-r from-yellow-100 to-orange-100 rounded-xl text-center border-2 border-yellow-300">
+            <p class="text-xs text-yellow-700 mb-1 font-medium">Assinatura anual por IoT</p>
+            <p class="text-3xl font-black text-gray-800">R$ 2.000<span class="text-lg">,00</span></p>
+            <p class="text-xs text-yellow-600">PIX ou Cartao em ate 12x</p>
           </div>
         </div>
 
-        <!-- Footer -->
-        <div class="px-6 pb-6">
-          <button onclick="closeWelcomeModal()" class="w-full py-3 bg-pili-red text-white font-bold rounded-xl hover:bg-pili-darkred transition-colors">
-            Comecar a usar!
+        <!-- Footer com 2 botões -->
+        <div class="px-6 pb-6 space-y-3">
+          <button onclick="goToCheckout()" class="w-full py-3 bg-gradient-to-r from-yellow-500 to-orange-500 text-white font-bold rounded-xl hover:from-yellow-600 hover:to-orange-600 transition-all shadow-lg flex items-center justify-center gap-2">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"/>
+            </svg>
+            Assinar Agora
+          </button>
+          <button onclick="closeWelcomeModal()" class="w-full py-3 bg-gray-100 text-gray-600 font-medium rounded-xl hover:bg-gray-200 transition-colors">
+            Continuar explorando
           </button>
         </div>
       </div>
@@ -517,8 +530,30 @@
     // Check if first login (show welcome modal)
     function checkFirstLogin() {
       const welcomeSeen = localStorage.getItem('pilitech_welcome_seen');
+      // Sempre mostrar se não foi visto antes
       if (!welcomeSeen) {
-        showWelcomeModal();
+        setTimeout(() => showWelcomeModal(), 500); // Delay para carregar a página primeiro
+      }
+    }
+
+    // Ir para checkout
+    function goToCheckout() {
+      closeWelcomeModal();
+      window.location.href = '/checkout.html';
+    }
+
+    // Mostrar/ocultar botão Assinar no header
+    function updateSubscriptionButton(status) {
+      const btn = document.getElementById('btnAssinar');
+      if (!btn) return;
+
+      // Mostrar botão se não tem assinatura ativa
+      if (!status || status.status !== 'active') {
+        btn.classList.remove('hidden');
+        btn.classList.add('flex');
+      } else {
+        btn.classList.add('hidden');
+        btn.classList.remove('flex');
       }
     }
 
@@ -526,6 +561,9 @@
     function showTrialBanner(status) {
       const banner = document.getElementById('trialBanner');
       const content = document.getElementById('trialBannerContent');
+
+      // Atualizar botão do header
+      updateSubscriptionButton(status);
 
       if (!status || status.status === 'active') {
         banner.classList.add('hidden');
@@ -565,6 +603,23 @@
           </div>
           <a href="/checkout.html" class="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 text-sm font-bold">
             Renovar Assinatura
+          </a>
+        `;
+      } else {
+        // Sem assinatura (nem trial)
+        content.className = 'bg-blue-100 border border-blue-300 rounded-lg p-4 flex items-center justify-between';
+        content.innerHTML = `
+          <div class="flex items-center gap-3">
+            <svg class="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+            </svg>
+            <div>
+              <p class="font-bold text-blue-800">Assinatura Necessaria</p>
+              <p class="text-sm text-blue-700">Assine para monitorar seus equipamentos em tempo real</p>
+            </div>
+          </div>
+          <a href="/checkout.html" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-bold">
+            Assinar por R$ 2.000/ano
           </a>
         `;
       }
