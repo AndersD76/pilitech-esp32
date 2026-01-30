@@ -1,430 +1,502 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Portal PILI TECH - Monitoramento</title>
-<style>
-*{margin:0;padding:0;box-sizing:border-box}
-body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;background:linear-gradient(135deg,#dc2626 0%,#7f1d1d 50%,#000 100%);min-height:100vh;padding:20px}
-.container{max-width:1400px;margin:0 auto}
-.header{background:#fff;border-radius:12px;padding:24px;margin-bottom:20px;box-shadow:0 4px 6px rgba(0,0,0,0.1)}
-.logo{display:flex;align-items:center;gap:12px;font-size:24px;font-weight:700;color:#dc2626}
-.logo svg{width:32px;height:32px;stroke:#dc2626;fill:none}
-.stats-row{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:20px}
-.stat-card{background:#fff;border-radius:12px;padding:20px;box-shadow:0 4px 6px rgba(0,0,0,0.1);text-align:center}
-.stat-value{font-size:36px;font-weight:700;color:#dc2626;line-height:1}
-.stat-label{font-size:12px;color:#6b7280;margin-top:8px;text-transform:uppercase;letter-spacing:0.5px;font-weight:600}
-.devices-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(400px,1fr));gap:16px;margin-bottom:20px}
-.device-card{background:#fff;border-radius:12px;padding:20px;box-shadow:0 4px 6px rgba(0,0,0,0.1);position:relative;overflow:hidden;cursor:pointer;transition:all 0.3s}
-.device-card:hover{transform:translateY(-4px);box-shadow:0 8px 16px rgba(0,0,0,0.15)}
-.device-card.offline{opacity:0.6}
-.device-card.offline::after{content:'OFFLINE';position:absolute;top:10px;right:10px;background:#ef4444;color:#fff;padding:4px 12px;border-radius:12px;font-size:10px;font-weight:700}
-.device-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;padding-bottom:12px;border-bottom:2px solid #f3f4f6}
-.device-serial{font-size:18px;font-weight:700;color:#111827}
-.device-name{font-size:12px;color:#6b7280;margin-top:2px}
-.status-badge{padding:4px 12px;border-radius:12px;font-size:11px;font-weight:700;text-transform:uppercase}
-.status-badge.online{background:#d1fae5;color:#065f46}
-.status-badge.offline{background:#fef2f2;color:#991b1b}
-.sensor-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:12px}
-.sensor-item{background:#f9fafb;padding:8px;border-radius:6px;border:2px solid #e5e7eb;font-size:11px;font-weight:600;color:#374151;text-align:center}
-.sensor-item.active{border-color:#10b981;background:#10b981;color:#fff}
-.sensor-item.alert{border-color:#ef4444;background:#ef4444;color:#fff;animation:blink 1s infinite}
-@keyframes blink{0%,100%{opacity:1}50%{opacity:0.7}}
-.sensor-label{font-size:9px;text-transform:uppercase;letter-spacing:0.3px;opacity:0.8}
-.sensor-value{font-size:12px;margin-top:2px;font-weight:700}
-.device-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:12px}
-.device-stat{background:#f9fafb;padding:8px;border-radius:6px;text-align:center}
-.device-stat-value{font-size:18px;font-weight:700;color:#dc2626}
-.device-stat-label{font-size:9px;color:#6b7280;margin-top:2px;text-transform:uppercase}
-.timestamp{font-size:10px;color:#6b7280;margin-top:8px;text-align:center}
-.loading{text-align:center;padding:40px;color:#fff;font-size:18px}
-.refresh-btn{background:#dc2626;color:#fff;border:none;padding:10px 20px;border-radius:6px;font-size:13px;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:8px;transition:all 0.2s}
-.refresh-btn:hover{background:#b91c1c}
-.refresh-btn svg{width:16px;height:16px;stroke:currentColor;fill:none}
-.auto-refresh{font-size:11px;color:#6b7280;margin-top:4px}
-.device-modal{display:none;position:fixed;z-index:1000;left:0;top:0;width:100%;height:100%;background:rgba(0,0,0,0.8);align-items:center;justify-content:center;padding:20px}
-.device-modal.show{display:flex}
-.device-modal-content{background:#fff;border-radius:16px;max-width:900px;width:100%;max-height:90vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,0.3)}
-.device-modal-header{background:linear-gradient(135deg,#dc2626 0%,#7f1d1d 100%);color:#fff;padding:24px;border-radius:16px 16px 0 0;display:flex;justify-content:space-between;align-items:center}
-.device-modal-title{font-size:24px;font-weight:700}
-.device-modal-close{background:rgba(255,255,255,0.2);border:none;color:#fff;font-size:28px;cursor:pointer;padding:0;width:40px;height:40px;display:flex;align-items:center;justify-content:center;border-radius:8px;transition:all 0.2s}
-.device-modal-close:hover{background:rgba(255,255,255,0.3)}
-.device-modal-body{padding:24px}
-.detail-section{margin-bottom:24px}
-.detail-section-title{font-size:16px;font-weight:700;color:#111827;margin-bottom:12px;display:flex;align-items:center;gap:8px;padding-bottom:8px;border-bottom:2px solid #f3f4f6}
-.detail-section-title svg{width:20px;height:20px;stroke:#dc2626;fill:none}
-.detail-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
-.detail-item{background:#f9fafb;padding:12px;border-radius:8px;border-left:3px solid #dc2626}
-.detail-label{font-size:11px;color:#6b7280;font-weight:600;text-transform:uppercase;letter-spacing:0.5px}
-.detail-value{font-size:16px;color:#111827;font-weight:700;margin-top:4px}
-.history-table{width:100%;border-collapse:collapse;margin-top:12px}
-.history-table th{background:#f9fafb;padding:10px;text-align:left;font-size:11px;color:#6b7280;font-weight:700;text-transform:uppercase;border-bottom:2px solid #e5e7eb}
-.history-table td{padding:10px;font-size:12px;color:#374151;border-bottom:1px solid #f3f4f6}
-.history-table tr:hover{background:#f9fafb}
-</style>
-</head>
-<body>
-<div class="container">
-<div class="header">
-<div style="display:flex;justify-content:space-between;align-items:center">
-<div class="logo">
-<svg viewBox="0 0 24 24" stroke-width="2"><path d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z"/></svg>
-<div>
-<div>PORTAL PILI TECH</div>
-<div style="font-size:12px;color:#6b7280;font-weight:400">Monitoramento Centralizado de Equipamentos</div>
-</div>
-</div>
-<div style="display:flex;align-items:center;gap:12px">
-<div class="auto-refresh" id="autoRefreshStatus">Atualização automática: 30s</div>
-<button class="refresh-btn" onclick="loadData()">
-<svg viewBox="0 0 24 24" stroke-width="2"><path d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
-Atualizar
-</button>
-</div>
-</div>
-</div>
-
-<div class="stats-row">
-<div class="stat-card">
-<div class="stat-value" id="totalDevices">-</div>
-<div class="stat-label">Dispositivos Ativos</div>
-</div>
-<div class="stat-card">
-<div class="stat-value" id="totalReadings">-</div>
-<div class="stat-label">Leituras Registradas</div>
-</div>
-<div class="stat-card">
-<div class="stat-value" id="alerts24h">-</div>
-<div class="stat-label">Alertas (24h)</div>
-</div>
-<div class="stat-card">
-<div class="stat-value" id="totalMaintenances">-</div>
-<div class="stat-label">Manutenções</div>
-</div>
-</div>
-
-<div class="devices-grid" id="devicesGrid">
-<div class="loading">Carregando dispositivos...</div>
-</div>
-
-<div class="timestamp" id="lastUpdate">Última atualização: --:--:--</div>
-</div>
-
-<div class="device-modal" id="deviceModal">
-<div class="device-modal-content">
-<div class="device-modal-header">
-<div class="device-modal-title" id="modalDeviceTitle">Dispositivo</div>
-<button class="device-modal-close" onclick="closeDeviceModal()">×</button>
-</div>
-<div class="device-modal-body" id="modalDeviceBody">
-<div class="loading" style="color:#6b7280">Carregando detalhes...</div>
-</div>
-</div>
-</div>
-
-<script>
-let autoRefreshTimer = null;
-let countdownTimer = null;
-let secondsUntilRefresh = 30;
-
-async function loadData() {
-  try {
-    // Buscar estatísticas
-    const statsRes = await fetch('/api/stats');
-    const stats = await statsRes.json();
-
-    document.getElementById('totalDevices').textContent = stats.total_devices;
-    document.getElementById('totalReadings').textContent = stats.total_readings.toLocaleString('pt-BR');
-    document.getElementById('alerts24h').textContent = stats.alerts_24h;
-    document.getElementById('totalMaintenances').textContent = stats.total_maintenances;
-
-    // Buscar últimas leituras dos dispositivos
-    const readingsRes = await fetch('/api/latest-readings');
-    const readings = await readingsRes.json();
-
-    renderDevices(readings);
-
-    // Atualizar timestamp
-    const now = new Date();
-    document.getElementById('lastUpdate').textContent =
-      'Última atualização: ' + now.toLocaleString('pt-BR');
-
-    // Resetar countdown
-    secondsUntilRefresh = 30;
-  } catch (err) {
-    console.error('Erro ao carregar dados:', err);
-  }
-}
-
-function renderDevices(readings) {
-  const grid = document.getElementById('devicesGrid');
-
-  if (readings.length === 0) {
-    grid.innerHTML = '<div class="loading" style="color:#fff">Nenhum dispositivo encontrado</div>';
-    return;
-  }
-
-  grid.innerHTML = readings.map(r => {
-    const isOnline = r.timestamp && (new Date() - new Date(r.timestamp)) < 600000; // 10 min
-    const offlineClass = isOnline ? '' : 'offline';
-
-    return `
-      <div class="device-card ${offlineClass}" onclick="openDeviceModal('${r.serial_number}')">
-        <div class="device-header">
-          <div>
-            <div class="device-serial">${r.serial_number}</div>
-            <div class="device-name">${r.name || 'Tombador de Grãos'}</div>
-          </div>
-          <div class="status-badge ${isOnline ? 'online' : 'offline'}">
-            ${isOnline ? 'Online' : 'Offline'}
-          </div>
-        </div>
-
-        ${r.sistema_ligado !== null ? `
-        <div class="sensor-grid">
-          <div class="sensor-item ${r.sistema_ligado ? 'active' : ''}">
-            <div class="sensor-label">Sistema</div>
-            <div class="sensor-value">${r.sistema_ligado ? 'ON' : 'OFF'}</div>
-          </div>
-          <div class="sensor-item ${r.sensor_0_graus ? 'active' : ''}">
-            <div class="sensor-label">0°</div>
-            <div class="sensor-value">${r.sensor_0_graus ? 'Ativo' : 'Inativo'}</div>
-          </div>
-          <div class="sensor-item ${r.sensor_40_graus ? 'active' : ''}">
-            <div class="sensor-label">40°</div>
-            <div class="sensor-value">${r.sensor_40_graus ? 'Ativo' : 'Inativo'}</div>
-          </div>
-          <div class="sensor-item ${r.trava_roda ? 'active' : ''}">
-            <div class="sensor-label">Trava</div>
-            <div class="sensor-value">${r.trava_roda ? 'Ativo' : 'Inativo'}</div>
-          </div>
-          <div class="sensor-item ${r.subindo ? 'active' : ''}">
-            <div class="sensor-label">Subindo</div>
-            <div class="sensor-value">${r.subindo ? 'Sim' : 'Não'}</div>
-          </div>
-          <div class="sensor-item ${r.descendo ? 'active' : ''}">
-            <div class="sensor-label">Descendo</div>
-            <div class="sensor-value">${r.descendo ? 'Sim' : 'Não'}</div>
-          </div>
-          <div class="sensor-item ${r.moega_cheia ? 'alert' : ''}">
-            <div class="sensor-label">Moega</div>
-            <div class="sensor-value">${r.moega_cheia ? 'CHEIA' : 'OK'}</div>
-          </div>
-          <div class="sensor-item ${r.fosso_cheio ? 'alert' : ''}">
-            <div class="sensor-label">Fosso</div>
-            <div class="sensor-value">${r.fosso_cheio ? 'CHEIO' : 'OK'}</div>
-          </div>
-        </div>
-
-        <div class="device-stats">
-          <div class="device-stat">
-            <div class="device-stat-value">${r.ciclos_hoje || 0}</div>
-            <div class="device-stat-label">Ciclos Hoje</div>
-          </div>
-          <div class="device-stat">
-            <div class="device-stat-value">${r.ciclos_total || 0}</div>
-            <div class="device-stat-label">Total</div>
-          </div>
-          <div class="device-stat">
-            <div class="device-stat-value">${r.horas_operacao || 0}h</div>
-            <div class="device-stat-label">Horímetro</div>
-          </div>
-        </div>
-        ` : `
-        <div style="text-align:center;padding:20px;color:#6b7280;font-size:13px">
-          Aguardando primeira leitura...
-        </div>
-        `}
-
-        ${r.timestamp ? `
-        <div style="font-size:10px;color:#6b7280;margin-top:12px;text-align:center;border-top:1px solid #e5e7eb;padding-top:8px">
-          Última leitura: ${new Date(r.timestamp).toLocaleString('pt-BR')}
-        </div>
-        ` : ''}
-      </div>
-    `;
-  }).join('');
-}
-
-function startAutoRefresh() {
-  // Atualização a cada 30 segundos
-  autoRefreshTimer = setInterval(() => {
-    loadData();
-  }, 30000);
-
-  // Contador visual
-  countdownTimer = setInterval(() => {
-    secondsUntilRefresh--;
-    if (secondsUntilRefresh <= 0) {
-      secondsUntilRefresh = 30;
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dispositivos - PILI TECH</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            primary: '#DC2626',
+            'primary-dark': '#991B1B',
+          }
+        }
+      }
     }
-    document.getElementById('autoRefreshStatus').textContent =
-      `Atualização automática: ${secondsUntilRefresh}s`;
-  }, 1000);
-}
+  </script>
+  <style>
+    @keyframes blink {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.5; }
+    }
+    .blink { animation: blink 1s infinite; }
+  </style>
+</head>
+<body class="bg-gray-50">
+  <div class="flex h-screen">
+    <!-- Sidebar -->
+    <aside class="w-64 bg-white border-r border-gray-200 flex flex-col">
+      <div class="p-6 border-b border-gray-200">
+        <h1 class="text-2xl font-bold text-primary">PILI TECH</h1>
+        <p class="text-sm text-gray-500 mt-1">Portal Administrativo</p>
+      </div>
 
-async function openDeviceModal(serialNumber) {
-  const modal = document.getElementById('deviceModal');
-  const modalTitle = document.getElementById('modalDeviceTitle');
-  const modalBody = document.getElementById('modalDeviceBody');
+      <nav class="flex-1 mt-6">
+        <a href="/" class="flex items-center px-6 py-3 text-primary bg-red-50 border-r-4 border-primary">
+          <svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z"/>
+          </svg>
+          Dispositivos
+        </a>
+        <a href="/clients.html" class="flex items-center px-6 py-3 text-gray-700 hover:bg-gray-50">
+          <svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"/>
+          </svg>
+          Clientes
+        </a>
+      </nav>
 
-  modal.classList.add('show');
-  modalTitle.textContent = `Dispositivo ${serialNumber}`;
-  modalBody.innerHTML = '<div class="loading" style="color:#6b7280">Carregando detalhes...</div>';
-
-  try {
-    // Buscar dados do dispositivo
-    const deviceRes = await fetch(`/api/device/${serialNumber}`);
-    const device = await deviceRes.json();
-
-    // Buscar últimas 10 leituras
-    const readingsRes = await fetch(`/api/device/${serialNumber}/readings?limit=10`);
-    const readings = await readingsRes.json();
-
-    // Buscar alertas do dispositivo
-    const alertsRes = await fetch(`/api/device/${serialNumber}/alerts?limit=10`);
-    const alerts = await alertsRes.json();
-
-    // Buscar manutenções
-    const maintRes = await fetch(`/api/device/${serialNumber}/maintenances?limit=5`);
-    const maintenances = await maintRes.json();
-
-    // Renderizar conteúdo do modal
-    modalBody.innerHTML = `
-      <div class="detail-section">
-        <div class="detail-section-title">
-          <svg viewBox="0 0 24 24" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 1v6m0 6v6M5.6 5.6l4.2 4.2m5.6 5.6l4.2 4.2m0-16.4l-4.2 4.2M9.8 14.2l-4.2 4.2"/></svg>
-          Informações do Dispositivo
-        </div>
-        <div class="detail-grid">
-          <div class="detail-item">
-            <div class="detail-label">Nome</div>
-            <div class="detail-value">${device.name || 'N/A'}</div>
+      <div class="p-6 border-t border-gray-200">
+        <div class="text-xs text-gray-500">
+          <div class="flex items-center mb-2">
+            <div class="w-2 h-2 bg-green-500 rounded-full mr-2"></div>
+            <span id="autoRefreshStatus">Atualiza em 30s</span>
           </div>
-          <div class="detail-item">
-            <div class="detail-label">Status</div>
-            <div class="detail-value">${device.last_seen ? 'Online' : 'Offline'}</div>
+          <div id="lastUpdate" class="text-gray-400">Última atualização: --</div>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Main Content -->
+    <div class="flex-1 overflow-auto">
+      <div class="p-8">
+        <!-- Header -->
+        <div class="flex items-center justify-between mb-8">
+          <div>
+            <h2 class="text-3xl font-bold text-gray-900">Dispositivos IoT</h2>
+            <p class="text-gray-500 mt-1">Monitoramento centralizado de equipamentos</p>
           </div>
-          <div class="detail-item">
-            <div class="detail-label">Última Conexão</div>
-            <div class="detail-value">${device.last_seen ? new Date(device.last_seen).toLocaleString('pt-BR') : 'N/A'}</div>
+          <button onclick="loadData()" class="inline-flex items-center px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary-dark transition-colors">
+            <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+            </svg>
+            Atualizar
+          </button>
+        </div>
+
+        <!-- Stats Grid -->
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+          <div class="bg-white rounded-lg shadow p-6">
+            <div class="flex items-center justify-between">
+              <div>
+                <p class="text-sm font-medium text-gray-500 uppercase">Dispositivos</p>
+                <p id="totalDevices" class="text-3xl font-bold text-gray-900 mt-2">-</p>
+              </div>
+              <div class="p-3 bg-blue-100 rounded-lg">
+                <svg class="w-8 h-8 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z"/>
+                </svg>
+              </div>
+            </div>
+          </div>
+
+          <div class="bg-white rounded-lg shadow p-6">
+            <div class="flex items-center justify-between">
+              <div>
+                <p class="text-sm font-medium text-gray-500 uppercase">Leituras</p>
+                <p id="totalReadings" class="text-3xl font-bold text-gray-900 mt-2">-</p>
+              </div>
+              <div class="p-3 bg-green-100 rounded-lg">
+                <svg class="w-8 h-8 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
+                </svg>
+              </div>
+            </div>
+          </div>
+
+          <div class="bg-white rounded-lg shadow p-6">
+            <div class="flex items-center justify-between">
+              <div>
+                <p class="text-sm font-medium text-gray-500 uppercase">Alertas (24h)</p>
+                <p id="alerts24h" class="text-3xl font-bold text-gray-900 mt-2">-</p>
+              </div>
+              <div class="p-3 bg-yellow-100 rounded-lg">
+                <svg class="w-8 h-8 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+                </svg>
+              </div>
+            </div>
+          </div>
+
+          <div class="bg-white rounded-lg shadow p-6">
+            <div class="flex items-center justify-between">
+              <div>
+                <p class="text-sm font-medium text-gray-500 uppercase">Manutenções</p>
+                <p id="totalMaintenances" class="text-3xl font-bold text-gray-900 mt-2">-</p>
+              </div>
+              <div class="p-3 bg-purple-100 rounded-lg">
+                <svg class="w-8 h-8 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.7 6.3a1 1 0 000 1.4l1.6 1.6a1 1 0 001.4 0l3.77-3.77a6 6 0 01-7.94 7.94l-6.91 6.91a2.12 2.12 0 01-3-3l6.91-6.91a6 6 0 017.94-7.94l-3.76 3.76z"/>
+                </svg>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Devices Grid -->
+        <div id="devicesGrid" class="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
+          <div class="col-span-full text-center py-12 text-gray-500">
+            Carregando dispositivos...
           </div>
         </div>
       </div>
+    </div>
+  </div>
 
-      <div class="detail-section">
-        <div class="detail-section-title">
-          <svg viewBox="0 0 24 24" stroke-width="2"><path d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
-          Histórico de Leituras (Últimas 10)
-        </div>
-        ${readings.length > 0 ? `
-          <table class="history-table">
-            <thead>
-              <tr>
-                <th>Data/Hora</th>
-                <th>Sistema</th>
-                <th>Ciclos Hoje</th>
-                <th>Ciclos Total</th>
-                <th>Horímetro</th>
-                <th>Moega</th>
-                <th>Fosso</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${readings.map(r => `
-                <tr>
-                  <td>${new Date(r.timestamp).toLocaleString('pt-BR')}</td>
-                  <td>${r.sistema_ligado ? '✓ ON' : '✗ OFF'}</td>
-                  <td>${r.ciclos_hoje || 0}</td>
-                  <td>${r.ciclos_total || 0}</td>
-                  <td>${r.horas_operacao || 0}h ${r.minutos_operacao || 0}m</td>
-                  <td>${r.moega_cheia ? '⚠ CHEIA' : '✓ OK'}</td>
-                  <td>${r.fosso_cheio ? '⚠ CHEIO' : '✓ OK'}</td>
-                </tr>
-              `).join('')}
-            </tbody>
-          </table>
-        ` : '<p style="text-align:center;color:#6b7280;padding:20px">Nenhuma leitura registrada</p>'}
+  <!-- Device Details Modal -->
+  <div id="deviceModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+    <div class="bg-white rounded-lg max-w-6xl w-full max-h-[90vh] overflow-hidden flex flex-col">
+      <div class="bg-gradient-to-r from-primary to-primary-dark text-white p-6 flex items-center justify-between">
+        <h3 id="modalDeviceTitle" class="text-2xl font-bold">Dispositivo</h3>
+        <button onclick="closeDeviceModal()" class="text-white hover:bg-white hover:bg-opacity-20 rounded-lg p-2 transition-colors">
+          <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+          </svg>
+        </button>
       </div>
-
-      <div class="detail-section">
-        <div class="detail-section-title">
-          <svg viewBox="0 0 24 24" stroke-width="2"><path d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
-          Alertas Recentes
-        </div>
-        ${alerts.length > 0 ? `
-          <table class="history-table">
-            <thead>
-              <tr>
-                <th>Data/Hora</th>
-                <th>Tipo</th>
-                <th>Mensagem</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${alerts.map(a => `
-                <tr>
-                  <td>${new Date(a.timestamp).toLocaleString('pt-BR')}</td>
-                  <td><span style="color:#ef4444;font-weight:700">${a.event_type}</span></td>
-                  <td>${a.message}</td>
-                </tr>
-              `).join('')}
-            </tbody>
-          </table>
-        ` : '<p style="text-align:center;color:#6b7280;padding:20px">Nenhum alerta registrado</p>'}
+      <div id="modalDeviceBody" class="flex-1 overflow-auto p-6">
+        <div class="text-center py-12 text-gray-500">Carregando detalhes...</div>
       </div>
+    </div>
+  </div>
 
-      <div class="detail-section">
-        <div class="detail-section-title">
-          <svg viewBox="0 0 24 24" stroke-width="2"><path d="M14.7 6.3a1 1 0 000 1.4l1.6 1.6a1 1 0 001.4 0l3.77-3.77a6 6 0 01-7.94 7.94l-6.91 6.91a2.12 2.12 0 01-3-3l6.91-6.91a6 6 0 017.94-7.94l-3.76 3.76z"/></svg>
-          Histórico de Manutenções
-        </div>
-        ${maintenances.length > 0 ? `
-          <table class="history-table">
-            <thead>
-              <tr>
-                <th>Data/Hora</th>
-                <th>Técnico</th>
-                <th>Descrição</th>
-                <th>Horímetro</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${maintenances.map(m => `
-                <tr>
-                  <td>${new Date(m.timestamp).toLocaleString('pt-BR')}</td>
-                  <td>${m.technician || 'N/A'}</td>
-                  <td>${m.description || 'N/A'}</td>
-                  <td>${m.horas_operacao || 0}h</td>
-                </tr>
-              `).join('')}
-            </tbody>
-          </table>
-        ` : '<p style="text-align:center;color:#6b7280;padding:20px">Nenhuma manutenção registrada</p>'}
-      </div>
-    `;
-  } catch (err) {
-    console.error('Erro ao carregar detalhes:', err);
-    modalBody.innerHTML = '<div style="text-align:center;padding:40px;color:#ef4444">Erro ao carregar detalhes do dispositivo</div>';
-  }
-}
+  <script>
+    let autoRefreshTimer = null;
+    let countdownTimer = null;
+    let secondsUntilRefresh = 30;
 
-function closeDeviceModal() {
-  document.getElementById('deviceModal').classList.remove('show');
-}
+    async function loadData() {
+      try {
+        // Buscar estatísticas
+        const statsRes = await fetch('/api/stats');
+        const stats = await statsRes.json();
 
-// Fechar modal ao clicar fora
-document.addEventListener('click', function(e) {
-  const modal = document.getElementById('deviceModal');
-  if (e.target === modal) {
-    closeDeviceModal();
-  }
-});
+        document.getElementById('totalDevices').textContent = stats.total_devices;
+        document.getElementById('totalReadings').textContent = stats.total_readings.toLocaleString('pt-BR');
+        document.getElementById('alerts24h').textContent = stats.alerts_24h;
+        document.getElementById('totalMaintenances').textContent = stats.total_maintenances;
 
-// Inicializar
-loadData();
-startAutoRefresh();
-</script>
+        // Buscar últimas leituras dos dispositivos
+        const readingsRes = await fetch('/api/latest-readings');
+        const readings = await readingsRes.json();
+
+        renderDevices(readings);
+
+        // Atualizar timestamp
+        const now = new Date();
+        document.getElementById('lastUpdate').textContent = 'Atualizado: ' + now.toLocaleTimeString('pt-BR');
+
+        // Resetar countdown
+        secondsUntilRefresh = 30;
+      } catch (err) {
+        console.error('Erro ao carregar dados:', err);
+      }
+    }
+
+    function renderDevices(readings) {
+      const grid = document.getElementById('devicesGrid');
+
+      if (readings.length === 0) {
+        grid.innerHTML = '<div class="col-span-full text-center py-12 text-gray-500">Nenhum dispositivo encontrado</div>';
+        return;
+      }
+
+      grid.innerHTML = readings.map(r => {
+        const isOnline = r.wifi_connected && r.timestamp && (new Date() - new Date(r.timestamp)) < 600000;
+
+        return `
+          <div onclick="openDeviceModal('${r.serial_number}')" class="bg-white rounded-lg shadow hover:shadow-lg transition-shadow cursor-pointer overflow-hidden">
+            <div class="p-6">
+              <div class="flex items-center justify-between mb-4">
+                <div>
+                  <h3 class="text-lg font-bold text-gray-900">${r.serial_number}</h3>
+                  <p class="text-sm text-gray-500">${r.name || 'Tombador de Grãos'}</p>
+                </div>
+                <span class="px-3 py-1 rounded-full text-xs font-semibold ${isOnline ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}">
+                  ${isOnline ? 'Online' : 'Offline'}
+                </span>
+              </div>
+
+              ${r.sistema_ligado !== null ? `
+                <div class="grid grid-cols-4 gap-2 mb-4">
+                  <div class="text-center p-2 rounded ${r.sistema_ligado ? 'bg-green-500 text-white' : 'bg-gray-100 text-gray-600'}">
+                    <div class="text-xs font-semibold">Sistema</div>
+                    <div class="text-xs mt-1">${r.sistema_ligado ? 'ON' : 'OFF'}</div>
+                  </div>
+                  <div class="text-center p-2 rounded ${r.sensor_0_graus ? 'bg-green-500 text-white' : 'bg-gray-100 text-gray-600'}">
+                    <div class="text-xs font-semibold">0°</div>
+                    <div class="text-xs mt-1">${r.sensor_0_graus ? 'Ativo' : 'Inativo'}</div>
+                  </div>
+                  <div class="text-center p-2 rounded ${r.sensor_40_graus ? 'bg-green-500 text-white' : 'bg-gray-100 text-gray-600'}">
+                    <div class="text-xs font-semibold">40°</div>
+                    <div class="text-xs mt-1">${r.sensor_40_graus ? 'Ativo' : 'Inativo'}</div>
+                  </div>
+                  <div class="text-center p-2 rounded ${r.trava_roda ? 'bg-green-500 text-white' : 'bg-gray-100 text-gray-600'}">
+                    <div class="text-xs font-semibold">Trava</div>
+                    <div class="text-xs mt-1">${r.trava_roda ? 'Ativo' : 'Inativo'}</div>
+                  </div>
+                  <div class="text-center p-2 rounded ${r.subindo ? 'bg-blue-500 text-white' : 'bg-gray-100 text-gray-600'}">
+                    <div class="text-xs font-semibold">Subindo</div>
+                    <div class="text-xs mt-1">${r.subindo ? 'Sim' : 'Não'}</div>
+                  </div>
+                  <div class="text-center p-2 rounded ${r.descendo ? 'bg-blue-500 text-white' : 'bg-gray-100 text-gray-600'}">
+                    <div class="text-xs font-semibold">Descendo</div>
+                    <div class="text-xs mt-1">${r.descendo ? 'Sim' : 'Não'}</div>
+                  </div>
+                  <div class="text-center p-2 rounded ${r.moega_cheia ? 'bg-red-500 text-white blink' : 'bg-gray-100 text-gray-600'}">
+                    <div class="text-xs font-semibold">Moega</div>
+                    <div class="text-xs mt-1">${r.moega_cheia ? 'CHEIA' : 'OK'}</div>
+                  </div>
+                  <div class="text-center p-2 rounded ${r.fosso_cheio ? 'bg-red-500 text-white blink' : 'bg-gray-100 text-gray-600'}">
+                    <div class="text-xs font-semibold">Fosso</div>
+                    <div class="text-xs mt-1">${r.fosso_cheio ? 'CHEIO' : 'OK'}</div>
+                  </div>
+                </div>
+
+                <div class="grid grid-cols-3 gap-3 pt-4 border-t border-gray-200">
+                  <div class="text-center">
+                    <div class="text-2xl font-bold text-primary">${r.ciclos_hoje || 0}</div>
+                    <div class="text-xs text-gray-500 mt-1">Ciclos Hoje</div>
+                  </div>
+                  <div class="text-center">
+                    <div class="text-2xl font-bold text-primary">${r.ciclos_total || 0}</div>
+                    <div class="text-xs text-gray-500 mt-1">Total</div>
+                  </div>
+                  <div class="text-center">
+                    <div class="text-2xl font-bold text-primary">${r.horas_operacao || 0}h</div>
+                    <div class="text-xs text-gray-500 mt-1">Horímetro</div>
+                  </div>
+                </div>
+              ` : `
+                <div class="text-center py-8 text-gray-500 text-sm">
+                  Aguardando primeira leitura...
+                </div>
+              `}
+
+              ${r.timestamp ? `
+                <div class="text-xs text-gray-400 text-center mt-4 pt-4 border-t border-gray-200">
+                  ${new Date(r.timestamp).toLocaleString('pt-BR')}
+                </div>
+              ` : ''}
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function startAutoRefresh() {
+      autoRefreshTimer = setInterval(() => {
+        loadData();
+      }, 30000);
+
+      countdownTimer = setInterval(() => {
+        secondsUntilRefresh--;
+        if (secondsUntilRefresh <= 0) {
+          secondsUntilRefresh = 30;
+        }
+        document.getElementById('autoRefreshStatus').textContent = `Atualiza em ${secondsUntilRefresh}s`;
+      }, 1000);
+    }
+
+    async function openDeviceModal(serialNumber) {
+      const modal = document.getElementById('deviceModal');
+      const modalTitle = document.getElementById('modalDeviceTitle');
+      const modalBody = document.getElementById('modalDeviceBody');
+
+      modal.classList.remove('hidden');
+      modalTitle.textContent = `Dispositivo ${serialNumber}`;
+      modalBody.innerHTML = '<div class="text-center py-12 text-gray-500">Carregando detalhes...</div>';
+
+      try {
+        const [deviceRes, readingsRes, alertsRes, maintRes] = await Promise.all([
+          fetch(`/api/device/${serialNumber}`),
+          fetch(`/api/device/${serialNumber}/readings?limit=10`),
+          fetch(`/api/device/${serialNumber}/alerts?limit=10`),
+          fetch(`/api/device/${serialNumber}/maintenances?limit=5`)
+        ]);
+
+        const device = await deviceRes.json();
+        const readings = await readingsRes.json();
+        const alerts = await alertsRes.json();
+        const maintenances = await maintRes.json();
+
+        const latestReading = readings.length > 0 ? readings[0] : null;
+        const isOnline = latestReading && latestReading.wifi_connected &&
+                         latestReading.timestamp &&
+                         (new Date() - new Date(latestReading.timestamp)) < 600000;
+
+        modalBody.innerHTML = `
+          <div class="space-y-6">
+            <!-- Device Info -->
+            <div>
+              <h4 class="text-lg font-semibold text-gray-900 mb-3 flex items-center">
+                <svg class="w-5 h-5 mr-2 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                </svg>
+                Informações do Dispositivo
+              </h4>
+              <div class="grid grid-cols-3 gap-4">
+                <div class="bg-gray-50 p-4 rounded-lg border-l-4 border-primary">
+                  <div class="text-xs text-gray-500 uppercase font-semibold">Nome</div>
+                  <div class="text-sm font-bold text-gray-900 mt-1">${device.name || 'N/A'}</div>
+                </div>
+                <div class="bg-gray-50 p-4 rounded-lg border-l-4 border-primary">
+                  <div class="text-xs text-gray-500 uppercase font-semibold">Status</div>
+                  <div class="text-sm font-bold mt-1 ${isOnline ? 'text-green-600' : 'text-red-600'}">${isOnline ? 'Online' : 'Offline'}</div>
+                </div>
+                <div class="bg-gray-50 p-4 rounded-lg border-l-4 border-primary">
+                  <div class="text-xs text-gray-500 uppercase font-semibold">Última Conexão</div>
+                  <div class="text-sm font-bold text-gray-900 mt-1">${device.last_seen ? new Date(device.last_seen).toLocaleString('pt-BR') : 'N/A'}</div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Readings History -->
+            <div>
+              <h4 class="text-lg font-semibold text-gray-900 mb-3 flex items-center">
+                <svg class="w-5 h-5 mr-2 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
+                </svg>
+                Histórico de Leituras (Últimas 10)
+              </h4>
+              ${readings.length > 0 ? `
+                <div class="overflow-x-auto">
+                  <table class="min-w-full divide-y divide-gray-200">
+                    <thead class="bg-gray-50">
+                      <tr>
+                        <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Data/Hora</th>
+                        <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Sistema</th>
+                        <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Ciclos Hoje</th>
+                        <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Ciclos Total</th>
+                        <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Horímetro</th>
+                        <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Moega</th>
+                        <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Fosso</th>
+                      </tr>
+                    </thead>
+                    <tbody class="bg-white divide-y divide-gray-200">
+                      ${readings.map(r => `
+                        <tr class="hover:bg-gray-50">
+                          <td class="px-4 py-3 text-sm text-gray-900">${new Date(r.timestamp).toLocaleString('pt-BR')}</td>
+                          <td class="px-4 py-3 text-sm ${r.sistema_ligado ? 'text-green-600 font-semibold' : 'text-gray-500'}">
+                            ${r.sistema_ligado ? 'ON' : 'OFF'}
+                          </td>
+                          <td class="px-4 py-3 text-sm text-gray-900">${r.ciclos_hoje || 0}</td>
+                          <td class="px-4 py-3 text-sm text-gray-900">${r.ciclos_total || 0}</td>
+                          <td class="px-4 py-3 text-sm text-gray-900">${r.horas_operacao || 0}h ${r.minutos_operacao || 0}m</td>
+                          <td class="px-4 py-3 text-sm ${r.moega_cheia ? 'text-red-600 font-semibold' : 'text-green-600'}">
+                            ${r.moega_cheia ? 'CHEIA' : 'OK'}
+                          </td>
+                          <td class="px-4 py-3 text-sm ${r.fosso_cheio ? 'text-red-600 font-semibold' : 'text-green-600'}">
+                            ${r.fosso_cheio ? 'CHEIO' : 'OK'}
+                          </td>
+                        </tr>
+                      `).join('')}
+                    </tbody>
+                  </table>
+                </div>
+              ` : '<p class="text-center text-gray-500 py-8">Nenhuma leitura registrada</p>'}
+            </div>
+
+            <!-- Alerts -->
+            <div>
+              <h4 class="text-lg font-semibold text-gray-900 mb-3 flex items-center">
+                <svg class="w-5 h-5 mr-2 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+                </svg>
+                Alertas Recentes
+              </h4>
+              ${alerts.length > 0 ? `
+                <div class="overflow-x-auto">
+                  <table class="min-w-full divide-y divide-gray-200">
+                    <thead class="bg-gray-50">
+                      <tr>
+                        <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Data/Hora</th>
+                        <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Tipo</th>
+                        <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Mensagem</th>
+                      </tr>
+                    </thead>
+                    <tbody class="bg-white divide-y divide-gray-200">
+                      ${alerts.map(a => `
+                        <tr class="hover:bg-gray-50">
+                          <td class="px-4 py-3 text-sm text-gray-900">${new Date(a.timestamp).toLocaleString('pt-BR')}</td>
+                          <td class="px-4 py-3 text-sm">
+                            <span class="px-2 py-1 bg-red-100 text-red-800 rounded text-xs font-semibold">${a.event_type}</span>
+                          </td>
+                          <td class="px-4 py-3 text-sm text-gray-900">${a.message}</td>
+                        </tr>
+                      `).join('')}
+                    </tbody>
+                  </table>
+                </div>
+              ` : '<p class="text-center text-gray-500 py-8">Nenhum alerta registrado</p>'}
+            </div>
+
+            <!-- Maintenances -->
+            <div>
+              <h4 class="text-lg font-semibold text-gray-900 mb-3 flex items-center">
+                <svg class="w-5 h-5 mr-2 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.7 6.3a1 1 0 000 1.4l1.6 1.6a1 1 0 001.4 0l3.77-3.77a6 6 0 01-7.94 7.94l-6.91 6.91a2.12 2.12 0 01-3-3l6.91-6.91a6 6 0 017.94-7.94l-3.76 3.76z"/>
+                </svg>
+                Histórico de Manutenções
+              </h4>
+              ${maintenances.length > 0 ? `
+                <div class="overflow-x-auto">
+                  <table class="min-w-full divide-y divide-gray-200">
+                    <thead class="bg-gray-50">
+                      <tr>
+                        <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Data/Hora</th>
+                        <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Técnico</th>
+                        <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Descrição</th>
+                        <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Horímetro</th>
+                      </tr>
+                    </thead>
+                    <tbody class="bg-white divide-y divide-gray-200">
+                      ${maintenances.map(m => `
+                        <tr class="hover:bg-gray-50">
+                          <td class="px-4 py-3 text-sm text-gray-900">${new Date(m.timestamp).toLocaleString('pt-BR')}</td>
+                          <td class="px-4 py-3 text-sm text-gray-900">${m.technician || 'N/A'}</td>
+                          <td class="px-4 py-3 text-sm text-gray-900">${m.description || 'N/A'}</td>
+                          <td class="px-4 py-3 text-sm text-gray-900">${m.horas_operacao || 0}h</td>
+                        </tr>
+                      `).join('')}
+                    </tbody>
+                  </table>
+                </div>
+              ` : '<p class="text-center text-gray-500 py-8">Nenhuma manutenção registrada</p>'}
+            </div>
+          </div>
+        `;
+      } catch (err) {
+        console.error('Erro ao carregar detalhes:', err);
+        modalBody.innerHTML = `
+          <div class="text-center py-12">
+            <svg class="w-12 h-12 text-red-500 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+            </svg>
+            <div class="font-semibold text-red-600 mb-2">Erro ao carregar detalhes</div>
+            <div class="text-sm text-gray-500">${err.message}</div>
+          </div>
+        `;
+      }
+    }
+
+    function closeDeviceModal() {
+      document.getElementById('deviceModal').classList.add('hidden');
+    }
+
+    // Close modal on outside click
+    document.getElementById('deviceModal').addEventListener('click', function(e) {
+      if (e.target === this) {
+        closeDeviceModal();
+      }
+    });
+
+    // Initialize
+    loadData();
+    startAutoRefresh();
+  </script>
 </body>
 </html>

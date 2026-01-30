@@ -1135,7 +1135,7 @@ app.post('/api/payment/register-card', authenticateToken, async (req, res) => {
       return res.status(400).json({ error: 'Usuario não vinculado a uma empresa' });
     }
 
-    const { cardName, cardNumber, cardExpiry, cardCvv, cpf } = req.body;
+    const { cardName, cardNumber, cardExpiry, cardCvv, cpf, cupom_code } = req.body;
 
     if (!cardName || !cardNumber || !cardExpiry || !cardCvv || !cpf) {
       return res.status(400).json({ error: 'Todos os campos são obrigatórios' });
@@ -1150,6 +1150,44 @@ app.post('/api/payment/register-card', authenticateToken, async (req, res) => {
     // Salvar últimos 4 dígitos e dados tokenizados
     const lastFour = cleanNumber.slice(-4);
     const cardToken = `token_${Date.now()}_${lastFour}`;
+
+    // Verificar cupom se fornecido
+    let valorFinal = 2000.00;
+    let cupomInfo = null;
+
+    if (cupom_code) {
+      const cupomResult = await pool.query(`
+        SELECT * FROM cupons WHERE code = $1 AND active = true
+      `, [cupom_code.toUpperCase()]);
+
+      if (cupomResult.rows.length > 0) {
+        const cupom = cupomResult.rows[0];
+
+        // Validar se não expirou
+        const isValid = (!cupom.valid_until || new Date(cupom.valid_until) >= new Date()) &&
+                       (cupom.max_uses === 0 || cupom.times_used < cupom.max_uses);
+
+        if (isValid) {
+          // Calcular desconto
+          if (cupom.discount_type === 'percentual') {
+            valorFinal = 2000.00 * (1 - cupom.discount_value / 100);
+          } else {
+            valorFinal = Math.max(0, 2000.00 - parseFloat(cupom.discount_value));
+          }
+
+          // Incrementar uso do cupom
+          await pool.query('UPDATE cupons SET times_used = times_used + 1 WHERE id = $1', [cupom.id]);
+
+          cupomInfo = {
+            code: cupom.code,
+            discount_type: cupom.discount_type,
+            discount_value: parseFloat(cupom.discount_value)
+          };
+
+          console.log(`🏷️ Cupom ${cupom.code} aplicado - Desconto de R$ ${(2000 - valorFinal).toFixed(2)}`);
+        }
+      }
+    }
 
     // Registrar cartão na empresa
     await pool.query(`
@@ -1170,8 +1208,8 @@ app.post('/api/payment/register-card', authenticateToken, async (req, res) => {
       INSERT INTO subscriptions (
         empresa_id, plan_type, amount, payment_method, status,
         transaction_id, expires_at
-      ) VALUES ($1, 'anual', 2000.00, 'cartao', 'trial', $2, $3)
-    `, [empresa_id, cardToken, new Date(trialEnds.getTime() + 365 * 24 * 60 * 60 * 1000)]);
+      ) VALUES ($1, 'anual', $2, 'cartao', 'trial', $3, $4)
+    `, [empresa_id, valorFinal, cardToken, new Date(trialEnds.getTime() + 365 * 24 * 60 * 60 * 1000)]);
 
     // Atualizar trial da empresa
     await pool.query(`
@@ -1181,13 +1219,15 @@ app.post('/api/payment/register-card', authenticateToken, async (req, res) => {
       WHERE id = $2
     `, [trialEnds, empresa_id]);
 
-    console.log(`💳 Cartão cadastrado para empresa ${empresa_id} (****${lastFour})`);
+    console.log(`💳 Cartão cadastrado para empresa ${empresa_id} (****${lastFour}) - Valor: R$ ${valorFinal.toFixed(2)}`);
 
     res.json({
       success: true,
       message: 'Cartão cadastrado com sucesso',
       trialEndsAt: trialEnds,
-      cardLastFour: lastFour
+      cardLastFour: lastFour,
+      valorFinal: valorFinal,
+      cupomAplicado: cupomInfo
     });
 
   } catch (err) {
@@ -1471,6 +1511,186 @@ app.get('/api/subscriptions', authenticateToken, async (req, res) => {
     res.json(result.rows);
   } catch (err) {
     console.error('Erro ao buscar assinaturas:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ============ CUPONS DE DESCONTO ============
+
+// Listar cupons (super admin)
+app.get('/api/cupons', authenticateToken, requireSuperAdmin, async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT * FROM cupons ORDER BY created_at DESC
+    `);
+    res.json(result.rows);
+  } catch (err) {
+    console.error('Erro ao buscar cupons:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Criar cupom (super admin)
+app.post('/api/cupons', authenticateToken, requireSuperAdmin, async (req, res) => {
+  try {
+    const { code, discount_type, discount_value, valid_until, max_uses, description } = req.body;
+
+    if (!code || !discount_type || !discount_value) {
+      return res.status(400).json({ error: 'Codigo, tipo e valor do desconto sao obrigatorios' });
+    }
+
+    // Validar tipo de desconto
+    if (!['percentual', 'valor'].includes(discount_type)) {
+      return res.status(400).json({ error: 'Tipo de desconto invalido' });
+    }
+
+    // Validar percentual
+    if (discount_type === 'percentual' && (discount_value < 1 || discount_value > 100)) {
+      return res.status(400).json({ error: 'Percentual deve ser entre 1 e 100' });
+    }
+
+    const result = await pool.query(`
+      INSERT INTO cupons (code, discount_type, discount_value, valid_until, max_uses, description)
+      VALUES ($1, $2, $3, $4, $5, $6)
+      RETURNING id
+    `, [code.toUpperCase(), discount_type, discount_value, valid_until || null, max_uses || 0, description || null]);
+
+    res.status(201).json({ success: true, id: result.rows[0].id });
+  } catch (err) {
+    if (err.code === '23505') {
+      return res.status(400).json({ error: 'Ja existe um cupom com esse codigo' });
+    }
+    console.error('Erro ao criar cupom:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Atualizar cupom (super admin)
+app.put('/api/cupons/:id', authenticateToken, requireSuperAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { active, discount_type, discount_value, valid_until, max_uses, description } = req.body;
+
+    // Se só está alterando o status ativo
+    if (active !== undefined && Object.keys(req.body).length === 1) {
+      await pool.query('UPDATE cupons SET active = $1 WHERE id = $2', [active, id]);
+      return res.json({ success: true });
+    }
+
+    // Atualização completa
+    await pool.query(`
+      UPDATE cupons SET
+        discount_type = COALESCE($1, discount_type),
+        discount_value = COALESCE($2, discount_value),
+        valid_until = $3,
+        max_uses = COALESCE($4, max_uses),
+        description = $5,
+        active = COALESCE($6, active)
+      WHERE id = $7
+    `, [discount_type, discount_value, valid_until || null, max_uses, description || null, active, id]);
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Erro ao atualizar cupom:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Excluir cupom (super admin)
+app.delete('/api/cupons/:id', authenticateToken, requireSuperAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+    await pool.query('DELETE FROM cupons WHERE id = $1', [id]);
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Erro ao excluir cupom:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Validar cupom (para checkout)
+app.post('/api/cupons/validate', authenticateToken, async (req, res) => {
+  try {
+    const { code } = req.body;
+
+    if (!code) {
+      return res.status(400).json({ error: 'Codigo do cupom e obrigatorio' });
+    }
+
+    const result = await pool.query(`
+      SELECT * FROM cupons WHERE code = $1 AND active = true
+    `, [code.toUpperCase()]);
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Cupom nao encontrado ou inativo' });
+    }
+
+    const cupom = result.rows[0];
+
+    // Verificar validade
+    if (cupom.valid_until && new Date(cupom.valid_until) < new Date()) {
+      return res.status(400).json({ error: 'Cupom expirado' });
+    }
+
+    // Verificar limite de uso
+    if (cupom.max_uses > 0 && cupom.times_used >= cupom.max_uses) {
+      return res.status(400).json({ error: 'Cupom esgotado' });
+    }
+
+    // Calcular desconto
+    const PRECO_ASSINATURA = 2000.00;
+    let desconto = 0;
+    let precoFinal = PRECO_ASSINATURA;
+
+    if (cupom.discount_type === 'percentual') {
+      desconto = PRECO_ASSINATURA * (cupom.discount_value / 100);
+    } else {
+      desconto = parseFloat(cupom.discount_value);
+    }
+
+    precoFinal = Math.max(0, PRECO_ASSINATURA - desconto);
+
+    res.json({
+      valid: true,
+      cupom: {
+        code: cupom.code,
+        discount_type: cupom.discount_type,
+        discount_value: parseFloat(cupom.discount_value),
+        description: cupom.description
+      },
+      desconto: desconto,
+      precoOriginal: PRECO_ASSINATURA,
+      precoFinal: precoFinal
+    });
+  } catch (err) {
+    console.error('Erro ao validar cupom:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Aplicar cupom (incrementar uso)
+app.post('/api/cupons/apply', authenticateToken, async (req, res) => {
+  try {
+    const { code, empresa_id } = req.body;
+
+    if (!code) {
+      return res.status(400).json({ error: 'Codigo do cupom e obrigatorio' });
+    }
+
+    // Incrementar contador de uso
+    const result = await pool.query(`
+      UPDATE cupons SET times_used = times_used + 1
+      WHERE code = $1 AND active = true
+      RETURNING id, times_used
+    `, [code.toUpperCase()]);
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Cupom nao encontrado' });
+    }
+
+    res.json({ success: true, times_used: result.rows[0].times_used });
+  } catch (err) {
+    console.error('Erro ao aplicar cupom:', err);
     res.status(500).json({ error: err.message });
   }
 });
@@ -1877,7 +2097,32 @@ app.get('/', (req, res) => {
 
 // ============ START SERVER ============
 
-app.listen(PORT, () => {
+// Criar tabelas que não existem
+async function initDatabase() {
+  try {
+    // Criar tabela de cupons se não existir
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS cupons (
+        id SERIAL PRIMARY KEY,
+        code VARCHAR(50) UNIQUE NOT NULL,
+        discount_type VARCHAR(20) NOT NULL CHECK (discount_type IN ('percentual', 'valor')),
+        discount_value DECIMAL(10,2) NOT NULL,
+        description TEXT,
+        valid_until DATE,
+        max_uses INTEGER DEFAULT 0,
+        times_used INTEGER DEFAULT 0,
+        active BOOLEAN DEFAULT true,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    console.log('✅ Tabela de cupons verificada');
+  } catch (err) {
+    console.error('Erro ao inicializar banco:', err.message);
+  }
+}
+
+app.listen(PORT, async () => {
+  await initDatabase();
   console.log('');
   console.log('=========================================');
   console.log('   PILI TECH - Portal Hierárquico');

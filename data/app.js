@@ -399,3 +399,66 @@ if ('wakeLock' in navigator) {
 
 loadMaintenances();
 connectWS();
+
+// ========== VISUALIZAÇÃO DE PDFs ==========
+function openPDF(filename) {
+    // Caminho da pasta Download no Android
+    var basePath = '/sdcard/Download/';
+    var filePath = basePath + filename;
+
+    // Tenta abrir usando intent do Android (funciona em WebView ou browsers compatíveis)
+    // Método 1: Intent URL (funciona em alguns navegadores Android)
+    var intentUrl = 'intent://view#Intent;' +
+        'action=android.intent.action.VIEW;' +
+        'type=application/pdf;' +
+        'S.browser_fallback_url=' + encodeURIComponent('file://' + filePath) + ';' +
+        'end';
+
+    // Método 2: File URL direto (pode funcionar dependendo do navegador/WebView)
+    var fileUrl = 'file://' + filePath;
+
+    // Método 3: Content URL (Android 7+)
+    var contentUrl = 'content://com.android.providers.downloads.documents/document/raw%3A' +
+        encodeURIComponent(filePath);
+
+    // Tenta abrir o PDF
+    // Primeiro tenta com file:// (mais compatível)
+    var opened = false;
+
+    try {
+        // Cria um link temporário e clica nele
+        var link = document.createElement('a');
+        link.href = fileUrl;
+        link.target = '_blank';
+        link.click();
+        opened = true;
+        addLog('Abrindo documento: ' + filename, 'ok');
+    } catch (e) {
+        console.error('Erro ao abrir PDF:', e);
+    }
+
+    // Se não conseguiu, tenta com intent
+    if (!opened) {
+        try {
+            window.location.href = intentUrl;
+            addLog('Abrindo documento: ' + filename, 'ok');
+        } catch (e) {
+            console.error('Erro ao abrir PDF com intent:', e);
+            alert('Não foi possível abrir o documento.\n\nVerifique se o arquivo "' + filename + '" existe na pasta Download do tablet.');
+            addLog('Erro ao abrir documento: ' + filename, 'error');
+        }
+    }
+}
+
+// Função alternativa para dispositivos específicos
+function openPDFAlternative(filename) {
+    // Para uso com apps de kiosk ou WebView customizado
+    if (window.Android && typeof window.Android.openPDF === 'function') {
+        // Se houver interface JavaScript nativa do Android
+        window.Android.openPDF(filename);
+        addLog('Abrindo documento (nativo): ' + filename, 'ok');
+    } else {
+        // Fallback para o método padrão
+        openPDF(filename);
+    }
+}

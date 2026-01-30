@@ -481,17 +481,22 @@ Perguntas Frequentes - PILI TECH
 <svg viewBox="0 0 24 24" stroke-width="2"><path d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"/></svg>
 Documentos
 </div>
-<div style="display:flex;flex-direction:column;gap:8px;padding:10px;overflow-y:auto;max-height:420px">
-<div onclick="openPDF('Manual de Operação tombador 30m opd 166 2025.pdf')" style="background:#dc2626;border-radius:8px;padding:12px;cursor:pointer;display:flex;align-items:center;gap:12px"><span style="font-size:24px">📕</span><span style="color:#fff;font-size:13px;font-weight:700">Manual de Operação</span></div>
-<div onclick="openPDF('painel eletrico pg 01.pdf')" style="background:#dc2626;border-radius:8px;padding:12px;cursor:pointer;display:flex;align-items:center;gap:12px"><span style="font-size:24px">📄</span><span style="color:#fff;font-size:13px;font-weight:700">Painel Elétrico Pg 01</span></div>
-<div onclick="openPDF('painel eletrico pg 02.pdf')" style="background:#dc2626;border-radius:8px;padding:12px;cursor:pointer;display:flex;align-items:center;gap:12px"><span style="font-size:24px">📄</span><span style="color:#fff;font-size:13px;font-weight:700">Painel Elétrico Pg 02</span></div>
-<div onclick="openPDF('painel eletrico pg 03.pdf')" style="background:#dc2626;border-radius:8px;padding:12px;cursor:pointer;display:flex;align-items:center;gap:12px"><span style="font-size:24px">📄</span><span style="color:#fff;font-size:13px;font-weight:700">Painel Elétrico Pg 03</span></div>
-<div onclick="openPDF('painel eletrico pg 04.pdf')" style="background:#dc2626;border-radius:8px;padding:12px;cursor:pointer;display:flex;align-items:center;gap:12px"><span style="font-size:24px">📄</span><span style="color:#fff;font-size:13px;font-weight:700">Painel Elétrico Pg 04</span></div>
-<div onclick="openPDF('painel eletrico pg 05.pdf')" style="background:#dc2626;border-radius:8px;padding:12px;cursor:pointer;display:flex;align-items:center;gap:12px"><span style="font-size:24px">📄</span><span style="color:#fff;font-size:13px;font-weight:700">Painel Elétrico Pg 05</span></div>
-<div onclick="openPDF('painel eletrico pg 06.pdf')" style="background:#dc2626;border-radius:8px;padding:12px;cursor:pointer;display:flex;align-items:center;gap:12px"><span style="font-size:24px">📄</span><span style="color:#fff;font-size:13px;font-weight:700">Painel Elétrico Pg 06</span></div>
-<div onclick="openPDF('painel eletrico pg 07.pdf')" style="background:#dc2626;border-radius:8px;padding:12px;cursor:pointer;display:flex;align-items:center;gap:12px"><span style="font-size:24px">📄</span><span style="color:#fff;font-size:13px;font-weight:700">Painel Elétrico Pg 07</span></div>
-<div onclick="openPDF('painel eletrico pg 08.pdf')" style="background:#dc2626;border-radius:8px;padding:12px;cursor:pointer;display:flex;align-items:center;gap:12px"><span style="font-size:24px">📄</span><span style="color:#fff;font-size:13px;font-weight:700">Painel Elétrico Pg 08</span></div>
-</div>
+<div id="docsList" style="display:flex;flex-direction:column;gap:8px;padding:10px;overflow-y:auto;max-height:420px"></div>
+<script>
+var DOCS_CONFIG=[
+{file:'Manual de Operação tombador 30m opd 166 2025.pdf',title:'Manual de Operação',icon:'📕'},
+{file:'painel eletrico pg 01.pdf',title:'Painel Elétrico Pg 01',icon:'📄'},
+{file:'painel eletrico pg 02.pdf',title:'Painel Elétrico Pg 02',icon:'📄'},
+{file:'painel eletrico pg 03.pdf',title:'Painel Elétrico Pg 03',icon:'📄'},
+{file:'painel eletrico pg 04.pdf',title:'Painel Elétrico Pg 04',icon:'📄'},
+{file:'painel eletrico pg 05.pdf',title:'Painel Elétrico Pg 05',icon:'📄'},
+{file:'painel eletrico pg 06.pdf',title:'Painel Elétrico Pg 06',icon:'📄'},
+{file:'painel eletrico pg 07.pdf',title:'Painel Elétrico Pg 07',icon:'📄'},
+{file:'painel eletrico pg 08.pdf',title:'Painel Elétrico Pg 08',icon:'📄'}
+];
+function renderDocs(){var h='';DOCS_CONFIG.forEach(function(d){h+='<div onclick="openPDF(\''+d.file+'\')" style="background:#dc2626;border-radius:8px;padding:12px;cursor:pointer;display:flex;align-items:center;gap:12px"><span style="font-size:24px">'+d.icon+'</span><span style="color:#fff;font-size:13px;font-weight:700">'+d.title+'</span></div>';});document.getElementById('docsList').innerHTML=h;}
+renderDocs();
+</script>
 </div>
 </div>
 <div class="panel" style="grid-template-rows:auto">

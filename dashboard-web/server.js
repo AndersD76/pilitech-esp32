@@ -69,7 +69,8 @@ app.get('/api/latest-readings', async (req, res) => {
           horas_operacao,
           minutos_operacao,
           free_heap,
-          uptime_seconds
+          uptime_seconds,
+          wifi_connected
         FROM sensor_readings
         ORDER BY device_id, timestamp DESC
       )
@@ -274,8 +275,129 @@ app.get('/api/device/:serial/maintenances', async (req, res) => {
   }
 });
 
+// ============================================
+// GERENCIAMENTO DE CLIENTES
+// ============================================
+
+// GET /api/clients - Listar todos clientes
+app.get('/api/clients', async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT
+        c.id,
+        c.client_code,
+        c.company_name,
+        c.contact_email,
+        c.contact_phone,
+        c.created_at,
+        COUNT(d.id) as device_count,
+        STRING_AGG(d.serial_number, ', ') as devices
+      FROM clients c
+      LEFT JOIN devices d ON d.client_id = c.id
+      GROUP BY c.id
+      ORDER BY c.company_name
+    `);
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Erro ao buscar clientes:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// POST /api/clients - Criar novo cliente
+app.post('/api/clients', async (req, res) => {
+  try {
+    const { client_code, password, company_name, contact_email, contact_phone } = req.body;
+
+    const result = await pool.query(
+      `INSERT INTO clients (client_code, password, company_name, contact_email, contact_phone)
+       VALUES ($1, $2, $3, $4, $5)
+       RETURNING *`,
+      [client_code, password, company_name, contact_email, contact_phone]
+    );
+
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Erro ao criar cliente:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// PUT /api/clients/:id - Atualizar cliente
+app.put('/api/clients/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { password, company_name, contact_email, contact_phone } = req.body;
+
+    const result = await pool.query(
+      `UPDATE clients
+       SET password = $1, company_name = $2, contact_email = $3, contact_phone = $4
+       WHERE id = $5
+       RETURNING *`,
+      [password, company_name, contact_email, contact_phone, id]
+    );
+
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Erro ao atualizar cliente:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// DELETE /api/clients/:id - Deletar cliente
+app.delete('/api/clients/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    // Desvincular dispositivos primeiro
+    await pool.query('UPDATE devices SET client_id = NULL WHERE client_id = $1', [id]);
+
+    // Deletar cliente
+    await pool.query('DELETE FROM clients WHERE id = $1', [id]);
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Erro ao deletar cliente:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// PUT /api/devices/:id/client - Vincular dispositivo a cliente
+app.put('/api/devices/:id/client', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { client_id } = req.body;
+
+    const result = await pool.query(
+      'UPDATE devices SET client_id = $1 WHERE id = $2 RETURNING *',
+      [client_id, id]
+    );
+
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Erro ao vincular dispositivo:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// GET /api/devices/unassigned - Dispositivos sem cliente
+app.get('/api/devices/unassigned', async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT id, serial_number, name, created_at, last_seen
+      FROM devices
+      WHERE client_id IS NULL
+      ORDER BY serial_number
+    `);
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Erro ao buscar dispositivos não vinculados:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 app.listen(PORT, () => {
-  console.log(`\n🌐 Portal PILI TECH rodando na porta ${PORT}`);
-  console.log(`📊 Dashboard: http://localhost:${PORT}`);
-  console.log(`🔗 API: http://localhost:${PORT}/api/*\n`);
+  console.log(`\nPortal PILI TECH rodando na porta ${PORT}`);
+  console.log(`Dashboard: http://localhost:${PORT}`);
+  console.log(`API: http://localhost:${PORT}/api/*\n`);
 });

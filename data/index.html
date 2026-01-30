@@ -486,8 +486,9 @@
             <button class="tab" onclick="switchTab(2)">Manutenções</button>
             <button class="tab" onclick="switchTab(3)">Sistema</button>
             <button class="tab" onclick="switchTab(4)">Logs</button>
-            <button class="tab" onclick="switchTab(5)">FAQ</button>
-            <button class="tab" onclick="switchTab(6)">Contato</button>
+            <button class="tab" onclick="switchTab(5)">Documentos</button>
+            <button class="tab" onclick="switchTab(6)">FAQ</button>
+            <button class="tab" onclick="switchTab(7)">Contato</button>
         </div>
 
         <div class="content">
@@ -610,6 +611,101 @@
                 <div class="card" style="height:100%;">
                     <div class="card-title">Registro de Eventos</div>
                     <div class="log-container" id="logsArea"></div>
+                </div>
+            </div>
+
+            <!-- Documentos -->
+            <div class="panel">
+                <div class="card" style="height:100%;overflow:hidden;">
+                    <div class="card-title">📄 Documentos e Manuais</div>
+                    <div style="height:calc(100% - 45px);overflow-y:auto;padding:8px;">
+
+                        <div style="background:linear-gradient(135deg,#3b82f6,#1d4ed8);padding:16px;border-radius:8px;color:white;margin-bottom:16px;">
+                            <div style="font-size:14px;font-weight:700;margin-bottom:6px;">📱 Como visualizar os documentos</div>
+                            <div style="font-size:12px;opacity:0.9;line-height:1.5;">
+                                Clique no documento desejado para abrir no visualizador de PDF do tablet.
+                                Use o botão "Voltar" do Android para retornar a esta tela.
+                            </div>
+                        </div>
+
+                        <div id="documentsList" style="display:grid;gap:12px;">
+
+                            <div class="doc-item" onclick="openPDF('Manual_Tombador_PILI.pdf')" style="background:var(--bg);padding:16px;border-radius:8px;cursor:pointer;border:2px solid var(--border);transition:all 0.2s;">
+                                <div style="display:flex;align-items:center;gap:12px;">
+                                    <div style="width:50px;height:50px;background:var(--primary);border-radius:8px;display:flex;align-items:center;justify-content:center;">
+                                        <span style="font-size:24px;color:white;">📕</span>
+                                    </div>
+                                    <div style="flex:1;">
+                                        <div style="font-weight:700;font-size:14px;color:var(--text);">Manual do Tombador PILI</div>
+                                        <div style="font-size:11px;color:var(--text-light);margin-top:4px;">Instruções de operação e segurança</div>
+                                    </div>
+                                    <div style="color:var(--primary);font-size:20px;">▶</div>
+                                </div>
+                            </div>
+
+                            <div class="doc-item" onclick="openPDF('Manual_PILI_TECH.pdf')" style="background:var(--bg);padding:16px;border-radius:8px;cursor:pointer;border:2px solid var(--border);transition:all 0.2s;">
+                                <div style="display:flex;align-items:center;gap:12px;">
+                                    <div style="width:50px;height:50px;background:#10b981;border-radius:8px;display:flex;align-items:center;justify-content:center;">
+                                        <span style="font-size:24px;color:white;">📗</span>
+                                    </div>
+                                    <div style="flex:1;">
+                                        <div style="font-weight:700;font-size:14px;color:var(--text);">Manual PILI TECH</div>
+                                        <div style="font-size:11px;color:var(--text-light);margin-top:4px;">Sistema de monitoramento IoT</div>
+                                    </div>
+                                    <div style="color:var(--primary);font-size:20px;">▶</div>
+                                </div>
+                            </div>
+
+                            <div class="doc-item" onclick="openPDF('Manutencao_Preventiva.pdf')" style="background:var(--bg);padding:16px;border-radius:8px;cursor:pointer;border:2px solid var(--border);transition:all 0.2s;">
+                                <div style="display:flex;align-items:center;gap:12px;">
+                                    <div style="width:50px;height:50px;background:#f59e0b;border-radius:8px;display:flex;align-items:center;justify-content:center;">
+                                        <span style="font-size:24px;color:white;">🔧</span>
+                                    </div>
+                                    <div style="flex:1;">
+                                        <div style="font-weight:700;font-size:14px;color:var(--text);">Manutenção Preventiva</div>
+                                        <div style="font-size:11px;color:var(--text-light);margin-top:4px;">Checklist e procedimentos</div>
+                                    </div>
+                                    <div style="color:var(--primary);font-size:20px;">▶</div>
+                                </div>
+                            </div>
+
+                            <div class="doc-item" onclick="openPDF('Certificado_Garantia.pdf')" style="background:var(--bg);padding:16px;border-radius:8px;cursor:pointer;border:2px solid var(--border);transition:all 0.2s;">
+                                <div style="display:flex;align-items:center;gap:12px;">
+                                    <div style="width:50px;height:50px;background:#8b5cf6;border-radius:8px;display:flex;align-items:center;justify-content:center;">
+                                        <span style="font-size:24px;color:white;">📜</span>
+                                    </div>
+                                    <div style="flex:1;">
+                                        <div style="font-weight:700;font-size:14px;color:var(--text);">Certificado de Garantia</div>
+                                        <div style="font-size:11px;color:var(--text-light);margin-top:4px;">Termos e condições</div>
+                                    </div>
+                                    <div style="color:var(--primary);font-size:20px;">▶</div>
+                                </div>
+                            </div>
+
+                            <div class="doc-item" onclick="openPDF('Esquema_Eletrico.pdf')" style="background:var(--bg);padding:16px;border-radius:8px;cursor:pointer;border:2px solid var(--border);transition:all 0.2s;">
+                                <div style="display:flex;align-items:center;gap:12px;">
+                                    <div style="width:50px;height:50px;background:#06b6d4;border-radius:8px;display:flex;align-items:center;justify-content:center;">
+                                        <span style="font-size:24px;color:white;">⚡</span>
+                                    </div>
+                                    <div style="flex:1;">
+                                        <div style="font-weight:700;font-size:14px;color:var(--text);">Esquema Elétrico</div>
+                                        <div style="font-size:11px;color:var(--text-light);margin-top:4px;">Diagrama de ligações</div>
+                                    </div>
+                                    <div style="color:var(--primary);font-size:20px;">▶</div>
+                                </div>
+                            </div>
+
+                        </div>
+
+                        <div style="margin-top:20px;padding:16px;background:#fef3c7;border:2px solid #f59e0b;border-radius:8px;">
+                            <div style="font-size:13px;font-weight:700;color:#92400e;margin-bottom:8px;">⚠️ Importante</div>
+                            <div style="font-size:12px;color:#78350f;line-height:1.5;">
+                                Os PDFs devem estar salvos na pasta <strong>Download</strong> do tablet com os nomes exatos listados acima.
+                                Caso o documento não abra, verifique se o arquivo existe na pasta.
+                            </div>
+                        </div>
+
+                    </div>
                 </div>
             </div>
 

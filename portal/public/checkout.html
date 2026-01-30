@@ -420,6 +420,16 @@
         </form>
       </div>
 
+      <!-- Cupom de Desconto -->
+      <div class="card-form" style="padding: 20px; margin-bottom: 20px;">
+        <h3 style="font-size: 1rem; margin-bottom: 15px;">🏷️ Cupom de Desconto</h3>
+        <div style="display: flex; gap: 10px;">
+          <input type="text" id="cupomCode" placeholder="Digite o codigo do cupom" style="flex: 1; text-transform: uppercase;">
+          <button type="button" onclick="validarCupom()" id="btnValidarCupom" style="background: #dc2626; color: #fff; border: none; padding: 14px 20px; border-radius: 10px; font-weight: 600; cursor: pointer;">Aplicar</button>
+        </div>
+        <div id="cupomResult" style="margin-top: 10px; display: none;"></div>
+      </div>
+
       <!-- Plan Summary -->
       <div class="plan-summary">
         <h4>Resumo do Plano Anual</h4>
@@ -428,8 +438,16 @@
           <span class="free">GRATIS</span>
         </div>
         <div class="plan-item">
-          <span>Apos o trial</span>
-          <span>R$ 2.000,00/ano</span>
+          <span>Valor do plano</span>
+          <span id="precoOriginal">R$ 2.000,00/ano</span>
+        </div>
+        <div class="plan-item" id="descontoRow" style="display: none; color: #4ade80;">
+          <span>Desconto (<span id="cupomAplicado">-</span>)</span>
+          <span id="valorDesconto">-R$ 0,00</span>
+        </div>
+        <div class="plan-item" id="precoFinalRow" style="display: none;">
+          <span>Valor final (apos trial)</span>
+          <span id="precoFinal">R$ 2.000,00</span>
         </div>
         <div class="plan-item">
           <span>Cobranca hoje</span>
@@ -477,10 +495,72 @@
 
   <script>
     let token = localStorage.getItem('pilitech_token');
+    let cupomAplicadoData = null;
 
     // Check auth
     if (!token) {
       window.location.href = '/';
+    }
+
+    // Validar cupom
+    async function validarCupom() {
+      const code = document.getElementById('cupomCode').value.trim();
+      const resultDiv = document.getElementById('cupomResult');
+      const btn = document.getElementById('btnValidarCupom');
+
+      if (!code) {
+        resultDiv.innerHTML = '<span style="color: #ef4444;">Digite um codigo de cupom</span>';
+        resultDiv.style.display = 'block';
+        return;
+      }
+
+      btn.disabled = true;
+      btn.textContent = 'Validando...';
+
+      try {
+        const response = await fetch('/api/cupons/validate', {
+          method: 'POST',
+          headers: {
+            'Authorization': 'Bearer ' + token,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ code })
+        });
+
+        const result = await response.json();
+
+        if (!response.ok || result.error) {
+          throw new Error(result.error || 'Cupom invalido');
+        }
+
+        // Cupom valido
+        cupomAplicadoData = result;
+
+        const descontoFormatado = result.cupom.discount_type === 'percentual'
+          ? `${result.cupom.discount_value}%`
+          : `R$ ${result.cupom.discount_value.toFixed(2).replace('.', ',')}`;
+
+        resultDiv.innerHTML = `<span style="color: #4ade80;">✓ Cupom aplicado! Desconto de ${descontoFormatado}</span>`;
+        resultDiv.style.display = 'block';
+
+        // Atualizar resumo
+        document.getElementById('descontoRow').style.display = 'flex';
+        document.getElementById('precoFinalRow').style.display = 'flex';
+        document.getElementById('cupomAplicado').textContent = result.cupom.code;
+        document.getElementById('valorDesconto').textContent = `-R$ ${result.desconto.toFixed(2).replace('.', ',')}`;
+        document.getElementById('precoFinal').textContent = `R$ ${result.precoFinal.toFixed(2).replace('.', ',')}`;
+
+        btn.textContent = 'Aplicado ✓';
+        btn.style.background = '#059669';
+        document.getElementById('cupomCode').disabled = true;
+
+      } catch (err) {
+        cupomAplicadoData = null;
+        resultDiv.innerHTML = `<span style="color: #ef4444;">✗ ${err.message}</span>`;
+        resultDiv.style.display = 'block';
+        btn.disabled = false;
+        btn.textContent = 'Aplicar';
+      }
     }
 
     // Format card number
@@ -568,19 +648,26 @@
         document.getElementById('loading').classList.add('show');
 
         // Send to backend
+        const bodyData = {
+          cardName: cardData.name,
+          cardNumber: cardData.number,
+          cardExpiry: cardData.expiry,
+          cardCvv: cardData.cvv,
+          cpf: cardData.cpf
+        };
+
+        // Adicionar cupom se houver
+        if (cupomAplicadoData && cupomAplicadoData.cupom) {
+          bodyData.cupom_code = cupomAplicadoData.cupom.code;
+        }
+
         const response = await fetch('/api/payment/register-card', {
           method: 'POST',
           headers: {
             'Authorization': 'Bearer ' + token,
             'Content-Type': 'application/json'
           },
-          body: JSON.stringify({
-            cardName: cardData.name,
-            cardNumber: cardData.number,
-            cardExpiry: cardData.expiry,
-            cardCvv: cardData.cvv,
-            cpf: cardData.cpf
-          })
+          body: JSON.stringify(bodyData)
         });
 
         const result = await response.json();
