@@ -1,6 +1,7 @@
 /**
  * PILI TECH - Portal Unificado
- * Servidor com autenticação para Admin e Cliente
+ * Sistema Hierárquico: Empresas → Unidades → Dispositivos → Usuários
+ * Com Trial de 30 dias e Sistema de Pagamento
  */
 
 require('dotenv').config();
@@ -8,7 +9,9 @@ const express = require('express');
 const cors = require('cors');
 const path = require('path');
 const jwt = require('jsonwebtoken');
+const bcrypt = require('bcryptjs');
 const { Pool } = require('pg');
+const crypto = require('crypto');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -16,40 +19,32 @@ const PORT = process.env.PORT || 3000;
 // JWT Secret
 const JWT_SECRET = process.env.JWT_SECRET || 'pilitech_secret_key_2025';
 
+// Banco do Brasil API Config
+const BB_API_CONFIG = {
+  clientId: process.env.BB_CLIENT_ID || '',
+  clientSecret: process.env.BB_CLIENT_SECRET || '',
+  developerKey: process.env.BB_DEVELOPER_KEY || '',
+  baseUrl: process.env.BB_BASE_URL || 'https://api.bb.com.br',
+  pixKey: process.env.BB_PIX_KEY || 'financeiro@pili.com.br', // Chave PIX da empresa
+  merchantName: 'PILI TECH LTDA',
+  merchantCity: 'PASSO FUNDO'
+};
+
+// Valor da assinatura anual
+const SUBSCRIPTION_PRICE = 2000.00;
+
 // Database connection
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL || 'postgresql://neondb_owner:npg_pCqSLW9j2hKQ@ep-crimson-heart-ahcg1r28-pooler.c-3.us-east-1.aws.neon.tech/neondb?sslmode=require',
   ssl: { rejectUnauthorized: false }
 });
 
-// Usuarios (em producao, isso estaria no banco de dados)
-const USERS = {
-  // Administrador
-  'admin': {
-    password: '@2025@2026',
-    role: 'admin',
-    name: 'Administrador',
-    permissions: ['all']
-  },
-  // Clientes (podem ser adicionados mais)
-  'cliente': {
-    password: 'cliente123',
-    role: 'cliente',
-    name: 'Cliente Demo',
-    serialNumbers: ['00002025']
-  },
-  'cargill': {
-    password: 'cargill2025',
-    role: 'cliente',
-    name: 'Cargill',
-    serialNumbers: ['00002025']
-  },
-  'jbs': {
-    password: 'jbs2025',
-    role: 'cliente',
-    name: 'JBS',
-    serialNumbers: ['00002025']
-  }
+// Super admin (hardcoded)
+const SUPER_ADMIN = {
+  email: 'admin@pilitech.com',
+  password: '@2025@2026',
+  role: 'super_admin',
+  nome: 'Super Administrador'
 };
 
 // Middleware
@@ -57,87 +52,121 @@ app.use(cors());
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
-// Middleware de autenticacao
+// ============ MIDDLEWARE DE AUTENTICAÇÃO ============
+
 function authenticateToken(req, res, next) {
   const authHeader = req.headers['authorization'];
   const token = authHeader && authHeader.split(' ')[1];
 
   if (!token) {
-    return res.status(401).json({ error: 'Token nao fornecido' });
+    return res.status(401).json({ error: 'Token não fornecido' });
   }
 
   jwt.verify(token, JWT_SECRET, (err, user) => {
     if (err) {
-      return res.status(403).json({ error: 'Token invalido' });
+      return res.status(403).json({ error: 'Token inválido' });
     }
     req.user = user;
     next();
   });
 }
 
-// Middleware para verificar se e admin
+// Middleware para verificar se é super admin
+function requireSuperAdmin(req, res, next) {
+  if (req.user.role !== 'super_admin') {
+    return res.status(403).json({ error: 'Acesso negado. Apenas super administradores.' });
+  }
+  next();
+}
+
+// Middleware para verificar se é admin (empresa ou super)
 function requireAdmin(req, res, next) {
-  if (req.user.role !== 'admin') {
+  if (!['super_admin', 'admin_empresa'].includes(req.user.role)) {
     return res.status(403).json({ error: 'Acesso negado. Apenas administradores.' });
   }
   next();
 }
 
-// ============ ROTAS DE AUTENTICACAO ============
+// Middleware para verificar status de assinatura/trial
+// Retorna info mas NÃO bloqueia acesso - apenas marca se pode ver telemetria
+async function checkSubscription(req, res, next) {
+  try {
+    // Super admin sempre tem acesso total
+    if (req.user.role === 'super_admin') {
+      req.subscriptionStatus = { active: true, canViewTelemetry: true };
+      return next();
+    }
+
+    if (!req.user.empresa_id) {
+      req.subscriptionStatus = { active: false, canViewTelemetry: false, message: 'Usuário sem empresa vinculada' };
+      return next();
+    }
+
+    const result = await pool.query(`
+      SELECT
+        trial_ends_at,
+        subscription_active,
+        subscription_expires_at,
+        CASE
+          WHEN trial_ends_at > CURRENT_TIMESTAMP THEN 'trial'
+          WHEN subscription_active AND subscription_expires_at > CURRENT_TIMESTAMP THEN 'active'
+          ELSE 'expired'
+        END as status,
+        CASE
+          WHEN trial_ends_at > CURRENT_TIMESTAMP THEN
+            EXTRACT(DAY FROM (trial_ends_at - CURRENT_TIMESTAMP))::INTEGER
+          ELSE 0
+        END as trial_days_remaining
+      FROM empresas
+      WHERE id = $1
+    `, [req.user.empresa_id]);
+
+    if (result.rows.length === 0) {
+      req.subscriptionStatus = { active: false, canViewTelemetry: false, message: 'Empresa não encontrada' };
+      return next();
+    }
+
+    const empresa = result.rows[0];
+    const canViewTelemetry = empresa.status !== 'expired';
+
+    req.subscriptionStatus = {
+      active: empresa.status !== 'expired',
+      canViewTelemetry,
+      status: empresa.status,
+      trialDaysRemaining: empresa.trial_days_remaining,
+      expiresAt: empresa.status === 'trial' ? empresa.trial_ends_at : empresa.subscription_expires_at,
+      message: empresa.status === 'expired'
+        ? 'Seu período de teste expirou. Assine para continuar acessando a telemetria.'
+        : empresa.status === 'trial'
+        ? `Período de teste: ${empresa.trial_days_remaining} dias restantes`
+        : 'Assinatura ativa'
+    };
+
+    next();
+  } catch (err) {
+    console.error('Erro ao verificar assinatura:', err);
+    req.subscriptionStatus = { active: false, canViewTelemetry: false, message: 'Erro ao verificar assinatura' };
+    next();
+  }
+}
+
+// ============ ROTAS DE AUTENTICAÇÃO ============
 
 // Login
 app.post('/api/login', async (req, res) => {
-  const { username, password } = req.body;
+  const { email, password } = req.body;
 
-  // Primeiro verifica usuários hardcoded (admin)
-  const hardcodedUser = USERS[username.toLowerCase()];
-
-  if (hardcodedUser && hardcodedUser.password === password) {
-    const token = jwt.sign(
-      {
-        username: username.toLowerCase(),
-        role: hardcodedUser.role,
-        name: hardcodedUser.name,
-        serialNumbers: hardcodedUser.serialNumbers || []
-      },
-      JWT_SECRET,
-      { expiresIn: '24h' }
-    );
-
-    return res.json({
-      success: true,
-      token,
-      user: {
-        username: username.toLowerCase(),
-        role: hardcodedUser.role,
-        name: hardcodedUser.name
-      }
-    });
-  }
-
-  // Verifica clientes no banco de dados
   try {
-    const result = await pool.query(
-      'SELECT id, username, password, name FROM clients WHERE username = $1 AND active = true',
-      [username.toLowerCase()]
-    );
-
-    if (result.rows.length > 0 && result.rows[0].password === password) {
-      const dbClient = result.rows[0];
-
-      // Buscar dispositivos associados
-      const devicesResult = await pool.query(
-        'SELECT serial_number FROM client_devices WHERE client_id = $1',
-        [dbClient.id]
-      );
-      const serialNumbers = devicesResult.rows.map(r => r.serial_number);
-
+    // Primeiro verifica super admin hardcoded
+    if (email.toLowerCase() === SUPER_ADMIN.email && password === SUPER_ADMIN.password) {
       const token = jwt.sign(
         {
-          username: dbClient.username,
-          role: 'cliente',
-          name: dbClient.name,
-          serialNumbers: serialNumbers
+          id: 0,
+          email: SUPER_ADMIN.email,
+          role: SUPER_ADMIN.role,
+          nome: SUPER_ADMIN.nome,
+          empresa_id: null,
+          unidade_id: null
         },
         JWT_SECRET,
         { expiresIn: '24h' }
@@ -147,177 +176,585 @@ app.post('/api/login', async (req, res) => {
         success: true,
         token,
         user: {
-          username: dbClient.username,
-          role: 'cliente',
-          name: dbClient.name
+          email: SUPER_ADMIN.email,
+          role: SUPER_ADMIN.role,
+          nome: SUPER_ADMIN.nome
         }
       });
     }
-  } catch (err) {
-    console.error('Erro ao verificar cliente no banco:', err);
-  }
 
-  // Nenhum usuário encontrado
-  return res.status(401).json({
-    success: false,
-    message: 'Usuario ou senha incorretos'
+    // Buscar usuário no banco
+    const result = await pool.query(`
+      SELECT
+        u.id, u.email, u.password, u.nome, u.role, u.empresa_id, u.unidade_id,
+        e.razao_social as empresa_nome, e.cnpj as empresa_cnpj,
+        e.trial_ends_at, e.subscription_active, e.subscription_expires_at,
+        un.nome as unidade_nome
+      FROM usuarios u
+      LEFT JOIN empresas e ON u.empresa_id = e.id
+      LEFT JOIN unidades un ON u.unidade_id = un.id
+      WHERE u.email = $1 AND u.active = true
+    `, [email.toLowerCase()]);
+
+    if (result.rows.length === 0) {
+      return res.status(401).json({ success: false, message: 'Email ou senha incorretos' });
+    }
+
+    const user = result.rows[0];
+
+    // Verificar senha (suporta texto plano para migração)
+    const validPassword = user.password === password ||
+      (user.password.startsWith('$2') && await bcrypt.compare(password, user.password));
+
+    if (!validPassword) {
+      return res.status(401).json({ success: false, message: 'Email ou senha incorretos' });
+    }
+
+    // Calcular status da assinatura
+    let subscriptionStatus = 'expired';
+    let trialDaysRemaining = 0;
+
+    if (user.trial_ends_at && new Date(user.trial_ends_at) > new Date()) {
+      subscriptionStatus = 'trial';
+      trialDaysRemaining = Math.ceil((new Date(user.trial_ends_at) - new Date()) / (1000 * 60 * 60 * 24));
+    } else if (user.subscription_active && new Date(user.subscription_expires_at) > new Date()) {
+      subscriptionStatus = 'active';
+    }
+
+    // Atualizar último login
+    await pool.query('UPDATE usuarios SET last_login = CURRENT_TIMESTAMP WHERE id = $1', [user.id]);
+
+    const token = jwt.sign(
+      {
+        id: user.id,
+        email: user.email,
+        role: user.role,
+        nome: user.nome,
+        empresa_id: user.empresa_id,
+        unidade_id: user.unidade_id
+      },
+      JWT_SECRET,
+      { expiresIn: '24h' }
+    );
+
+    res.json({
+      success: true,
+      token,
+      user: {
+        id: user.id,
+        email: user.email,
+        role: user.role,
+        nome: user.nome,
+        empresa: user.empresa_nome,
+        empresa_cnpj: user.empresa_cnpj,
+        unidade: user.unidade_nome,
+        subscriptionStatus,
+        trialDaysRemaining,
+        canViewTelemetry: subscriptionStatus !== 'expired'
+      }
+    });
+
+  } catch (err) {
+    console.error('Erro no login:', err);
+    res.status(500).json({ success: false, message: 'Erro interno' });
+  }
+});
+
+// Verificar token e status
+app.get('/api/verify', authenticateToken, checkSubscription, (req, res) => {
+  res.json({
+    valid: true,
+    user: req.user,
+    subscription: req.subscriptionStatus
   });
 });
 
-// Verificar token
-app.get('/api/verify', authenticateToken, (req, res) => {
-  res.json({ valid: true, user: req.user });
+// ============ ROTAS DE EMPRESAS ============
+
+// Listar empresas (super admin)
+app.get('/api/empresas', authenticateToken, requireSuperAdmin, async (req, res) => {
+  try {
+    const result = await pool.query('SELECT * FROM vw_empresas_status ORDER BY razao_social');
+    res.json(result.rows);
+  } catch (err) {
+    console.error('Erro ao buscar empresas:', err);
+    res.status(500).json({ error: err.message });
+  }
 });
 
-// Logout (client-side apenas remove o token)
-app.post('/api/logout', (req, res) => {
-  res.json({ success: true });
+// Criar empresa (super admin)
+app.post('/api/empresas', authenticateToken, requireSuperAdmin, async (req, res) => {
+  try {
+    const { cnpj, razao_social, nome_fantasia, email, telefone, endereco, cidade, estado, cep } = req.body;
+
+    if (!cnpj || !razao_social) {
+      return res.status(400).json({ error: 'CNPJ e razão social são obrigatórios' });
+    }
+
+    const result = await pool.query(`
+      INSERT INTO empresas (cnpj, razao_social, nome_fantasia, email, telefone, endereco, cidade, estado, cep)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+      RETURNING id
+    `, [cnpj, razao_social, nome_fantasia || null, email || null, telefone || null,
+        endereco || null, cidade || null, estado || null, cep || null]);
+
+    res.status(201).json({ success: true, id: result.rows[0].id, message: 'Empresa criada com sucesso (30 dias de trial)' });
+  } catch (err) {
+    if (err.code === '23505') {
+      return res.status(400).json({ error: 'CNPJ já cadastrado' });
+    }
+    console.error('Erro ao criar empresa:', err);
+    res.status(500).json({ error: err.message });
+  }
 });
 
-// ============ ROTAS DE DADOS ============
+// Obter empresa específica
+app.get('/api/empresas/:id', authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params;
 
-// Obter dispositivos (filtrado por role)
-app.get('/api/devices', authenticateToken, async (req, res) => {
+    // Verificar permissão
+    if (req.user.role !== 'super_admin' && req.user.empresa_id !== parseInt(id)) {
+      return res.status(403).json({ error: 'Acesso negado' });
+    }
+
+    const result = await pool.query('SELECT * FROM vw_empresas_status WHERE id = $1', [id]);
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Empresa não encontrada' });
+    }
+
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error('Erro ao buscar empresa:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Atualizar empresa
+app.put('/api/empresas/:id', authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { razao_social, nome_fantasia, email, telefone, endereco, cidade, estado, cep, active } = req.body;
+
+    // Verificar permissão
+    if (req.user.role !== 'super_admin' && req.user.empresa_id !== parseInt(id)) {
+      return res.status(403).json({ error: 'Acesso negado' });
+    }
+
+    // Super admin pode desativar, outros apenas editar dados
+    if (req.user.role === 'super_admin') {
+      await pool.query(`
+        UPDATE empresas SET razao_social = $1, nome_fantasia = $2, email = $3, telefone = $4,
+          endereco = $5, cidade = $6, estado = $7, cep = $8, active = $9
+        WHERE id = $10
+      `, [razao_social, nome_fantasia, email, telefone, endereco, cidade, estado, cep, active !== false, id]);
+    } else {
+      await pool.query(`
+        UPDATE empresas SET razao_social = $1, nome_fantasia = $2, email = $3, telefone = $4,
+          endereco = $5, cidade = $6, estado = $7, cep = $8
+        WHERE id = $9
+      `, [razao_social, nome_fantasia, email, telefone, endereco, cidade, estado, cep, id]);
+    }
+
+    res.json({ success: true, message: 'Empresa atualizada' });
+  } catch (err) {
+    console.error('Erro ao atualizar empresa:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ============ ROTAS DE UNIDADES ============
+
+// Listar unidades (filtrado por empresa)
+app.get('/api/unidades', authenticateToken, async (req, res) => {
+  try {
+    let query = `
+      SELECT u.*, e.razao_social as empresa_nome,
+        (SELECT COUNT(*) FROM devices d WHERE d.unidade_id = u.id) as total_devices
+      FROM unidades u
+      LEFT JOIN empresas e ON u.empresa_id = e.id
+      WHERE u.active = true
+    `;
+    let params = [];
+
+    if (req.user.role === 'super_admin') {
+      // Super admin vê todas
+      if (req.query.empresa_id) {
+        query += ' AND u.empresa_id = $1';
+        params = [req.query.empresa_id];
+      }
+    } else if (req.user.role === 'admin_empresa') {
+      // Admin empresa vê só da sua empresa
+      query += ' AND u.empresa_id = $1';
+      params = [req.user.empresa_id];
+    } else {
+      // Admin unidade/operador vê só sua unidade
+      query += ' AND u.id = $1';
+      params = [req.user.unidade_id];
+    }
+
+    query += ' ORDER BY u.nome';
+    const result = await pool.query(query, params);
+    res.json(result.rows);
+  } catch (err) {
+    console.error('Erro ao buscar unidades:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Criar unidade
+app.post('/api/unidades', authenticateToken, requireAdmin, async (req, res) => {
+  try {
+    const { empresa_id, nome, codigo, endereco, cidade, estado, cep, responsavel, telefone, email } = req.body;
+
+    // Verificar permissão
+    const empresaId = req.user.role === 'super_admin' ? empresa_id : req.user.empresa_id;
+
+    if (!empresaId || !nome) {
+      return res.status(400).json({ error: 'Empresa e nome são obrigatórios' });
+    }
+
+    const result = await pool.query(`
+      INSERT INTO unidades (empresa_id, nome, codigo, endereco, cidade, estado, cep, responsavel, telefone, email)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+      RETURNING id
+    `, [empresaId, nome, codigo || null, endereco || null, cidade || null,
+        estado || null, cep || null, responsavel || null, telefone || null, email || null]);
+
+    res.status(201).json({ success: true, id: result.rows[0].id, message: 'Unidade criada com sucesso' });
+  } catch (err) {
+    if (err.code === '23505') {
+      return res.status(400).json({ error: 'Código de unidade já existe para esta empresa' });
+    }
+    console.error('Erro ao criar unidade:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ============ ROTAS DE USUÁRIOS ============
+
+// Listar usuários (filtrado por hierarquia)
+app.get('/api/usuarios', authenticateToken, async (req, res) => {
+  try {
+    let query = `
+      SELECT u.id, u.email, u.nome, u.telefone, u.role, u.last_login, u.created_at, u.active,
+        u.empresa_id, u.unidade_id,
+        e.razao_social as empresa_nome,
+        un.nome as unidade_nome
+      FROM usuarios u
+      LEFT JOIN empresas e ON u.empresa_id = e.id
+      LEFT JOIN unidades un ON u.unidade_id = un.id
+    `;
+    let params = [];
+
+    if (req.user.role === 'super_admin') {
+      if (req.query.empresa_id) {
+        query += ' WHERE u.empresa_id = $1';
+        params = [req.query.empresa_id];
+      }
+    } else if (req.user.role === 'admin_empresa') {
+      query += ' WHERE u.empresa_id = $1';
+      params = [req.user.empresa_id];
+    } else if (req.user.role === 'admin_unidade') {
+      query += ' WHERE u.unidade_id = $1';
+      params = [req.user.unidade_id];
+    } else {
+      // Operador só vê ele mesmo
+      query += ' WHERE u.id = $1';
+      params = [req.user.id];
+    }
+
+    query += ' ORDER BY u.nome';
+    const result = await pool.query(query, params);
+    res.json(result.rows);
+  } catch (err) {
+    console.error('Erro ao buscar usuários:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Criar usuário
+app.post('/api/usuarios', authenticateToken, async (req, res) => {
+  try {
+    const { email, password, nome, telefone, role, empresa_id, unidade_id } = req.body;
+
+    if (!email || !password || !nome) {
+      return res.status(400).json({ error: 'Email, senha e nome são obrigatórios' });
+    }
+
+    // Validar role baseado em quem está criando
+    const allowedRoles = {
+      'super_admin': ['super_admin', 'admin_empresa', 'admin_unidade', 'operador'],
+      'admin_empresa': ['admin_unidade', 'operador'],
+      'admin_unidade': ['operador']
+    };
+
+    if (!allowedRoles[req.user.role] || !allowedRoles[req.user.role].includes(role)) {
+      return res.status(403).json({ error: 'Você não pode criar usuários com esse perfil' });
+    }
+
+    // Definir empresa/unidade baseado na hierarquia
+    let finalEmpresaId = empresa_id;
+    let finalUnidadeId = unidade_id;
+
+    if (req.user.role === 'admin_empresa') {
+      finalEmpresaId = req.user.empresa_id;
+    } else if (req.user.role === 'admin_unidade') {
+      finalEmpresaId = req.user.empresa_id;
+      finalUnidadeId = req.user.unidade_id;
+    }
+
+    // Hash da senha
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    const result = await pool.query(`
+      INSERT INTO usuarios (email, password, nome, telefone, role, empresa_id, unidade_id)
+      VALUES ($1, $2, $3, $4, $5, $6, $7)
+      RETURNING id
+    `, [email.toLowerCase(), hashedPassword, nome, telefone || null, role, finalEmpresaId || null, finalUnidadeId || null]);
+
+    res.status(201).json({ success: true, id: result.rows[0].id, message: 'Usuário criado com sucesso' });
+  } catch (err) {
+    if (err.code === '23505') {
+      return res.status(400).json({ error: 'Email já cadastrado' });
+    }
+    console.error('Erro ao criar usuário:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Atualizar usuário
+app.put('/api/usuarios/:id', authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { nome, telefone, role, active, password, unidade_id } = req.body;
+
+    // Buscar usuário atual
+    const userResult = await pool.query('SELECT * FROM usuarios WHERE id = $1', [id]);
+    if (userResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Usuário não encontrado' });
+    }
+
+    const targetUser = userResult.rows[0];
+
+    // Verificar permissão de edição
+    const canEdit = req.user.role === 'super_admin' ||
+      (req.user.role === 'admin_empresa' && targetUser.empresa_id === req.user.empresa_id) ||
+      (req.user.role === 'admin_unidade' && targetUser.unidade_id === req.user.unidade_id) ||
+      req.user.id === parseInt(id);
+
+    if (!canEdit) {
+      return res.status(403).json({ error: 'Sem permissão para editar este usuário' });
+    }
+
+    // Atualizar
+    if (password) {
+      const hashedPassword = await bcrypt.hash(password, 10);
+      await pool.query(`
+        UPDATE usuarios SET nome = $1, telefone = $2, role = $3, active = $4, password = $5, unidade_id = $6
+        WHERE id = $7
+      `, [nome, telefone, role, active !== false, hashedPassword, unidade_id || null, id]);
+    } else {
+      await pool.query(`
+        UPDATE usuarios SET nome = $1, telefone = $2, role = $3, active = $4, unidade_id = $5
+        WHERE id = $6
+      `, [nome, telefone, role, active !== false, unidade_id || null, id]);
+    }
+
+    res.json({ success: true, message: 'Usuário atualizado' });
+  } catch (err) {
+    console.error('Erro ao atualizar usuário:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ============ ROTAS DE DISPOSITIVOS ============
+
+// Listar dispositivos (filtrado por hierarquia + verificação de assinatura)
+app.get('/api/devices', authenticateToken, checkSubscription, async (req, res) => {
   try {
     let query = `
       SELECT
-        d.id,
-        d.serial_number,
-        d.name,
-        d.last_seen
+        d.id, d.serial_number, d.name, d.last_seen, d.first_seen, d.unidade_id,
+        u.nome as unidade_nome, u.cidade as unidade_cidade,
+        e.id as empresa_id, e.razao_social as empresa_nome,
+        CASE
+          WHEN d.last_seen > CURRENT_TIMESTAMP - INTERVAL '5 minutes' THEN 'online'
+          WHEN d.last_seen > CURRENT_TIMESTAMP - INTERVAL '1 hour' THEN 'idle'
+          ELSE 'offline'
+        END as status_conexao
       FROM devices d
+      LEFT JOIN unidades u ON d.unidade_id = u.id
+      LEFT JOIN empresas e ON u.empresa_id = e.id
     `;
+    let params = [];
 
-    // Se for cliente, filtra pelos serial numbers permitidos
-    if (req.user.role === 'cliente' && req.user.serialNumbers) {
-      query += ` WHERE d.serial_number = ANY($1)`;
-      const result = await pool.query(query, [req.user.serialNumbers]);
-      return res.json(result.rows);
+    if (req.user.role === 'super_admin') {
+      // Super admin vê todos
+    } else if (req.user.role === 'admin_empresa') {
+      query += ' WHERE u.empresa_id = $1';
+      params = [req.user.empresa_id];
+    } else {
+      query += ' WHERE d.unidade_id = $1';
+      params = [req.user.unidade_id];
     }
 
-    const result = await pool.query(query + ' ORDER BY d.serial_number');
-    res.json(result.rows);
+    query += ' ORDER BY d.serial_number';
+    const result = await pool.query(query, params);
+
+    res.json({
+      devices: result.rows,
+      subscription: req.subscriptionStatus
+    });
   } catch (err) {
     console.error('Erro ao buscar devices:', err);
     res.status(500).json({ error: err.message });
   }
 });
 
-// Obter leituras mais recentes
-app.get('/api/latest-readings', authenticateToken, async (req, res) => {
+// Vincular dispositivo a unidade
+app.post('/api/devices/:serialNumber/vincular', authenticateToken, requireAdmin, async (req, res) => {
   try {
+    const { serialNumber } = req.params;
+    const { unidade_id } = req.body;
+
+    // Verificar se unidade pertence à empresa do admin
+    if (req.user.role === 'admin_empresa') {
+      const unidadeResult = await pool.query(
+        'SELECT empresa_id FROM unidades WHERE id = $1',
+        [unidade_id]
+      );
+      if (unidadeResult.rows.length === 0 || unidadeResult.rows[0].empresa_id !== req.user.empresa_id) {
+        return res.status(403).json({ error: 'Unidade não pertence à sua empresa' });
+      }
+    }
+
+    await pool.query(
+      'UPDATE devices SET unidade_id = $1 WHERE serial_number = $2',
+      [unidade_id, serialNumber]
+    );
+
+    res.json({ success: true, message: 'Dispositivo vinculado' });
+  } catch (err) {
+    console.error('Erro ao vincular dispositivo:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ============ ROTAS DE TELEMETRIA (COM VERIFICAÇÃO DE ASSINATURA) ============
+
+// Obter leituras mais recentes
+app.get('/api/latest-readings', authenticateToken, checkSubscription, async (req, res) => {
+  try {
+    // Verificar se pode ver telemetria
+    if (!req.subscriptionStatus.canViewTelemetry) {
+      return res.json({
+        blocked: true,
+        message: req.subscriptionStatus.message,
+        subscription: req.subscriptionStatus,
+        data: []
+      });
+    }
+
     let whereClause = '';
     let params = [];
 
-    if (req.user.role === 'cliente' && req.user.serialNumbers) {
-      whereClause = 'WHERE d.serial_number = ANY($1)';
-      params = [req.user.serialNumbers];
+    if (req.user.role === 'admin_empresa') {
+      whereClause = 'WHERE u.empresa_id = $1';
+      params = [req.user.empresa_id];
+    } else if (req.user.role !== 'super_admin') {
+      whereClause = 'WHERE d.unidade_id = $1';
+      params = [req.user.unidade_id];
     }
 
     const query = `
       WITH latest AS (
         SELECT DISTINCT ON (device_id)
-          device_id,
-          timestamp,
-          sistema_ligado,
-          sensor_0_graus,
-          sensor_40_graus,
-          trava_roda,
-          moega_cheia,
-          fosso_cheio,
-          subindo,
-          descendo,
-          ciclos_hoje,
-          ciclos_total,
-          horas_operacao,
-          minutos_operacao,
-          free_heap,
-          uptime_seconds,
-          wifi_connected
+          device_id, timestamp, sistema_ligado, sensor_0_graus, sensor_40_graus,
+          trava_roda, moega_cheia, fosso_cheio, subindo, descendo,
+          ciclos_hoje, ciclos_total, horas_operacao, minutos_operacao,
+          free_heap, uptime_seconds, wifi_connected
         FROM sensor_readings
         ORDER BY device_id, timestamp DESC
       )
-      SELECT
-        d.serial_number,
-        d.name,
-        d.last_seen,
-        l.*
+      SELECT d.serial_number, d.name, d.last_seen, l.*,
+        un.nome as unidade_nome, e.razao_social as empresa_nome
       FROM devices d
       LEFT JOIN latest l ON l.device_id = d.id
+      LEFT JOIN unidades un ON d.unidade_id = un.id
+      LEFT JOIN empresas e ON un.empresa_id = e.id
       ${whereClause}
       ORDER BY d.serial_number
     `;
 
     const result = await pool.query(query, params);
-    res.json(result.rows);
+    res.json({
+      blocked: false,
+      subscription: req.subscriptionStatus,
+      data: result.rows
+    });
   } catch (err) {
     console.error('Erro ao buscar leituras:', err);
     res.status(500).json({ error: err.message });
   }
 });
 
-// Obter estatisticas (admin only)
-app.get('/api/stats', authenticateToken, async (req, res) => {
+// Obter estatísticas
+app.get('/api/stats', authenticateToken, checkSubscription, async (req, res) => {
   try {
-    // Total de dispositivos
-    let devicesQuery = 'SELECT COUNT(*) as total FROM devices';
-    let devicesParams = [];
-
-    if (req.user.role === 'cliente' && req.user.serialNumbers) {
-      devicesQuery = 'SELECT COUNT(*) as total FROM devices WHERE serial_number = ANY($1)';
-      devicesParams = [req.user.serialNumbers];
+    if (!req.subscriptionStatus.canViewTelemetry) {
+      return res.json({
+        blocked: true,
+        message: req.subscriptionStatus.message,
+        subscription: req.subscriptionStatus
+      });
     }
 
-    const devicesResult = await pool.query(devicesQuery, devicesParams);
+    let deviceFilter = '';
+    let params = [];
 
-    // Dispositivos online (ultima leitura < 10 min e wifi_connected = true)
-    let onlineQuery = `
+    if (req.user.role === 'admin_empresa') {
+      deviceFilter = `
+        JOIN unidades u ON d.unidade_id = u.id
+        WHERE u.empresa_id = $1
+      `;
+      params = [req.user.empresa_id];
+    } else if (req.user.role !== 'super_admin') {
+      deviceFilter = 'WHERE d.unidade_id = $1';
+      params = [req.user.unidade_id];
+    }
+
+    // Total de dispositivos
+    const devicesResult = await pool.query(
+      `SELECT COUNT(*) as total FROM devices d ${deviceFilter}`,
+      params
+    );
+
+    // Dispositivos online
+    const onlineQuery = `
       SELECT COUNT(DISTINCT d.id) as online
       FROM devices d
-      JOIN sensor_readings sr ON sr.device_id = d.id
-      WHERE sr.timestamp > NOW() - INTERVAL '10 minutes'
-        AND sr.wifi_connected = true
+      ${deviceFilter ? deviceFilter : ''}
+      ${deviceFilter ? 'AND' : 'WHERE'} d.last_seen > CURRENT_TIMESTAMP - INTERVAL '10 minutes'
     `;
-    let onlineParams = [];
-
-    if (req.user.role === 'cliente' && req.user.serialNumbers) {
-      onlineQuery += ' AND d.serial_number = ANY($1)';
-      onlineParams = [req.user.serialNumbers];
-    }
-
-    const onlineResult = await pool.query(onlineQuery, onlineParams);
+    const onlineResult = await pool.query(onlineQuery, params);
 
     // Total de ciclos
-    let ciclosQuery = `
+    const ciclosResult = await pool.query(`
       SELECT COALESCE(SUM(ciclos_total), 0) as total_ciclos
       FROM (
         SELECT DISTINCT ON (device_id) ciclos_total
         FROM sensor_readings
         ORDER BY device_id, timestamp DESC
       ) latest
-    `;
-
-    const ciclosResult = await pool.query(ciclosQuery);
-
-    // Total de leituras
-    let leiturasQuery = 'SELECT COUNT(*) as total FROM sensor_readings';
-    const leiturasResult = await pool.query(leiturasQuery);
-
-    // Alertas recentes (24h)
-    let alertasQuery = `
-      SELECT COUNT(*) as total
-      FROM event_logs
-      WHERE event_type = 'ALERT'
-        AND timestamp > NOW() - INTERVAL '24 hours'
-    `;
-    const alertasResult = await pool.query(alertasQuery);
+    `);
 
     res.json({
+      blocked: false,
+      subscription: req.subscriptionStatus,
       totalDevices: parseInt(devicesResult.rows[0].total),
       onlineDevices: parseInt(onlineResult.rows[0].online),
-      totalCiclos: parseInt(ciclosResult.rows[0].total_ciclos),
-      totalLeituras: parseInt(leiturasResult.rows[0].total),
-      alertas24h: parseInt(alertasResult.rows[0].total)
+      totalCiclos: parseInt(ciclosResult.rows[0].total_ciclos)
     });
   } catch (err) {
     console.error('Erro ao buscar stats:', err);
@@ -325,105 +762,27 @@ app.get('/api/stats', authenticateToken, async (req, res) => {
   }
 });
 
-// Obter dados de telemetria (histórico para gráficos)
-app.get('/api/telemetry/:serialNumber', authenticateToken, async (req, res) => {
+// Telemetria detalhada
+app.get('/api/telemetry/:serialNumber', authenticateToken, checkSubscription, async (req, res) => {
   try {
+    if (!req.subscriptionStatus.canViewTelemetry) {
+      return res.json({
+        blocked: true,
+        message: req.subscriptionStatus.message,
+        subscription: req.subscriptionStatus
+      });
+    }
+
     const { serialNumber } = req.params;
     const hours = parseInt(req.query.hours) || 24;
 
-    // Verificar permissão se for cliente
-    if (req.user.role === 'cliente' && req.user.serialNumbers) {
-      if (!req.user.serialNumbers.includes(serialNumber)) {
-        return res.status(403).json({ error: 'Acesso negado a este dispositivo' });
-      }
-    }
-
-    // Buscar device_id
-    const deviceResult = await pool.query(
-      'SELECT id FROM devices WHERE serial_number = $1',
-      [serialNumber]
-    );
-
-    if (deviceResult.rows.length === 0) {
-      return res.status(404).json({ error: 'Dispositivo não encontrado' });
-    }
-
-    const deviceId = deviceResult.rows[0].id;
-
-    // Buscar leituras das últimas N horas (agrupadas por hora)
-    const query = `
-      SELECT
-        date_trunc('hour', timestamp) as hora,
-        MAX(ciclos_hoje) as ciclos,
-        AVG(free_heap) as memoria_livre,
-        MAX(uptime_seconds) as uptime,
-        MAX(horas_operacao) as horas_operacao,
-        COUNT(*) as leituras,
-        BOOL_OR(sistema_ligado) as sistema_ativo,
-        BOOL_OR(moega_cheia) as alertas_moega,
-        BOOL_OR(fosso_cheio) as alertas_fosso
-      FROM sensor_readings
-      WHERE device_id = $1
-        AND timestamp > NOW() - INTERVAL '${hours} hours'
-      GROUP BY date_trunc('hour', timestamp)
-      ORDER BY hora ASC
-    `;
-
-    const result = await pool.query(query, [deviceId]);
-
-    // Buscar últimas 100 leituras detalhadas
-    const detailQuery = `
-      SELECT
-        timestamp,
-        ciclos_hoje,
-        ciclos_total,
-        free_heap,
-        uptime_seconds,
-        horas_operacao,
-        minutos_operacao,
-        sistema_ligado,
-        sensor_0_graus,
-        sensor_40_graus,
-        subindo,
-        descendo,
-        moega_cheia,
-        fosso_cheio,
-        wifi_connected
-      FROM sensor_readings
-      WHERE device_id = $1
-      ORDER BY timestamp DESC
-      LIMIT 100
-    `;
-
-    const detailResult = await pool.query(detailQuery, [deviceId]);
-
-    res.json({
-      hourly: result.rows,
-      detailed: detailResult.rows.reverse()
-    });
-  } catch (err) {
-    console.error('Erro ao buscar telemetria:', err);
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// Obter estatísticas detalhadas por dispositivo
-app.get('/api/device-stats/:serialNumber', authenticateToken, async (req, res) => {
-  try {
-    const { serialNumber } = req.params;
-
-    // Verificar permissão se for cliente
-    if (req.user.role === 'cliente' && req.user.serialNumbers) {
-      if (!req.user.serialNumbers.includes(serialNumber)) {
-        return res.status(403).json({ error: 'Acesso negado a este dispositivo' });
-      }
-    }
-
-    // Buscar device_id
-    const deviceResult = await pool.query(
-      'SELECT id, name, last_seen FROM devices WHERE serial_number = $1',
-      [serialNumber]
-    );
+    // Buscar device_id e verificar acesso
+    const deviceResult = await pool.query(`
+      SELECT d.id, d.unidade_id, u.empresa_id
+      FROM devices d
+      LEFT JOIN unidades u ON d.unidade_id = u.id
+      WHERE d.serial_number = $1
+    `, [serialNumber]);
 
     if (deviceResult.rows.length === 0) {
       return res.status(404).json({ error: 'Dispositivo não encontrado' });
@@ -431,324 +790,321 @@ app.get('/api/device-stats/:serialNumber', authenticateToken, async (req, res) =
 
     const device = deviceResult.rows[0];
 
-    // Estatísticas de ciclos por dia (últimos 7 dias)
-    const ciclosDiarios = await pool.query(`
+    // Verificar acesso hierárquico
+    if (req.user.role === 'admin_empresa' && device.empresa_id !== req.user.empresa_id) {
+      return res.status(403).json({ error: 'Acesso negado a este dispositivo' });
+    }
+    if (['admin_unidade', 'operador'].includes(req.user.role) && device.unidade_id !== req.user.unidade_id) {
+      return res.status(403).json({ error: 'Acesso negado a este dispositivo' });
+    }
+
+    // Buscar dados
+    const query = `
       SELECT
-        date_trunc('day', timestamp)::date as dia,
-        MAX(ciclos_hoje) as ciclos
+        date_trunc('hour', timestamp) as hora,
+        MAX(ciclos_hoje) as ciclos,
+        AVG(free_heap) as memoria_livre,
+        MAX(uptime_seconds) as uptime,
+        MAX(horas_operacao) as horas_operacao,
+        COUNT(*) as leituras
       FROM sensor_readings
-      WHERE device_id = $1
-        AND timestamp > NOW() - INTERVAL '7 days'
-      GROUP BY date_trunc('day', timestamp)::date
-      ORDER BY dia ASC
-    `, [device.id]);
+      WHERE device_id = $1 AND timestamp > NOW() - INTERVAL '${hours} hours'
+      GROUP BY date_trunc('hour', timestamp)
+      ORDER BY hora ASC
+    `;
 
-    // Total de leituras
-    const totalLeituras = await pool.query(
-      'SELECT COUNT(*) as total FROM sensor_readings WHERE device_id = $1',
-      [device.id]
-    );
-
-    // Tempo médio de uptime
-    const avgUptime = await pool.query(`
-      SELECT AVG(uptime_seconds) as avg_uptime
-      FROM sensor_readings
-      WHERE device_id = $1 AND timestamp > NOW() - INTERVAL '24 hours'
-    `, [device.id]);
-
-    // Memória livre média
-    const avgMemory = await pool.query(`
-      SELECT AVG(free_heap) as avg_memory, MIN(free_heap) as min_memory, MAX(free_heap) as max_memory
-      FROM sensor_readings
-      WHERE device_id = $1 AND timestamp > NOW() - INTERVAL '24 hours'
-    `, [device.id]);
+    const result = await pool.query(query, [device.id]);
 
     res.json({
-      device: {
-        serial_number: serialNumber,
-        name: device.name,
-        last_seen: device.last_seen
-      },
-      ciclosDiarios: ciclosDiarios.rows,
-      totalLeituras: parseInt(totalLeituras.rows[0].total),
-      avgUptime: Math.round(parseFloat(avgUptime.rows[0].avg_uptime) || 0),
-      memory: {
-        avg: Math.round(parseFloat(avgMemory.rows[0].avg_memory) || 0),
-        min: parseInt(avgMemory.rows[0].min_memory) || 0,
-        max: parseInt(avgMemory.rows[0].max_memory) || 0
+      blocked: false,
+      subscription: req.subscriptionStatus,
+      hourly: result.rows
+    });
+  } catch (err) {
+    console.error('Erro ao buscar telemetria:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ============ SISTEMA DE PAGAMENTO ============
+
+// Gerar cobrança PIX (Banco do Brasil)
+app.post('/api/payment/pix', authenticateToken, async (req, res) => {
+  try {
+    const empresa_id = req.user.empresa_id;
+
+    if (!empresa_id) {
+      return res.status(400).json({ error: 'Usuário não vinculado a uma empresa' });
+    }
+
+    // Buscar dados da empresa
+    const empresaResult = await pool.query(
+      'SELECT * FROM empresas WHERE id = $1',
+      [empresa_id]
+    );
+
+    if (empresaResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Empresa não encontrada' });
+    }
+
+    const empresa = empresaResult.rows[0];
+
+    // Gerar código único para transação
+    const transactionId = `PILI${Date.now()}${crypto.randomBytes(4).toString('hex').toUpperCase()}`;
+
+    // Calcular data de expiração (30 minutos para PIX)
+    const pixExpiration = new Date(Date.now() + 30 * 60 * 1000);
+
+    // Gerar código PIX (EMV)
+    const pixCode = generatePixCode({
+      key: BB_API_CONFIG.pixKey,
+      amount: SUBSCRIPTION_PRICE,
+      merchantName: BB_API_CONFIG.merchantName,
+      merchantCity: BB_API_CONFIG.merchantCity,
+      txid: transactionId
+    });
+
+    // Criar registro de assinatura
+    const subscriptionResult = await pool.query(`
+      INSERT INTO subscriptions (
+        empresa_id, plan_type, amount, payment_method, status,
+        transaction_id, pix_code, pix_expiration, expires_at
+      ) VALUES ($1, 'anual', $2, 'pix', 'pending', $3, $4, $5, $6)
+      RETURNING id
+    `, [
+      empresa_id, SUBSCRIPTION_PRICE, transactionId, pixCode,
+      pixExpiration, new Date(Date.now() + 365 * 24 * 60 * 60 * 1000) // 1 ano
+    ]);
+
+    res.json({
+      success: true,
+      subscriptionId: subscriptionResult.rows[0].id,
+      transactionId,
+      pixCode,
+      pixKey: BB_API_CONFIG.pixKey,
+      amount: SUBSCRIPTION_PRICE,
+      amountFormatted: `R$ ${SUBSCRIPTION_PRICE.toFixed(2).replace('.', ',')}`,
+      expiresAt: pixExpiration,
+      empresa: {
+        cnpj: empresa.cnpj,
+        razao_social: empresa.razao_social
       }
     });
   } catch (err) {
-    console.error('Erro ao buscar estatísticas do dispositivo:', err);
+    console.error('Erro ao gerar PIX:', err);
     res.status(500).json({ error: err.message });
   }
 });
 
-// Obter alertas recentes
-app.get('/api/recent-alerts', authenticateToken, async (req, res) => {
+// Gerar cobrança cartão
+app.post('/api/payment/cartao', authenticateToken, async (req, res) => {
   try {
-    let whereClause = '';
-    let params = [];
+    const { parcelas, cardToken } = req.body;
+    const empresa_id = req.user.empresa_id;
 
-    if (req.user.role === 'cliente' && req.user.serialNumbers) {
-      whereClause = 'AND d.serial_number = ANY($1)';
-      params = [req.user.serialNumbers];
+    if (!empresa_id) {
+      return res.status(400).json({ error: 'Usuário não vinculado a uma empresa' });
     }
 
-    const query = `
-      SELECT
-        e.id,
-        e.timestamp,
-        e.event_type,
-        e.message,
-        e.sensor_name,
-        e.sensor_value,
-        d.serial_number,
-        d.name as device_name
-      FROM event_logs e
-      JOIN devices d ON e.device_id = d.id
-      WHERE e.timestamp > NOW() - INTERVAL '24 hours'
-      ${whereClause}
-      ORDER BY e.timestamp DESC
-      LIMIT 50
-    `;
-
-    const result = await pool.query(query, params);
-    res.json(result.rows);
-  } catch (err) {
-    console.error('Erro ao buscar alertas:', err);
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// Obter manutencoes
-app.get('/api/maintenance', authenticateToken, async (req, res) => {
-  try {
-    let whereClause = '';
-    let params = [];
-
-    if (req.user.role === 'cliente' && req.user.serialNumbers) {
-      whereClause = 'WHERE d.serial_number = ANY($1)';
-      params = [req.user.serialNumbers];
+    const numParcelas = parseInt(parcelas) || 1;
+    if (numParcelas < 1 || numParcelas > 12) {
+      return res.status(400).json({ error: 'Número de parcelas deve ser entre 1 e 12' });
     }
 
-    const query = `
-      SELECT
-        m.id,
-        m.timestamp,
-        m.technician,
-        m.description,
-        m.horas_operacao,
-        d.serial_number,
-        d.name as device_name
-      FROM maintenance_logs m
-      JOIN devices d ON m.device_id = d.id
-      ${whereClause}
-      ORDER BY m.timestamp DESC
-      LIMIT 50
-    `;
+    // Calcular valor da parcela
+    const valorParcela = (SUBSCRIPTION_PRICE / numParcelas).toFixed(2);
 
-    const result = await pool.query(query, params);
-    res.json(result.rows);
+    // Gerar código único para transação
+    const transactionId = `PILI${Date.now()}${crypto.randomBytes(4).toString('hex').toUpperCase()}`;
+
+    // Criar registro de assinatura
+    const subscriptionResult = await pool.query(`
+      INSERT INTO subscriptions (
+        empresa_id, plan_type, amount, payment_method, installments, status,
+        transaction_id, expires_at
+      ) VALUES ($1, 'anual', $2, 'cartao', $3, 'processing', $4, $5)
+      RETURNING id
+    `, [
+      empresa_id, SUBSCRIPTION_PRICE, numParcelas, transactionId,
+      new Date(Date.now() + 365 * 24 * 60 * 60 * 1000)
+    ]);
+
+    // Aqui seria a integração com o gateway de pagamento BB
+    // Por enquanto, simula processamento
+    res.json({
+      success: true,
+      subscriptionId: subscriptionResult.rows[0].id,
+      transactionId,
+      amount: SUBSCRIPTION_PRICE,
+      amountFormatted: `R$ ${SUBSCRIPTION_PRICE.toFixed(2).replace('.', ',')}`,
+      installments: numParcelas,
+      installmentValue: valorParcela,
+      installmentFormatted: `${numParcelas}x de R$ ${valorParcela.replace('.', ',')}`,
+      status: 'processing',
+      message: 'Processando pagamento...'
+    });
   } catch (err) {
-    console.error('Erro ao buscar manutencoes:', err);
+    console.error('Erro ao processar cartão:', err);
     res.status(500).json({ error: err.message });
   }
 });
 
-// ============ CRUD DE CLIENTES (admin only) ============
-
-// Listar todos os clientes
-app.get('/api/clients', authenticateToken, requireAdmin, async (req, res) => {
+// Verificar status do pagamento
+app.get('/api/payment/status/:subscriptionId', authenticateToken, async (req, res) => {
   try {
-    const query = `
-      SELECT
-        c.id,
-        c.username,
-        c.name,
-        c.email,
-        c.phone,
-        c.created_at,
-        c.active,
-        COALESCE(
-          (SELECT array_agg(cd.serial_number) FROM client_devices cd WHERE cd.client_id = c.id),
-          ARRAY[]::varchar[]
-        ) as serial_numbers
-      FROM clients c
-      ORDER BY c.name
-    `;
-    const result = await pool.query(query);
-    res.json(result.rows);
-  } catch (err) {
-    console.error('Erro ao buscar clientes:', err);
-    res.status(500).json({ error: err.message });
-  }
-});
+    const { subscriptionId } = req.params;
 
-// Obter um cliente específico
-app.get('/api/clients/:id', authenticateToken, requireAdmin, async (req, res) => {
-  try {
-    const { id } = req.params;
-    const query = `
-      SELECT
-        c.id,
-        c.username,
-        c.name,
-        c.email,
-        c.phone,
-        c.created_at,
-        c.active,
-        COALESCE(
-          (SELECT array_agg(cd.serial_number) FROM client_devices cd WHERE cd.client_id = c.id),
-          ARRAY[]::varchar[]
-        ) as serial_numbers
-      FROM clients c
-      WHERE c.id = $1
-    `;
-    const result = await pool.query(query, [id]);
+    const result = await pool.query(`
+      SELECT s.*, e.razao_social, e.cnpj
+      FROM subscriptions s
+      JOIN empresas e ON s.empresa_id = e.id
+      WHERE s.id = $1
+    `, [subscriptionId]);
+
     if (result.rows.length === 0) {
-      return res.status(404).json({ error: 'Cliente não encontrado' });
+      return res.status(404).json({ error: 'Assinatura não encontrada' });
     }
-    res.json(result.rows[0]);
+
+    const subscription = result.rows[0];
+
+    // Verificar permissão
+    if (req.user.role !== 'super_admin' && req.user.empresa_id !== subscription.empresa_id) {
+      return res.status(403).json({ error: 'Acesso negado' });
+    }
+
+    res.json({
+      id: subscription.id,
+      status: subscription.status,
+      paymentMethod: subscription.payment_method,
+      amount: subscription.amount,
+      installments: subscription.installments,
+      transactionId: subscription.transaction_id,
+      paidAt: subscription.paid_at,
+      expiresAt: subscription.expires_at,
+      empresa: {
+        cnpj: subscription.cnpj,
+        razao_social: subscription.razao_social
+      }
+    });
   } catch (err) {
-    console.error('Erro ao buscar cliente:', err);
+    console.error('Erro ao buscar status:', err);
     res.status(500).json({ error: err.message });
   }
 });
 
-// Criar novo cliente
-app.post('/api/clients', authenticateToken, requireAdmin, async (req, res) => {
+// Webhook do Banco do Brasil para confirmação de pagamento
+app.post('/api/webhook/bb', async (req, res) => {
   try {
-    const { username, password, name, email, phone, serialNumbers } = req.body;
+    const { txid, status, endToEndId } = req.body;
 
-    // Validação
-    if (!username || !password || !name) {
-      return res.status(400).json({ error: 'Username, password e name são obrigatórios' });
-    }
+    console.log('Webhook BB recebido:', { txid, status, endToEndId });
 
-    // Verificar se username já existe
-    const existing = await pool.query('SELECT id FROM clients WHERE username = $1', [username.toLowerCase()]);
-    if (existing.rows.length > 0) {
-      return res.status(400).json({ error: 'Username já existe' });
-    }
+    // Registrar log
+    await pool.query(`
+      INSERT INTO payment_logs (event_type, payload)
+      VALUES ('bb_webhook', $1)
+    `, [JSON.stringify(req.body)]);
 
-    // Inserir cliente
-    const insertResult = await pool.query(
-      `INSERT INTO clients (username, password, name, email, phone)
-       VALUES ($1, $2, $3, $4, $5) RETURNING id`,
-      [username.toLowerCase(), password, name, email || null, phone || null]
+    // Buscar assinatura pelo transaction_id
+    const subscriptionResult = await pool.query(
+      'SELECT * FROM subscriptions WHERE transaction_id = $1',
+      [txid]
     );
 
-    const clientId = insertResult.rows[0].id;
-
-    // Associar dispositivos se fornecidos
-    if (serialNumbers && serialNumbers.length > 0) {
-      for (const sn of serialNumbers) {
-        await pool.query(
-          'INSERT INTO client_devices (client_id, serial_number) VALUES ($1, $2) ON CONFLICT DO NOTHING',
-          [clientId, sn]
-        );
-      }
+    if (subscriptionResult.rows.length === 0) {
+      console.log('Transação não encontrada:', txid);
+      return res.json({ received: true, processed: false });
     }
 
-    res.status(201).json({ success: true, id: clientId, message: 'Cliente criado com sucesso' });
+    const subscription = subscriptionResult.rows[0];
+
+    if (status === 'CONCLUIDA' || status === 'paid') {
+      // Atualizar assinatura
+      await pool.query(`
+        UPDATE subscriptions
+        SET status = 'paid', paid_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
+        WHERE id = $1
+      `, [subscription.id]);
+
+      // Ativar assinatura da empresa
+      await pool.query(`
+        UPDATE empresas
+        SET subscription_active = true,
+            subscription_expires_at = $1
+        WHERE id = $2
+      `, [subscription.expires_at, subscription.empresa_id]);
+
+      console.log(`Pagamento confirmado para empresa ${subscription.empresa_id}`);
+    }
+
+    res.json({ received: true, processed: true });
   } catch (err) {
-    console.error('Erro ao criar cliente:', err);
+    console.error('Erro no webhook:', err);
     res.status(500).json({ error: err.message });
   }
 });
 
-// Atualizar cliente
-app.put('/api/clients/:id', authenticateToken, requireAdmin, async (req, res) => {
+// Confirmar pagamento manualmente (super admin)
+app.post('/api/payment/confirm/:subscriptionId', authenticateToken, requireSuperAdmin, async (req, res) => {
   try {
-    const { id } = req.params;
-    const { username, password, name, email, phone, active, serialNumbers } = req.body;
+    const { subscriptionId } = req.params;
 
-    // Verificar se cliente existe
-    const existing = await pool.query('SELECT id FROM clients WHERE id = $1', [id]);
-    if (existing.rows.length === 0) {
-      return res.status(404).json({ error: 'Cliente não encontrado' });
+    const subscriptionResult = await pool.query(
+      'SELECT * FROM subscriptions WHERE id = $1',
+      [subscriptionId]
+    );
+
+    if (subscriptionResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Assinatura não encontrada' });
     }
 
-    // Atualizar campos (senha opcional)
-    if (password) {
-      await pool.query(
-        `UPDATE clients SET username = $1, password = $2, name = $3, email = $4, phone = $5, active = $6 WHERE id = $7`,
-        [username.toLowerCase(), password, name, email || null, phone || null, active !== false, id]
-      );
-    } else {
-      await pool.query(
-        `UPDATE clients SET username = $1, name = $2, email = $3, phone = $4, active = $5 WHERE id = $6`,
-        [username.toLowerCase(), name, email || null, phone || null, active !== false, id]
-      );
-    }
+    const subscription = subscriptionResult.rows[0];
 
-    // Atualizar dispositivos associados
-    if (serialNumbers !== undefined) {
-      // Remover associações antigas
-      await pool.query('DELETE FROM client_devices WHERE client_id = $1', [id]);
+    // Atualizar assinatura
+    await pool.query(`
+      UPDATE subscriptions
+      SET status = 'paid', paid_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
+      WHERE id = $1
+    `, [subscriptionId]);
 
-      // Adicionar novas associações
-      if (serialNumbers && serialNumbers.length > 0) {
-        for (const sn of serialNumbers) {
-          await pool.query(
-            'INSERT INTO client_devices (client_id, serial_number) VALUES ($1, $2) ON CONFLICT DO NOTHING',
-            [id, sn]
-          );
-        }
-      }
-    }
+    // Ativar assinatura da empresa
+    await pool.query(`
+      UPDATE empresas
+      SET subscription_active = true,
+          subscription_expires_at = $1
+      WHERE id = $2
+    `, [subscription.expires_at, subscription.empresa_id]);
 
-    res.json({ success: true, message: 'Cliente atualizado com sucesso' });
+    res.json({ success: true, message: 'Pagamento confirmado manualmente' });
   } catch (err) {
-    console.error('Erro ao atualizar cliente:', err);
+    console.error('Erro ao confirmar pagamento:', err);
     res.status(500).json({ error: err.message });
   }
 });
 
-// Excluir cliente
-app.delete('/api/clients/:id', authenticateToken, requireAdmin, async (req, res) => {
+// Listar assinaturas (admin)
+app.get('/api/subscriptions', authenticateToken, async (req, res) => {
   try {
-    const { id } = req.params;
+    let query = `
+      SELECT s.*, e.razao_social, e.cnpj
+      FROM subscriptions s
+      JOIN empresas e ON s.empresa_id = e.id
+    `;
+    let params = [];
 
-    const result = await pool.query('DELETE FROM clients WHERE id = $1 RETURNING id', [id]);
-    if (result.rows.length === 0) {
-      return res.status(404).json({ error: 'Cliente não encontrado' });
+    if (req.user.role !== 'super_admin') {
+      query += ' WHERE s.empresa_id = $1';
+      params = [req.user.empresa_id];
     }
 
-    res.json({ success: true, message: 'Cliente excluído com sucesso' });
-  } catch (err) {
-    console.error('Erro ao excluir cliente:', err);
-    res.status(500).json({ error: err.message });
-  }
-});
+    query += ' ORDER BY s.created_at DESC';
 
-// Listar dispositivos disponíveis para associar
-app.get('/api/available-devices', authenticateToken, requireAdmin, async (req, res) => {
-  try {
-    const result = await pool.query('SELECT serial_number, name FROM devices ORDER BY serial_number');
+    const result = await pool.query(query, params);
     res.json(result.rows);
   } catch (err) {
-    console.error('Erro ao buscar dispositivos:', err);
+    console.error('Erro ao buscar assinaturas:', err);
     res.status(500).json({ error: err.message });
   }
-});
-
-// ============ ROTAS DE PAGINAS ============
-
-// Pagina admin (protegida)
-app.get('/admin.html', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'admin.html'));
-});
-
-// Pagina cliente (protegida)
-app.get('/cliente.html', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'cliente.html'));
-});
-
-// Rota padrao - redireciona para index
-app.get('/', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
 // ============ API ENDPOINTS PARA ESP32 ============
@@ -756,39 +1112,47 @@ app.get('/', (req, res) => {
 // Validar API Key do ESP32
 function validateApiKey(req, res, next) {
   const apiKey = req.headers['x-api-key'];
-  // Formato esperado: pilitech_SERIALNUMBER_secret_key
   if (!apiKey || !apiKey.startsWith('pilitech_')) {
-    return res.status(401).json({ error: 'API Key invalida' });
+    return res.status(401).json({ error: 'API Key inválida' });
   }
   next();
 }
 
-// Receber leitura de sensores do ESP32
+// Receber leitura de sensores do ESP32 (auto-detecta e registra dispositivo)
 app.post('/api/sensor-reading', validateApiKey, async (req, res) => {
   try {
     const {
       serial_number, sensor_0_graus, sensor_40_graus, trava_roda, trava_chassi,
       trava_pino_e, trava_pino_d, moega_fosso, portao_fechado,
       ciclos_hoje, ciclos_total, horas_operacao, minutos_operacao,
-      free_heap, uptime_seconds, wifi_connected
+      free_heap, uptime_seconds, wifi_connected, firmware_version
     } = req.body;
 
-    // Buscar ou criar dispositivo
+    // Buscar ou criar dispositivo (auto-detecção)
     let deviceResult = await pool.query(
-      'SELECT id FROM devices WHERE serial_number = $1',
+      'SELECT id, unidade_id FROM devices WHERE serial_number = $1',
       [serial_number]
     );
 
     let deviceId;
+    let isNewDevice = false;
+
     if (deviceResult.rows.length === 0) {
+      // Novo dispositivo detectado!
+      isNewDevice = true;
       const insertDevice = await pool.query(
-        'INSERT INTO devices (serial_number, name, last_seen) VALUES ($1, $2, NOW()) RETURNING id',
-        [serial_number, `Tombador ${serial_number}`]
+        `INSERT INTO devices (serial_number, name, first_seen, last_seen, api_key)
+         VALUES ($1, $2, NOW(), NOW(), $3) RETURNING id`,
+        [serial_number, `Tombador ${serial_number}`, req.headers['x-api-key']]
       );
       deviceId = insertDevice.rows[0].id;
+      console.log(`🆕 Novo dispositivo detectado: ${serial_number}`);
     } else {
       deviceId = deviceResult.rows[0].id;
-      await pool.query('UPDATE devices SET last_seen = NOW() WHERE id = $1', [deviceId]);
+      await pool.query(
+        'UPDATE devices SET last_seen = NOW() WHERE id = $1',
+        [deviceId]
+      );
     }
 
     // Inserir leitura
@@ -797,16 +1161,28 @@ app.post('/api/sensor-reading', validateApiKey, async (req, res) => {
         device_id, sensor_0_graus, sensor_40_graus, trava_roda, trava_chassi,
         trava_pino_e, trava_pino_d, moega_fosso, portao_fechado,
         ciclos_hoje, ciclos_total, horas_operacao, minutos_operacao,
-        free_heap, uptime_seconds
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+        free_heap, uptime_seconds, wifi_connected
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
     `, [
       deviceId, sensor_0_graus, sensor_40_graus, trava_roda, trava_chassi,
       trava_pino_e, trava_pino_d, moega_fosso, portao_fechado,
       ciclos_hoje, ciclos_total, horas_operacao, minutos_operacao,
-      free_heap, uptime_seconds
+      free_heap, uptime_seconds, wifi_connected || true
     ]);
 
-    res.json({ success: true, message: 'Leitura registrada' });
+    // Atualizar ou criar sessão do dispositivo
+    await pool.query(`
+      INSERT INTO device_sessions (device_id, last_ping, ip_address, firmware_version)
+      VALUES ($1, NOW(), $2, $3)
+      ON CONFLICT (device_id) WHERE ended_at IS NULL
+      DO UPDATE SET last_ping = NOW()
+    `, [deviceId, req.ip, firmware_version || '1.0']);
+
+    res.json({
+      success: true,
+      message: isNewDevice ? 'Dispositivo registrado e leitura salva' : 'Leitura registrada',
+      newDevice: isNewDevice
+    });
   } catch (err) {
     console.error('Erro ao registrar leitura:', err);
     res.status(500).json({ error: err.message });
@@ -818,7 +1194,6 @@ app.post('/api/event', validateApiKey, async (req, res) => {
   try {
     const { serial_number, event_type, message, sensor_name, sensor_value } = req.body;
 
-    // Buscar dispositivo
     const deviceResult = await pool.query(
       'SELECT id FROM devices WHERE serial_number = $1',
       [serial_number]
@@ -828,13 +1203,10 @@ app.post('/api/event', validateApiKey, async (req, res) => {
       return res.status(404).json({ error: 'Dispositivo não encontrado' });
     }
 
-    const deviceId = deviceResult.rows[0].id;
-
-    // Inserir evento
     await pool.query(`
-      INSERT INTO events (device_id, event_type, message, sensor_name, sensor_value)
+      INSERT INTO event_logs (device_id, event_type, message, sensor_name, sensor_value)
       VALUES ($1, $2, $3, $4, $5)
-    `, [deviceId, event_type, message, sensor_name || null, sensor_value || null]);
+    `, [deviceResult.rows[0].id, event_type, message, sensor_name || null, sensor_value || null]);
 
     res.json({ success: true, message: 'Evento registrado' });
   } catch (err) {
@@ -843,37 +1215,7 @@ app.post('/api/event', validateApiKey, async (req, res) => {
   }
 });
 
-// Receber manutenção do ESP32
-app.post('/api/maintenance', validateApiKey, async (req, res) => {
-  try {
-    const { serial_number, technician, description, horas_operacao } = req.body;
-
-    // Buscar dispositivo
-    const deviceResult = await pool.query(
-      'SELECT id FROM devices WHERE serial_number = $1',
-      [serial_number]
-    );
-
-    if (deviceResult.rows.length === 0) {
-      return res.status(404).json({ error: 'Dispositivo não encontrado' });
-    }
-
-    const deviceId = deviceResult.rows[0].id;
-
-    // Inserir manutenção
-    await pool.query(`
-      INSERT INTO maintenances (device_id, technician, description, horas_operacao)
-      VALUES ($1, $2, $3, $4)
-    `, [deviceId, technician, description, horas_operacao || 0]);
-
-    res.json({ success: true, message: 'Manutenção registrada' });
-  } catch (err) {
-    console.error('Erro ao registrar manutenção:', err);
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// Receber dados de ciclo para análise de produtividade
+// Receber dados de ciclo
 app.post('/api/cycle-data', validateApiKey, async (req, res) => {
   try {
     const {
@@ -882,7 +1224,6 @@ app.post('/api/cycle-data', validateApiKey, async (req, res) => {
       tempo_trava_pinos, tempo_sensor0_ativo, tempo_padrao, eficiencia
     } = req.body;
 
-    // Buscar dispositivo
     const deviceResult = await pool.query(
       'SELECT id FROM devices WHERE serial_number = $1',
       [serial_number]
@@ -892,9 +1233,6 @@ app.post('/api/cycle-data', validateApiKey, async (req, res) => {
       return res.status(404).json({ error: 'Dispositivo não encontrado' });
     }
 
-    const deviceId = deviceResult.rows[0].id;
-
-    // Inserir dados do ciclo
     await pool.query(`
       INSERT INTO cycle_data (
         device_id, ciclo_numero, tempo_total, tempo_portao_fechado,
@@ -902,12 +1240,12 @@ app.post('/api/cycle-data', validateApiKey, async (req, res) => {
         tempo_trava_pinos, tempo_sensor0_ativo, tempo_padrao, eficiencia
       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
     `, [
-      deviceId, ciclo_numero, tempo_total, tempo_portao_fechado,
+      deviceResult.rows[0].id, ciclo_numero, tempo_total, tempo_portao_fechado,
       tempo_sensor0_inativo, tempo_trava_roda, tempo_trava_chassi,
       tempo_trava_pinos, tempo_sensor0_ativo, tempo_padrao, eficiencia
     ]);
 
-    console.log(`Ciclo #${ciclo_numero} registrado - ${tempo_total}s - Eficiência: ${eficiencia}%`);
+    console.log(`📊 Ciclo #${ciclo_numero} registrado - ${tempo_total}s - Eficiência: ${eficiencia}%`);
     res.json({ success: true, message: 'Dados do ciclo registrados' });
   } catch (err) {
     console.error('Erro ao registrar ciclo:', err);
@@ -915,14 +1253,20 @@ app.post('/api/cycle-data', validateApiKey, async (req, res) => {
   }
 });
 
-// Buscar dados de produtividade para gráficos
-app.get('/api/productivity/:serialNumber', authenticateToken, async (req, res) => {
+// Produtividade
+app.get('/api/productivity/:serialNumber', authenticateToken, checkSubscription, async (req, res) => {
   try {
-    const { serialNumber } = req.params;
-    const { days } = req.query;
-    const daysLimit = parseInt(days) || 7;
+    if (!req.subscriptionStatus.canViewTelemetry) {
+      return res.json({
+        blocked: true,
+        message: req.subscriptionStatus.message,
+        subscription: req.subscriptionStatus
+      });
+    }
 
-    // Buscar dispositivo
+    const { serialNumber } = req.params;
+    const days = parseInt(req.query.days) || 7;
+
     const deviceResult = await pool.query(
       'SELECT id FROM devices WHERE serial_number = $1',
       [serialNumber]
@@ -934,19 +1278,17 @@ app.get('/api/productivity/:serialNumber', authenticateToken, async (req, res) =
 
     const deviceId = deviceResult.rows[0].id;
 
-    // Buscar ciclos dos últimos X dias
     const cyclesResult = await pool.query(`
       SELECT
         ciclo_numero, tempo_total, tempo_portao_fechado, tempo_sensor0_inativo,
         tempo_trava_roda, tempo_trava_chassi, tempo_trava_pinos, tempo_sensor0_ativo,
         tempo_padrao, eficiencia, created_at
       FROM cycle_data
-      WHERE device_id = $1 AND created_at >= NOW() - INTERVAL '${daysLimit} days'
+      WHERE device_id = $1 AND created_at >= NOW() - INTERVAL '${days} days'
       ORDER BY created_at DESC
       LIMIT 100
     `, [deviceId]);
 
-    // Calcular estatísticas
     const cycles = cyclesResult.rows;
     const totalCycles = cycles.length;
     const avgTime = cycles.length > 0
@@ -957,11 +1299,13 @@ app.get('/api/productivity/:serialNumber', authenticateToken, async (req, res) =
       : 0;
 
     res.json({
+      blocked: false,
+      subscription: req.subscriptionStatus,
       serialNumber,
       totalCycles,
       avgTimeSeconds: Math.round(avgTime),
       avgEfficiency: avgEfficiency.toFixed(1),
-      cycles: cycles.slice(0, 50) // Últimos 50 ciclos
+      cycles: cycles.slice(0, 50)
     });
   } catch (err) {
     console.error('Erro ao buscar produtividade:', err);
@@ -969,23 +1313,97 @@ app.get('/api/productivity/:serialNumber', authenticateToken, async (req, res) =
   }
 });
 
+// ============ FUNÇÕES AUXILIARES ============
+
+// Gerar código PIX EMV
+function generatePixCode({ key, amount, merchantName, merchantCity, txid }) {
+  // Formato EMV do PIX
+  const formatValue = (id, value) => {
+    const len = value.length.toString().padStart(2, '0');
+    return `${id}${len}${value}`;
+  };
+
+  // Merchant Account Information (26)
+  const gui = formatValue('00', 'br.gov.bcb.pix');
+  const pixKey = formatValue('01', key);
+  const merchantAccount = formatValue('26', gui + pixKey);
+
+  // Valores principais
+  const payloadFormat = formatValue('00', '01');
+  const merchantCategoryCode = formatValue('52', '0000');
+  const transactionCurrency = formatValue('53', '986'); // BRL
+  const transactionAmount = formatValue('54', amount.toFixed(2));
+  const countryCode = formatValue('58', 'BR');
+  const merchantNameField = formatValue('59', merchantName.substring(0, 25));
+  const merchantCityField = formatValue('60', merchantCity.substring(0, 15));
+
+  // Additional Data (62)
+  const txidField = formatValue('05', txid.substring(0, 25));
+  const additionalData = formatValue('62', txidField);
+
+  // CRC placeholder
+  const crcPlaceholder = '6304';
+
+  const pixWithoutCrc = payloadFormat + merchantAccount + merchantCategoryCode +
+    transactionCurrency + transactionAmount + countryCode +
+    merchantNameField + merchantCityField + additionalData + crcPlaceholder;
+
+  // Calcular CRC16 CCITT
+  const crc = calculateCRC16(pixWithoutCrc);
+
+  return pixWithoutCrc + crc;
+}
+
+// Calcular CRC16 CCITT
+function calculateCRC16(str) {
+  let crc = 0xFFFF;
+  for (let i = 0; i < str.length; i++) {
+    crc ^= str.charCodeAt(i) << 8;
+    for (let j = 0; j < 8; j++) {
+      if (crc & 0x8000) {
+        crc = (crc << 1) ^ 0x1021;
+      } else {
+        crc = crc << 1;
+      }
+    }
+  }
+  return (crc & 0xFFFF).toString(16).toUpperCase().padStart(4, '0');
+}
+
+// ============ ROTAS DE PÁGINAS ============
+
+app.get('/admin.html', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'admin.html'));
+});
+
+app.get('/cliente.html', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'cliente.html'));
+});
+
+app.get('/checkout.html', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'checkout.html'));
+});
+
+app.get('/', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
+
 // ============ START SERVER ============
 
 app.listen(PORT, () => {
   console.log('');
   console.log('=========================================');
-  console.log('   PILI TECH - Portal Unificado');
+  console.log('   PILI TECH - Portal Hierárquico');
   console.log('=========================================');
   console.log('');
   console.log(`   URL: http://localhost:${PORT}`);
   console.log('');
-  console.log('   Credenciais Admin:');
-  console.log('   Usuario: admin');
+  console.log('   Super Admin:');
+  console.log('   Email: admin@pilitech.com');
   console.log('   Senha: @2025@2026');
   console.log('');
-  console.log('   Credenciais Cliente Demo:');
-  console.log('   Usuario: cliente');
-  console.log('   Senha: cliente123');
+  console.log('   Assinatura Anual: R$ 2.000,00');
+  console.log('   Trial: 30 dias');
   console.log('');
   console.log('=========================================');
 });

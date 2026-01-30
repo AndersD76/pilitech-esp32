@@ -10,7 +10,7 @@
       theme: {
         extend: {
           colors: {
-            pili: { red: '#dc2626', darkred: '#991b1b', black: '#0a0a0a' }
+            pili: { red: '#dc2626', darkred: '#991b1b', black: '#0a0a0a', green: '#22c55e' }
           }
         }
       }
@@ -22,6 +22,7 @@
     .sidebar { transition: width 0.3s ease; }
     .status-pulse { animation: pulse 2s infinite; }
     @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+    .modal-bg { background: rgba(0,0,0,0.6); backdrop-filter: blur(4px); }
   </style>
 </head>
 <body class="bg-gray-100">
@@ -39,14 +40,15 @@
           </div>
           <div>
             <h1 class="font-bold text-lg">PILI TECH</h1>
-            <p class="text-xs text-gray-400">Portal Administrativo</p>
+            <p class="text-xs text-gray-400">Super Admin</p>
           </div>
         </div>
       </div>
 
       <!-- Navigation -->
-      <nav class="flex-1 p-4">
-        <ul class="space-y-2">
+      <nav class="flex-1 p-4 overflow-y-auto">
+        <p class="text-xs text-gray-500 uppercase mb-2 px-4">Monitoramento</p>
+        <ul class="space-y-1 mb-4">
           <li>
             <a href="#" onclick="showSection('dashboard')" class="nav-link active flex items-center gap-3 px-4 py-3 rounded-lg bg-pili-red text-white">
               <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"/></svg>
@@ -59,23 +61,36 @@
               Dispositivos
             </a>
           </li>
+        </ul>
+
+        <p class="text-xs text-gray-500 uppercase mb-2 px-4">Gestao</p>
+        <ul class="space-y-1 mb-4">
           <li>
-            <a href="#" onclick="showSection('alertas')" class="nav-link flex items-center gap-3 px-4 py-3 rounded-lg text-gray-300 hover:bg-gray-700">
-              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
-              Alertas
-              <span id="alertBadge" class="hidden ml-auto bg-red-500 text-white text-xs px-2 py-0.5 rounded-full">0</span>
+            <a href="#" onclick="showSection('empresas')" class="nav-link flex items-center gap-3 px-4 py-3 rounded-lg text-gray-300 hover:bg-gray-700">
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/></svg>
+              Empresas
             </a>
           </li>
           <li>
-            <a href="#" onclick="showSection('manutencao')" class="nav-link flex items-center gap-3 px-4 py-3 rounded-lg text-gray-300 hover:bg-gray-700">
-              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><circle cx="12" cy="12" r="3"/></svg>
-              Manutencao
+            <a href="#" onclick="showSection('unidades')" class="nav-link flex items-center gap-3 px-4 py-3 rounded-lg text-gray-300 hover:bg-gray-700">
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+              Unidades
             </a>
           </li>
           <li>
-            <a href="#" onclick="showSection('clientes')" class="nav-link flex items-center gap-3 px-4 py-3 rounded-lg text-gray-300 hover:bg-gray-700">
+            <a href="#" onclick="showSection('usuarios')" class="nav-link flex items-center gap-3 px-4 py-3 rounded-lg text-gray-300 hover:bg-gray-700">
               <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"/></svg>
-              Clientes
+              Usuarios
+            </a>
+          </li>
+        </ul>
+
+        <p class="text-xs text-gray-500 uppercase mb-2 px-4">Financeiro</p>
+        <ul class="space-y-1">
+          <li>
+            <a href="#" onclick="showSection('assinaturas')" class="nav-link flex items-center gap-3 px-4 py-3 rounded-lg text-gray-300 hover:bg-gray-700">
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"/></svg>
+              Assinaturas
             </a>
           </li>
         </ul>
@@ -84,12 +99,12 @@
       <!-- User Info -->
       <div class="p-4 border-t border-gray-700">
         <div class="flex items-center gap-3">
-          <div class="w-10 h-10 bg-gray-600 rounded-full flex items-center justify-center">
-            <svg class="w-5 h-5 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>
+          <div class="w-10 h-10 bg-pili-red rounded-full flex items-center justify-center">
+            <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg>
           </div>
           <div class="flex-1">
-            <p class="text-sm font-medium" id="userName">Administrador</p>
-            <p class="text-xs text-gray-400">Admin</p>
+            <p class="text-sm font-medium" id="userName">Super Admin</p>
+            <p class="text-xs text-pili-green">super_admin</p>
           </div>
           <button onclick="logout()" class="p-2 hover:bg-gray-700 rounded-lg" title="Sair">
             <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/></svg>
@@ -104,7 +119,7 @@
       <header class="bg-white shadow-sm px-6 py-4 flex items-center justify-between">
         <div>
           <h2 class="text-xl font-bold text-gray-800" id="pageTitle">Dashboard</h2>
-          <p class="text-sm text-gray-500">Monitoramento em tempo real</p>
+          <p class="text-sm text-gray-500" id="pageSubtitle">Monitoramento em tempo real</p>
         </div>
         <div class="flex items-center gap-4">
           <span class="text-sm text-gray-500" id="lastUpdate">Atualizando...</span>
@@ -120,48 +135,59 @@
         <!-- Dashboard Section -->
         <section id="sec-dashboard" class="section">
           <!-- Stats Cards -->
-          <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
-            <div class="bg-white rounded-xl shadow-sm p-6">
+          <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
+            <div class="bg-white rounded-xl shadow-sm p-5">
               <div class="flex items-center justify-between">
                 <div>
-                  <p class="text-sm text-gray-500 font-medium">Dispositivos</p>
-                  <p class="text-3xl font-bold text-gray-800" id="statDevices">0</p>
+                  <p class="text-xs text-gray-500 font-medium">Empresas</p>
+                  <p class="text-2xl font-bold text-gray-800" id="statEmpresas">0</p>
                 </div>
-                <div class="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center">
-                  <svg class="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z"/></svg>
+                <div class="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center">
+                  <svg class="w-5 h-5 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/></svg>
                 </div>
               </div>
             </div>
-            <div class="bg-white rounded-xl shadow-sm p-6">
+            <div class="bg-white rounded-xl shadow-sm p-5">
               <div class="flex items-center justify-between">
                 <div>
-                  <p class="text-sm text-gray-500 font-medium">Online</p>
-                  <p class="text-3xl font-bold text-green-600" id="statOnline">0</p>
+                  <p class="text-xs text-gray-500 font-medium">Dispositivos</p>
+                  <p class="text-2xl font-bold text-gray-800" id="statDevices">0</p>
                 </div>
-                <div class="w-12 h-12 bg-green-100 rounded-xl flex items-center justify-center">
-                  <svg class="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+                <div class="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
+                  <svg class="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z"/></svg>
                 </div>
               </div>
             </div>
-            <div class="bg-white rounded-xl shadow-sm p-6">
+            <div class="bg-white rounded-xl shadow-sm p-5">
               <div class="flex items-center justify-between">
                 <div>
-                  <p class="text-sm text-gray-500 font-medium">Total Ciclos</p>
-                  <p class="text-3xl font-bold text-gray-800" id="statCiclos">0</p>
+                  <p class="text-xs text-gray-500 font-medium">Online</p>
+                  <p class="text-2xl font-bold text-green-600" id="statOnline">0</p>
                 </div>
-                <div class="w-12 h-12 bg-purple-100 rounded-xl flex items-center justify-center">
-                  <svg class="w-6 h-6 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+                <div class="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center">
+                  <svg class="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
                 </div>
               </div>
             </div>
-            <div class="bg-white rounded-xl shadow-sm p-6">
+            <div class="bg-white rounded-xl shadow-sm p-5">
               <div class="flex items-center justify-between">
                 <div>
-                  <p class="text-sm text-gray-500 font-medium">Alertas 24h</p>
-                  <p class="text-3xl font-bold text-red-600" id="statAlertas">0</p>
+                  <p class="text-xs text-gray-500 font-medium">Total Ciclos</p>
+                  <p class="text-2xl font-bold text-gray-800" id="statCiclos">0</p>
                 </div>
-                <div class="w-12 h-12 bg-red-100 rounded-xl flex items-center justify-center">
-                  <svg class="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+                <div class="w-10 h-10 bg-orange-100 rounded-lg flex items-center justify-center">
+                  <svg class="w-5 h-5 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+                </div>
+              </div>
+            </div>
+            <div class="bg-white rounded-xl shadow-sm p-5">
+              <div class="flex items-center justify-between">
+                <div>
+                  <p class="text-xs text-gray-500 font-medium">Assinaturas Ativas</p>
+                  <p class="text-2xl font-bold text-pili-green" id="statAssinaturas">0</p>
+                </div>
+                <div class="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center">
+                  <svg class="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
                 </div>
               </div>
             </div>
@@ -170,8 +196,7 @@
           <!-- Devices Grid -->
           <div class="bg-white rounded-xl shadow-sm p-6">
             <h3 class="text-lg font-bold text-gray-800 mb-4">Dispositivos IoT</h3>
-            <div id="devicesGrid" class="grid grid-cols-1 lg:grid-cols-2 gap-4">
-              <!-- Devices will be loaded here -->
+            <div id="devicesGrid" class="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4">
               <div class="text-center py-8 text-gray-500">Carregando...</div>
             </div>
           </div>
@@ -180,124 +205,338 @@
         <!-- Dispositivos Section -->
         <section id="sec-dispositivos" class="section hidden">
           <div class="bg-white rounded-xl shadow-sm p-6">
-            <h3 class="text-lg font-bold text-gray-800 mb-4">Todos os Dispositivos</h3>
+            <div class="flex items-center justify-between mb-4">
+              <h3 class="text-lg font-bold text-gray-800">Todos os Dispositivos</h3>
+              <div class="flex gap-2">
+                <select id="filterEmpresa" onchange="loadDevices()" class="px-3 py-2 border rounded-lg text-sm">
+                  <option value="">Todas Empresas</option>
+                </select>
+              </div>
+            </div>
             <div id="allDevicesGrid" class="space-y-4">
               <div class="text-center py-8 text-gray-500">Carregando...</div>
             </div>
           </div>
         </section>
 
-        <!-- Alertas Section -->
-        <section id="sec-alertas" class="section hidden">
-          <div class="bg-white rounded-xl shadow-sm p-6">
-            <h3 class="text-lg font-bold text-gray-800 mb-4">Alertas Recentes (24h)</h3>
-            <div id="alertsList" class="space-y-3">
-              <div class="text-center py-8 text-gray-500">Carregando...</div>
-            </div>
-          </div>
-        </section>
-
-        <!-- Manutencao Section -->
-        <section id="sec-manutencao" class="section hidden">
-          <div class="bg-white rounded-xl shadow-sm p-6">
-            <h3 class="text-lg font-bold text-gray-800 mb-4">Historico de Manutencoes</h3>
-            <div id="maintenanceList" class="space-y-3">
-              <div class="text-center py-8 text-gray-500">Carregando...</div>
-            </div>
-          </div>
-        </section>
-
-        <!-- Clientes Section -->
-        <section id="sec-clientes" class="section hidden">
+        <!-- Empresas Section -->
+        <section id="sec-empresas" class="section hidden">
           <div class="bg-white rounded-xl shadow-sm p-6">
             <div class="flex items-center justify-between mb-4">
-              <h3 class="text-lg font-bold text-gray-800">Clientes</h3>
-              <button onclick="openClientModal()" class="px-4 py-2 bg-pili-red text-white rounded-lg hover:bg-pili-darkred flex items-center gap-2">
+              <h3 class="text-lg font-bold text-gray-800">Empresas Cadastradas</h3>
+              <button onclick="openEmpresaModal()" class="px-4 py-2 bg-pili-red text-white rounded-lg hover:bg-pili-darkred flex items-center gap-2">
                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"/></svg>
-                Novo Cliente
+                Nova Empresa
               </button>
             </div>
-            <div id="clientsList" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              <div class="text-center py-8 text-gray-500">Carregando...</div>
+            <div id="empresasList" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              <div class="text-center py-8 text-gray-500 col-span-3">Carregando...</div>
             </div>
           </div>
         </section>
 
-        <!-- Modal de Cliente -->
-        <div id="clientModal" class="fixed inset-0 bg-black/50 hidden items-center justify-center z-50">
-          <div class="bg-white rounded-xl shadow-xl w-full max-w-lg mx-4 max-h-[90vh] overflow-y-auto">
-            <div class="p-6 border-b">
-              <h3 class="text-lg font-bold text-gray-800" id="modalTitle">Novo Cliente</h3>
+        <!-- Unidades Section -->
+        <section id="sec-unidades" class="section hidden">
+          <div class="bg-white rounded-xl shadow-sm p-6">
+            <div class="flex items-center justify-between mb-4">
+              <h3 class="text-lg font-bold text-gray-800">Unidades</h3>
+              <div class="flex gap-2">
+                <select id="filterEmpresaUnidades" onchange="loadUnidades()" class="px-3 py-2 border rounded-lg text-sm">
+                  <option value="">Todas Empresas</option>
+                </select>
+                <button onclick="openUnidadeModal()" class="px-4 py-2 bg-pili-red text-white rounded-lg hover:bg-pili-darkred flex items-center gap-2">
+                  <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"/></svg>
+                  Nova Unidade
+                </button>
+              </div>
             </div>
-            <form id="clientForm" class="p-6 space-y-4">
-              <input type="hidden" id="clientId">
-              <div>
-                <label class="block text-sm font-medium text-gray-700 mb-1">Nome da Empresa *</label>
-                <input type="text" id="clientName" required class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-pili-red focus:border-transparent">
-              </div>
-              <div class="grid grid-cols-2 gap-4">
-                <div>
-                  <label class="block text-sm font-medium text-gray-700 mb-1">Usuario (login) *</label>
-                  <input type="text" id="clientUsername" required class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-pili-red focus:border-transparent">
-                </div>
-                <div>
-                  <label class="block text-sm font-medium text-gray-700 mb-1">Senha *</label>
-                  <input type="text" id="clientPassword" class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-pili-red focus:border-transparent" placeholder="Deixe vazio para manter">
-                </div>
-              </div>
-              <div class="grid grid-cols-2 gap-4">
-                <div>
-                  <label class="block text-sm font-medium text-gray-700 mb-1">Email</label>
-                  <input type="email" id="clientEmail" class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-pili-red focus:border-transparent">
-                </div>
-                <div>
-                  <label class="block text-sm font-medium text-gray-700 mb-1">Telefone</label>
-                  <input type="text" id="clientPhone" class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-pili-red focus:border-transparent">
-                </div>
-              </div>
-              <div>
-                <label class="block text-sm font-medium text-gray-700 mb-1">Dispositivos Vinculados</label>
-                <div id="devicesCheckboxes" class="border rounded-lg p-3 max-h-40 overflow-y-auto space-y-2">
-                  <div class="text-sm text-gray-500">Carregando dispositivos...</div>
-                </div>
-              </div>
-              <div class="flex items-center gap-2">
-                <input type="checkbox" id="clientActive" checked class="w-4 h-4 text-pili-red rounded">
-                <label for="clientActive" class="text-sm text-gray-700">Cliente Ativo</label>
-              </div>
-            </form>
-            <div class="p-6 border-t flex justify-end gap-3">
-              <button onclick="closeClientModal()" class="px-4 py-2 border rounded-lg hover:bg-gray-50">Cancelar</button>
-              <button onclick="saveClient()" class="px-4 py-2 bg-pili-red text-white rounded-lg hover:bg-pili-darkred">Salvar</button>
+            <div id="unidadesList" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              <div class="text-center py-8 text-gray-500 col-span-3">Carregando...</div>
             </div>
           </div>
-        </div>
+        </section>
+
+        <!-- Usuarios Section -->
+        <section id="sec-usuarios" class="section hidden">
+          <div class="bg-white rounded-xl shadow-sm p-6">
+            <div class="flex items-center justify-between mb-4">
+              <h3 class="text-lg font-bold text-gray-800">Usuarios do Sistema</h3>
+              <div class="flex gap-2">
+                <select id="filterEmpresaUsuarios" onchange="loadUsuarios()" class="px-3 py-2 border rounded-lg text-sm">
+                  <option value="">Todas Empresas</option>
+                </select>
+                <button onclick="openUsuarioModal()" class="px-4 py-2 bg-pili-red text-white rounded-lg hover:bg-pili-darkred flex items-center gap-2">
+                  <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"/></svg>
+                  Novo Usuario
+                </button>
+              </div>
+            </div>
+            <div id="usuariosList" class="overflow-x-auto">
+              <table class="w-full">
+                <thead>
+                  <tr class="border-b">
+                    <th class="text-left py-3 px-4 font-medium text-gray-600">Nome</th>
+                    <th class="text-left py-3 px-4 font-medium text-gray-600">Email</th>
+                    <th class="text-left py-3 px-4 font-medium text-gray-600">Perfil</th>
+                    <th class="text-left py-3 px-4 font-medium text-gray-600">Empresa</th>
+                    <th class="text-left py-3 px-4 font-medium text-gray-600">Unidade</th>
+                    <th class="text-left py-3 px-4 font-medium text-gray-600">Status</th>
+                    <th class="text-right py-3 px-4 font-medium text-gray-600">Acoes</th>
+                  </tr>
+                </thead>
+                <tbody id="usuariosTableBody">
+                  <tr><td colspan="7" class="text-center py-8 text-gray-500">Carregando...</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <!-- Assinaturas Section -->
+        <section id="sec-assinaturas" class="section hidden">
+          <div class="bg-white rounded-xl shadow-sm p-6">
+            <div class="flex items-center justify-between mb-4">
+              <h3 class="text-lg font-bold text-gray-800">Assinaturas e Pagamentos</h3>
+            </div>
+            <div id="assinaturasList" class="overflow-x-auto">
+              <table class="w-full">
+                <thead>
+                  <tr class="border-b">
+                    <th class="text-left py-3 px-4 font-medium text-gray-600">Empresa</th>
+                    <th class="text-left py-3 px-4 font-medium text-gray-600">CNPJ</th>
+                    <th class="text-left py-3 px-4 font-medium text-gray-600">Valor</th>
+                    <th class="text-left py-3 px-4 font-medium text-gray-600">Metodo</th>
+                    <th class="text-left py-3 px-4 font-medium text-gray-600">Status</th>
+                    <th class="text-left py-3 px-4 font-medium text-gray-600">Data</th>
+                    <th class="text-right py-3 px-4 font-medium text-gray-600">Acoes</th>
+                  </tr>
+                </thead>
+                <tbody id="assinaturasTableBody">
+                  <tr><td colspan="7" class="text-center py-8 text-gray-500">Carregando...</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
 
       </div>
     </main>
   </div>
 
+  <!-- Modal Empresa -->
+  <div id="empresaModal" class="fixed inset-0 modal-bg hidden items-center justify-center z-50">
+    <div class="bg-white rounded-xl shadow-xl w-full max-w-lg mx-4 max-h-[90vh] overflow-y-auto">
+      <div class="p-6 border-b flex items-center justify-between">
+        <h3 class="text-lg font-bold text-gray-800" id="empresaModalTitle">Nova Empresa</h3>
+        <button onclick="closeEmpresaModal()" class="p-2 hover:bg-gray-100 rounded-lg">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+        </button>
+      </div>
+      <form id="empresaForm" class="p-6 space-y-4">
+        <input type="hidden" id="empresaId">
+        <div class="grid grid-cols-2 gap-4">
+          <div class="col-span-2">
+            <label class="block text-sm font-medium text-gray-700 mb-1">CNPJ *</label>
+            <input type="text" id="empresaCnpj" required class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-pili-red focus:border-transparent" placeholder="00.000.000/0001-00">
+          </div>
+          <div class="col-span-2">
+            <label class="block text-sm font-medium text-gray-700 mb-1">Razao Social *</label>
+            <input type="text" id="empresaRazao" required class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-pili-red focus:border-transparent">
+          </div>
+          <div class="col-span-2">
+            <label class="block text-sm font-medium text-gray-700 mb-1">Nome Fantasia</label>
+            <input type="text" id="empresaNome" class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-pili-red focus:border-transparent">
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Email</label>
+            <input type="email" id="empresaEmail" class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-pili-red focus:border-transparent">
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Telefone</label>
+            <input type="text" id="empresaTelefone" class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-pili-red focus:border-transparent">
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Cidade</label>
+            <input type="text" id="empresaCidade" class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-pili-red focus:border-transparent">
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Estado</label>
+            <input type="text" id="empresaEstado" maxlength="2" class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-pili-red focus:border-transparent" placeholder="RS">
+          </div>
+        </div>
+      </form>
+      <div class="p-6 border-t flex justify-end gap-3">
+        <button onclick="closeEmpresaModal()" class="px-4 py-2 border rounded-lg hover:bg-gray-50">Cancelar</button>
+        <button onclick="saveEmpresa()" class="px-4 py-2 bg-pili-red text-white rounded-lg hover:bg-pili-darkred">Salvar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal Unidade -->
+  <div id="unidadeModal" class="fixed inset-0 modal-bg hidden items-center justify-center z-50">
+    <div class="bg-white rounded-xl shadow-xl w-full max-w-lg mx-4 max-h-[90vh] overflow-y-auto">
+      <div class="p-6 border-b flex items-center justify-between">
+        <h3 class="text-lg font-bold text-gray-800" id="unidadeModalTitle">Nova Unidade</h3>
+        <button onclick="closeUnidadeModal()" class="p-2 hover:bg-gray-100 rounded-lg">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+        </button>
+      </div>
+      <form id="unidadeForm" class="p-6 space-y-4">
+        <input type="hidden" id="unidadeId">
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">Empresa *</label>
+          <select id="unidadeEmpresa" required class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-pili-red focus:border-transparent">
+            <option value="">Selecione...</option>
+          </select>
+        </div>
+        <div class="grid grid-cols-2 gap-4">
+          <div class="col-span-2">
+            <label class="block text-sm font-medium text-gray-700 mb-1">Nome da Unidade *</label>
+            <input type="text" id="unidadeNome" required class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-pili-red focus:border-transparent">
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Codigo</label>
+            <input type="text" id="unidadeCodigo" class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-pili-red focus:border-transparent" placeholder="MATRIZ">
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Responsavel</label>
+            <input type="text" id="unidadeResponsavel" class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-pili-red focus:border-transparent">
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Cidade</label>
+            <input type="text" id="unidadeCidade" class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-pili-red focus:border-transparent">
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Estado</label>
+            <input type="text" id="unidadeEstado" maxlength="2" class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-pili-red focus:border-transparent" placeholder="RS">
+          </div>
+        </div>
+      </form>
+      <div class="p-6 border-t flex justify-end gap-3">
+        <button onclick="closeUnidadeModal()" class="px-4 py-2 border rounded-lg hover:bg-gray-50">Cancelar</button>
+        <button onclick="saveUnidade()" class="px-4 py-2 bg-pili-red text-white rounded-lg hover:bg-pili-darkred">Salvar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal Usuario -->
+  <div id="usuarioModal" class="fixed inset-0 modal-bg hidden items-center justify-center z-50">
+    <div class="bg-white rounded-xl shadow-xl w-full max-w-lg mx-4 max-h-[90vh] overflow-y-auto">
+      <div class="p-6 border-b flex items-center justify-between">
+        <h3 class="text-lg font-bold text-gray-800" id="usuarioModalTitle">Novo Usuario</h3>
+        <button onclick="closeUsuarioModal()" class="p-2 hover:bg-gray-100 rounded-lg">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+        </button>
+      </div>
+      <form id="usuarioForm" class="p-6 space-y-4">
+        <input type="hidden" id="usuarioId">
+        <div class="grid grid-cols-2 gap-4">
+          <div class="col-span-2">
+            <label class="block text-sm font-medium text-gray-700 mb-1">Nome Completo *</label>
+            <input type="text" id="usuarioNome" required class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-pili-red focus:border-transparent">
+          </div>
+          <div class="col-span-2">
+            <label class="block text-sm font-medium text-gray-700 mb-1">Email *</label>
+            <input type="email" id="usuarioEmail" required class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-pili-red focus:border-transparent">
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Senha *</label>
+            <input type="password" id="usuarioSenha" class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-pili-red focus:border-transparent" placeholder="Deixe vazio para manter">
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Telefone</label>
+            <input type="text" id="usuarioTelefone" class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-pili-red focus:border-transparent">
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Perfil *</label>
+            <select id="usuarioRole" required class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-pili-red focus:border-transparent">
+              <option value="operador">Operador</option>
+              <option value="admin_unidade">Admin Unidade</option>
+              <option value="admin_empresa">Admin Empresa</option>
+              <option value="super_admin">Super Admin</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Status</label>
+            <select id="usuarioActive" class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-pili-red focus:border-transparent">
+              <option value="true">Ativo</option>
+              <option value="false">Inativo</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Empresa</label>
+            <select id="usuarioEmpresa" onchange="loadUnidadesSelect()" class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-pili-red focus:border-transparent">
+              <option value="">Nenhuma (Super Admin)</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Unidade</label>
+            <select id="usuarioUnidade" class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-pili-red focus:border-transparent">
+              <option value="">Todas da Empresa</option>
+            </select>
+          </div>
+        </div>
+      </form>
+      <div class="p-6 border-t flex justify-end gap-3">
+        <button onclick="closeUsuarioModal()" class="px-4 py-2 border rounded-lg hover:bg-gray-50">Cancelar</button>
+        <button onclick="saveUsuario()" class="px-4 py-2 bg-pili-red text-white rounded-lg hover:bg-pili-darkred">Salvar</button>
+      </div>
+    </div>
+  </div>
+
   <script>
     let token = localStorage.getItem('pilitech_token');
-    let user = JSON.parse(localStorage.getItem('pilitech_user') || '{}');
+    let user = null;
+    let empresasList = [];
 
     // Check authentication
-    if (!token || user.role !== 'admin') {
-      window.location.href = '/';
+    async function checkAuth() {
+      if (!token) {
+        window.location.href = '/';
+        return false;
+      }
+
+      try {
+        const res = await fetch('/api/verify', {
+          headers: { 'Authorization': 'Bearer ' + token }
+        });
+
+        if (!res.ok) throw new Error('Token invalido');
+
+        const data = await res.json();
+        user = data.user;
+
+        if (user.role !== 'super_admin') {
+          alert('Acesso negado. Apenas Super Admin.');
+          window.location.href = '/cliente.html';
+          return false;
+        }
+
+        document.getElementById('userName').textContent = user.nome || 'Super Admin';
+        return true;
+      } catch (err) {
+        console.error('Auth error:', err);
+        window.location.href = '/';
+        return false;
+      }
     }
 
-    // Set user name
-    document.getElementById('userName').textContent = user.name || 'Administrador';
-
     // API helper
-    async function api(endpoint) {
+    async function api(endpoint, options = {}) {
       const res = await fetch(endpoint, {
-        headers: { 'Authorization': 'Bearer ' + token }
+        ...options,
+        headers: {
+          'Authorization': 'Bearer ' + token,
+          'Content-Type': 'application/json',
+          ...options.headers
+        }
       });
+
       if (res.status === 401 || res.status === 403) {
         logout();
         return null;
       }
+
       return res.json();
     }
 
@@ -322,51 +561,88 @@
       event.target.closest('.nav-link').classList.remove('text-gray-300', 'hover:bg-gray-700');
 
       const titles = {
-        dashboard: 'Dashboard',
-        dispositivos: 'Dispositivos',
-        alertas: 'Alertas',
-        manutencao: 'Manutencao',
-        clientes: 'Clientes'
+        dashboard: ['Dashboard', 'Monitoramento em tempo real'],
+        dispositivos: ['Dispositivos', 'Gerenciar dispositivos IoT'],
+        empresas: ['Empresas', 'Gerenciar empresas cadastradas'],
+        unidades: ['Unidades', 'Gerenciar unidades/filiais'],
+        usuarios: ['Usuarios', 'Gerenciar usuarios do sistema'],
+        assinaturas: ['Assinaturas', 'Gerenciar assinaturas e pagamentos']
       };
-      document.getElementById('pageTitle').textContent = titles[name] || name;
+      document.getElementById('pageTitle').textContent = titles[name]?.[0] || name;
+      document.getElementById('pageSubtitle').textContent = titles[name]?.[1] || '';
+
+      // Load section data
+      if (name === 'empresas') loadEmpresas();
+      if (name === 'unidades') loadUnidades();
+      if (name === 'usuarios') loadUsuarios();
+      if (name === 'assinaturas') loadAssinaturas();
     }
 
     // Load stats
     async function loadStats() {
       const stats = await api('/api/stats');
-      if (stats) {
-        document.getElementById('statDevices').textContent = stats.totalDevices;
-        document.getElementById('statOnline').textContent = stats.onlineDevices;
-        document.getElementById('statCiclos').textContent = stats.totalCiclos.toLocaleString();
-        document.getElementById('statAlertas').textContent = stats.alertas24h;
-
-        if (stats.alertas24h > 0) {
-          document.getElementById('alertBadge').textContent = stats.alertas24h;
-          document.getElementById('alertBadge').classList.remove('hidden');
-        }
+      if (stats && !stats.blocked) {
+        document.getElementById('statDevices').textContent = stats.totalDevices || 0;
+        document.getElementById('statOnline').textContent = stats.onlineDevices || 0;
+        document.getElementById('statCiclos').textContent = (stats.totalCiclos || 0).toLocaleString();
       }
+
+      // Load empresas count
+      const empresas = await api('/api/empresas');
+      if (empresas) {
+        document.getElementById('statEmpresas').textContent = empresas.length;
+        empresasList = empresas;
+        updateEmpresasSelects();
+
+        // Count active subscriptions
+        const active = empresas.filter(e => e.status === 'active' || e.status === 'trial').length;
+        document.getElementById('statAssinaturas').textContent = active;
+      }
+    }
+
+    // Update all empresas selects
+    function updateEmpresasSelects() {
+      const selects = ['filterEmpresa', 'filterEmpresaUnidades', 'filterEmpresaUsuarios', 'unidadeEmpresa', 'usuarioEmpresa'];
+      selects.forEach(id => {
+        const select = document.getElementById(id);
+        if (!select) return;
+
+        const currentValue = select.value;
+        const isRequired = id === 'unidadeEmpresa';
+
+        select.innerHTML = isRequired
+          ? '<option value="">Selecione...</option>'
+          : '<option value="">Todas Empresas</option>';
+
+        empresasList.forEach(e => {
+          select.innerHTML += `<option value="${e.id}">${e.razao_social}</option>`;
+        });
+
+        if (currentValue) select.value = currentValue;
+      });
     }
 
     // Load devices
     async function loadDevices() {
-      const readings = await api('/api/latest-readings');
-      if (!readings) return;
+      const result = await api('/api/devices');
+      if (!result) return;
 
+      const devices = result.devices || [];
       const grid = document.getElementById('devicesGrid');
       const allGrid = document.getElementById('allDevicesGrid');
 
-      if (readings.length === 0) {
-        grid.innerHTML = '<div class="text-center py-8 text-gray-500 col-span-2">Nenhum dispositivo encontrado</div>';
+      if (devices.length === 0) {
+        grid.innerHTML = '<div class="text-center py-8 text-gray-500 col-span-3">Nenhum dispositivo encontrado</div>';
         allGrid.innerHTML = '<div class="text-center py-8 text-gray-500">Nenhum dispositivo encontrado</div>';
         return;
       }
 
-      grid.innerHTML = readings.map(d => renderDeviceCard(d)).join('');
-      allGrid.innerHTML = readings.map(d => renderDeviceCardFull(d)).join('');
+      grid.innerHTML = devices.map(d => renderDeviceCard(d)).join('');
+      allGrid.innerHTML = devices.map(d => renderDeviceCardFull(d)).join('');
     }
 
     function renderDeviceCard(d) {
-      const isOnline = d.wifi_connected && isRecent(d.timestamp);
+      const isOnline = d.status_conexao === 'online';
       const statusClass = isOnline ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700';
       const statusText = isOnline ? 'Online' : 'Offline';
 
@@ -375,368 +651,454 @@
           <div class="flex items-center justify-between mb-3">
             <div>
               <h4 class="font-bold text-gray-800">${d.serial_number}</h4>
-              <p class="text-sm text-gray-500">${d.name || 'PILI TECH'}</p>
+              <p class="text-sm text-gray-500">${d.name || 'Tombador'}</p>
+              ${d.empresa_nome ? `<p class="text-xs text-gray-400">${d.empresa_nome}</p>` : '<p class="text-xs text-orange-500">Sem empresa</p>'}
             </div>
             <span class="px-3 py-1 rounded-full text-xs font-bold ${statusClass}">${statusText}</span>
-          </div>
-          <div class="grid grid-cols-4 gap-2 text-center text-xs">
-            <div class="p-2 bg-gray-50 rounded-lg">
-              <div class="font-bold text-gray-700">${d.sistema_ligado ? 'ON' : 'OFF'}</div>
-              <div class="text-gray-500">Sistema</div>
-            </div>
-            <div class="p-2 bg-gray-50 rounded-lg">
-              <div class="font-bold text-gray-700">${d.ciclos_hoje || 0}</div>
-              <div class="text-gray-500">Ciclos</div>
-            </div>
-            <div class="p-2 bg-gray-50 rounded-lg">
-              <div class="font-bold text-gray-700">${d.horas_operacao || 0}h</div>
-              <div class="text-gray-500">Horimetro</div>
-            </div>
-            <div class="p-2 ${d.moega_cheia || d.fosso_cheio ? 'bg-red-100' : 'bg-gray-50'} rounded-lg">
-              <div class="font-bold ${d.moega_cheia || d.fosso_cheio ? 'text-red-600' : 'text-green-600'}">
-                ${d.moega_cheia || d.fosso_cheio ? 'ALERTA' : 'OK'}
-              </div>
-              <div class="text-gray-500">Status</div>
-            </div>
           </div>
         </div>
       `;
     }
 
     function renderDeviceCardFull(d) {
-      const isOnline = d.wifi_connected && isRecent(d.timestamp);
+      const isOnline = d.status_conexao === 'online';
       const statusClass = isOnline ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700';
-      const statusText = isOnline ? 'Online' : 'Offline';
-      const lastSeen = d.timestamp ? new Date(d.timestamp).toLocaleString('pt-BR') : 'Nunca';
+      const statusText = isOnline ? 'Online' : d.status_conexao === 'idle' ? 'Idle' : 'Offline';
 
       return `
         <div class="border rounded-xl p-6 hover:shadow-md transition-shadow">
           <div class="flex items-center justify-between mb-4">
             <div>
               <h4 class="font-bold text-lg text-gray-800">${d.serial_number}</h4>
-              <p class="text-sm text-gray-500">${d.name || 'PILI TECH'}</p>
-              <p class="text-xs text-gray-400 mt-1">Ultima leitura: ${lastSeen}</p>
+              <p class="text-sm text-gray-500">${d.name || 'Tombador'}</p>
+              ${d.empresa_nome
+                ? `<p class="text-xs text-gray-400">${d.empresa_nome} ${d.unidade_nome ? '> ' + d.unidade_nome : ''}</p>`
+                : '<p class="text-xs text-orange-500">Dispositivo sem vinculo - aguardando configuracao</p>'}
             </div>
             <span class="px-4 py-2 rounded-full text-sm font-bold ${statusClass}">${statusText}</span>
           </div>
-          <div class="grid grid-cols-4 gap-3 text-center">
-            <div class="p-3 bg-gray-50 rounded-lg">
-              <div class="text-lg font-bold ${d.sistema_ligado ? 'text-green-600' : 'text-gray-400'}">${d.sistema_ligado ? 'ON' : 'OFF'}</div>
-              <div class="text-xs text-gray-500">Sistema</div>
-            </div>
-            <div class="p-3 bg-gray-50 rounded-lg">
-              <div class="text-lg font-bold text-gray-700">${d.sensor_0_graus ? 'Ativo' : 'Inativo'}</div>
-              <div class="text-xs text-gray-500">0 Graus</div>
-            </div>
-            <div class="p-3 bg-gray-50 rounded-lg">
-              <div class="text-lg font-bold text-gray-700">${d.sensor_40_graus ? 'Ativo' : 'Inativo'}</div>
-              <div class="text-xs text-gray-500">40 Graus</div>
-            </div>
-            <div class="p-3 bg-gray-50 rounded-lg">
-              <div class="text-lg font-bold text-gray-700">${d.trava_roda ? 'Ativo' : 'Inativo'}</div>
-              <div class="text-xs text-gray-500">Trava</div>
-            </div>
-            <div class="p-3 bg-gray-50 rounded-lg">
-              <div class="text-lg font-bold text-gray-700">${d.subindo ? 'Sim' : 'Nao'}</div>
-              <div class="text-xs text-gray-500">Subindo</div>
-            </div>
-            <div class="p-3 bg-gray-50 rounded-lg">
-              <div class="text-lg font-bold text-gray-700">${d.descendo ? 'Sim' : 'Nao'}</div>
-              <div class="text-xs text-gray-500">Descendo</div>
-            </div>
-            <div class="p-3 ${d.moega_cheia ? 'bg-red-100' : 'bg-gray-50'} rounded-lg">
-              <div class="text-lg font-bold ${d.moega_cheia ? 'text-red-600' : 'text-green-600'}">${d.moega_cheia ? 'Cheia' : 'OK'}</div>
-              <div class="text-xs text-gray-500">Moega</div>
-            </div>
-            <div class="p-3 ${d.fosso_cheio ? 'bg-red-100' : 'bg-gray-50'} rounded-lg">
-              <div class="text-lg font-bold ${d.fosso_cheio ? 'text-red-600' : 'text-green-600'}">${d.fosso_cheio ? 'Cheio' : 'OK'}</div>
-              <div class="text-xs text-gray-500">Fosso</div>
-            </div>
-          </div>
-          <div class="grid grid-cols-3 gap-3 mt-4 text-center">
-            <div class="p-3 bg-pili-red/10 rounded-lg">
-              <div class="text-2xl font-bold text-pili-red">${d.ciclos_hoje || 0}</div>
-              <div class="text-xs text-gray-500">Ciclos Hoje</div>
-            </div>
-            <div class="p-3 bg-pili-red/10 rounded-lg">
-              <div class="text-2xl font-bold text-pili-red">${(d.ciclos_total || 0).toLocaleString()}</div>
-              <div class="text-xs text-gray-500">Ciclos Total</div>
-            </div>
-            <div class="p-3 bg-pili-red/10 rounded-lg">
-              <div class="text-2xl font-bold text-pili-red">${d.horas_operacao || 0}h${d.minutos_operacao || 0}m</div>
-              <div class="text-xs text-gray-500">Horimetro</div>
-            </div>
+          <div class="flex gap-2 mt-4">
+            <button onclick="vincularDispositivo('${d.serial_number}')" class="px-3 py-1 text-sm border rounded-lg hover:bg-gray-50">
+              Vincular
+            </button>
           </div>
         </div>
       `;
     }
 
-    // Load alerts
-    async function loadAlerts() {
-      const alerts = await api('/api/recent-alerts');
-      if (!alerts) return;
+    // Load empresas
+    async function loadEmpresas() {
+      const empresas = await api('/api/empresas');
+      if (!empresas) return;
 
-      const list = document.getElementById('alertsList');
+      empresasList = empresas;
+      updateEmpresasSelects();
 
-      if (alerts.length === 0) {
-        list.innerHTML = '<div class="text-center py-8 text-gray-500">Nenhum alerta nas ultimas 24 horas</div>';
+      const list = document.getElementById('empresasList');
+
+      if (empresas.length === 0) {
+        list.innerHTML = '<div class="text-center py-8 text-gray-500 col-span-3">Nenhuma empresa cadastrada</div>';
         return;
       }
 
-      list.innerHTML = alerts.map(a => `
-        <div class="flex items-center gap-4 p-4 border rounded-lg ${a.event_type === 'ALERT' ? 'border-red-200 bg-red-50' : 'border-gray-200'}">
-          <div class="w-10 h-10 rounded-full flex items-center justify-center ${a.event_type === 'ALERT' ? 'bg-red-100' : 'bg-blue-100'}">
-            <svg class="w-5 h-5 ${a.event_type === 'ALERT' ? 'text-red-600' : 'text-blue-600'}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="${a.event_type === 'ALERT' ? 'M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z' : 'M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z'}"/>
-            </svg>
+      list.innerHTML = empresas.map(e => {
+        const statusColors = {
+          trial: 'bg-yellow-100 text-yellow-700',
+          active: 'bg-green-100 text-green-700',
+          expired: 'bg-red-100 text-red-700'
+        };
+        const statusLabels = {
+          trial: `Trial (${e.status === 'trial' ? Math.ceil((new Date(e.valid_until) - new Date()) / (1000*60*60*24)) : 0} dias)`,
+          active: 'Assinatura Ativa',
+          expired: 'Expirado'
+        };
+
+        return `
+          <div class="bg-gray-50 rounded-xl p-6">
+            <div class="flex items-start justify-between mb-4">
+              <div class="w-12 h-12 bg-purple-100 rounded-full flex items-center justify-center">
+                <svg class="w-6 h-6 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/>
+                </svg>
+              </div>
+              <span class="px-2 py-1 text-xs rounded-full ${statusColors[e.status] || 'bg-gray-100'}">${statusLabels[e.status] || e.status}</span>
+            </div>
+            <h4 class="font-bold text-gray-800">${e.razao_social}</h4>
+            ${e.nome_fantasia ? `<p class="text-sm text-gray-600">${e.nome_fantasia}</p>` : ''}
+            <p class="text-xs text-gray-400 mt-1">${e.cnpj}</p>
+            <div class="mt-4 pt-4 border-t grid grid-cols-3 gap-2 text-center text-xs">
+              <div>
+                <div class="font-bold text-gray-800">${e.total_unidades || 0}</div>
+                <div class="text-gray-500">Unidades</div>
+              </div>
+              <div>
+                <div class="font-bold text-gray-800">${e.total_devices || 0}</div>
+                <div class="text-gray-500">Dispositivos</div>
+              </div>
+              <div>
+                <div class="font-bold text-gray-800">${e.total_usuarios || 0}</div>
+                <div class="text-gray-500">Usuarios</div>
+              </div>
+            </div>
+            <div class="mt-4 flex gap-2">
+              <button onclick="editEmpresa(${e.id})" class="flex-1 px-3 py-2 text-sm border rounded-lg hover:bg-gray-100">Editar</button>
+            </div>
           </div>
-          <div class="flex-1">
-            <p class="font-medium text-gray-800">${a.message}</p>
-            <p class="text-sm text-gray-500">${a.serial_number} - ${new Date(a.timestamp).toLocaleString('pt-BR')}</p>
-          </div>
-          <span class="px-3 py-1 rounded-full text-xs font-bold ${a.event_type === 'ALERT' ? 'bg-red-100 text-red-700' : 'bg-blue-100 text-blue-700'}">${a.event_type}</span>
-        </div>
-      `).join('');
+        `;
+      }).join('');
     }
 
-    // Load maintenance
-    async function loadMaintenance() {
-      const maintenance = await api('/api/maintenance');
-      if (!maintenance) return;
+    // Load unidades
+    async function loadUnidades() {
+      const empresaId = document.getElementById('filterEmpresaUnidades')?.value;
+      const url = empresaId ? `/api/unidades?empresa_id=${empresaId}` : '/api/unidades';
+      const unidades = await api(url);
+      if (!unidades) return;
 
-      const list = document.getElementById('maintenanceList');
+      const list = document.getElementById('unidadesList');
 
-      if (maintenance.length === 0) {
-        list.innerHTML = '<div class="text-center py-8 text-gray-500">Nenhuma manutencao registrada</div>';
+      if (unidades.length === 0) {
+        list.innerHTML = '<div class="text-center py-8 text-gray-500 col-span-3">Nenhuma unidade cadastrada</div>';
         return;
       }
 
-      list.innerHTML = maintenance.map(m => `
-        <div class="flex items-center gap-4 p-4 border rounded-lg">
-          <div class="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center">
-            <svg class="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
-            </svg>
-          </div>
-          <div class="flex-1">
-            <p class="font-medium text-gray-800">${m.description}</p>
-            <p class="text-sm text-gray-500">Tecnico: ${m.technician} | ${m.serial_number}</p>
-            <p class="text-xs text-gray-400">${new Date(m.timestamp).toLocaleString('pt-BR')} | Horimetro: ${m.horas_operacao}h</p>
-          </div>
-        </div>
-      `).join('');
-    }
-
-    // Load clients
-    let availableDevices = [];
-
-    async function loadClients() {
-      const clients = await api('/api/clients');
-      if (!clients) return;
-
-      const list = document.getElementById('clientsList');
-
-      if (clients.length === 0) {
-        list.innerHTML = '<div class="text-center py-8 text-gray-500 col-span-3">Nenhum cliente cadastrado</div>';
-        return;
-      }
-
-      list.innerHTML = clients.map(c => `
+      list.innerHTML = unidades.map(u => `
         <div class="bg-gray-50 rounded-xl p-6">
           <div class="flex items-start justify-between mb-4">
-            <div class="w-12 h-12 bg-pili-red/10 rounded-full flex items-center justify-center">
-              <svg class="w-6 h-6 text-pili-red" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/>
+            <div class="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center">
+              <svg class="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/>
               </svg>
             </div>
-            <div class="flex gap-2">
-              <button onclick="editClient(${c.id})" class="p-2 hover:bg-gray-200 rounded-lg" title="Editar">
-                <svg class="w-4 h-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
-              </button>
-              <button onclick="deleteClient(${c.id}, '${c.name}')" class="p-2 hover:bg-red-100 rounded-lg" title="Excluir">
-                <svg class="w-4 h-4 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
-              </button>
-            </div>
+            <span class="px-2 py-1 text-xs bg-gray-200 rounded">${u.codigo || 'SEM COD'}</span>
           </div>
-          <h4 class="font-bold text-gray-800">${c.name}</h4>
-          <p class="text-sm text-gray-500">@${c.username}</p>
-          ${c.email ? `<p class="text-xs text-gray-400 mt-1">${c.email}</p>` : ''}
-          ${c.phone ? `<p class="text-xs text-gray-400">${c.phone}</p>` : ''}
-          <div class="mt-3 pt-3 border-t">
-            <p class="text-xs text-gray-500 font-medium">Dispositivos:</p>
-            <div class="flex flex-wrap gap-1 mt-1">
-              ${c.serial_numbers && c.serial_numbers.length > 0
-                ? c.serial_numbers.map(sn => `<span class="px-2 py-0.5 bg-pili-red/10 text-pili-red text-xs rounded">${sn}</span>`).join('')
-                : '<span class="text-xs text-gray-400">Nenhum</span>'}
+          <h4 class="font-bold text-gray-800">${u.nome}</h4>
+          <p class="text-sm text-gray-500">${u.empresa_nome}</p>
+          ${u.cidade ? `<p class="text-xs text-gray-400 mt-1">${u.cidade}${u.estado ? '/' + u.estado : ''}</p>` : ''}
+          <div class="mt-4 pt-4 border-t">
+            <div class="text-center">
+              <div class="font-bold text-gray-800">${u.total_devices || 0}</div>
+              <div class="text-xs text-gray-500">Dispositivos</div>
             </div>
-          </div>
-          <div class="mt-2">
-            <span class="px-2 py-0.5 text-xs rounded ${c.active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}">
-              ${c.active ? 'Ativo' : 'Inativo'}
-            </span>
           </div>
         </div>
       `).join('');
     }
 
-    // Load available devices for modal
-    async function loadAvailableDevices() {
-      const devices = await api('/api/available-devices');
-      if (devices) {
-        availableDevices = devices;
-      }
-    }
+    // Load usuarios
+    async function loadUsuarios() {
+      const empresaId = document.getElementById('filterEmpresaUsuarios')?.value;
+      const url = empresaId ? `/api/usuarios?empresa_id=${empresaId}` : '/api/usuarios';
+      const usuarios = await api(url);
+      if (!usuarios) return;
 
-    // Open client modal
-    async function openClientModal(clientId = null) {
-      await loadAvailableDevices();
+      const tbody = document.getElementById('usuariosTableBody');
 
-      const modal = document.getElementById('clientModal');
-      const form = document.getElementById('clientForm');
-
-      // Reset form
-      form.reset();
-      document.getElementById('clientId').value = '';
-      document.getElementById('clientActive').checked = true;
-
-      // Render device checkboxes
-      const checkboxContainer = document.getElementById('devicesCheckboxes');
-      if (availableDevices.length === 0) {
-        checkboxContainer.innerHTML = '<div class="text-sm text-gray-500">Nenhum dispositivo disponivel</div>';
-      } else {
-        checkboxContainer.innerHTML = availableDevices.map(d => `
-          <label class="flex items-center gap-2 cursor-pointer">
-            <input type="checkbox" name="devices" value="${d.serial_number}" class="w-4 h-4 text-pili-red rounded">
-            <span class="text-sm">${d.serial_number} - ${d.name || 'Sem nome'}</span>
-          </label>
-        `).join('');
+      if (usuarios.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="7" class="text-center py-8 text-gray-500">Nenhum usuario cadastrado</td></tr>';
+        return;
       }
 
-      if (clientId) {
-        // Edit mode
-        document.getElementById('modalTitle').textContent = 'Editar Cliente';
-        document.getElementById('clientPassword').placeholder = 'Deixe vazio para manter';
-        document.getElementById('clientPassword').required = false;
-
-        const client = await api('/api/clients/' + clientId);
-        if (client) {
-          document.getElementById('clientId').value = client.id;
-          document.getElementById('clientName').value = client.name;
-          document.getElementById('clientUsername').value = client.username;
-          document.getElementById('clientEmail').value = client.email || '';
-          document.getElementById('clientPhone').value = client.phone || '';
-          document.getElementById('clientActive').checked = client.active;
-
-          // Check devices
-          if (client.serial_numbers) {
-            client.serial_numbers.forEach(sn => {
-              const checkbox = checkboxContainer.querySelector(`input[value="${sn}"]`);
-              if (checkbox) checkbox.checked = true;
-            });
-          }
-        }
-      } else {
-        // New mode
-        document.getElementById('modalTitle').textContent = 'Novo Cliente';
-        document.getElementById('clientPassword').placeholder = '';
-        document.getElementById('clientPassword').required = true;
-      }
-
-      modal.classList.remove('hidden');
-      modal.classList.add('flex');
-    }
-
-    // Close client modal
-    function closeClientModal() {
-      const modal = document.getElementById('clientModal');
-      modal.classList.add('hidden');
-      modal.classList.remove('flex');
-    }
-
-    // Save client
-    async function saveClient() {
-      const id = document.getElementById('clientId').value;
-      const data = {
-        name: document.getElementById('clientName').value,
-        username: document.getElementById('clientUsername').value,
-        password: document.getElementById('clientPassword').value || undefined,
-        email: document.getElementById('clientEmail').value,
-        phone: document.getElementById('clientPhone').value,
-        active: document.getElementById('clientActive').checked,
-        serialNumbers: Array.from(document.querySelectorAll('#devicesCheckboxes input:checked')).map(cb => cb.value)
+      const roleLabels = {
+        super_admin: 'Super Admin',
+        admin_empresa: 'Admin Empresa',
+        admin_unidade: 'Admin Unidade',
+        operador: 'Operador'
       };
 
-      // Validation
-      if (!data.name || !data.username) {
-        alert('Nome e Usuario sao obrigatorios');
+      const roleColors = {
+        super_admin: 'bg-purple-100 text-purple-700',
+        admin_empresa: 'bg-blue-100 text-blue-700',
+        admin_unidade: 'bg-green-100 text-green-700',
+        operador: 'bg-gray-100 text-gray-700'
+      };
+
+      tbody.innerHTML = usuarios.map(u => `
+        <tr class="border-b hover:bg-gray-50">
+          <td class="py-3 px-4">
+            <div class="font-medium text-gray-800">${u.nome}</div>
+            ${u.telefone ? `<div class="text-xs text-gray-400">${u.telefone}</div>` : ''}
+          </td>
+          <td class="py-3 px-4 text-gray-600">${u.email}</td>
+          <td class="py-3 px-4">
+            <span class="px-2 py-1 text-xs rounded-full ${roleColors[u.role] || 'bg-gray-100'}">${roleLabels[u.role] || u.role}</span>
+          </td>
+          <td class="py-3 px-4 text-gray-600">${u.empresa_nome || '-'}</td>
+          <td class="py-3 px-4 text-gray-600">${u.unidade_nome || 'Todas'}</td>
+          <td class="py-3 px-4">
+            <span class="px-2 py-1 text-xs rounded-full ${u.active ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}">
+              ${u.active ? 'Ativo' : 'Inativo'}
+            </span>
+          </td>
+          <td class="py-3 px-4 text-right">
+            <button onclick="editUsuario(${u.id})" class="p-2 hover:bg-gray-200 rounded-lg" title="Editar">
+              <svg class="w-4 h-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
+            </button>
+          </td>
+        </tr>
+      `).join('');
+    }
+
+    // Load assinaturas
+    async function loadAssinaturas() {
+      const subs = await api('/api/subscriptions');
+      if (!subs) return;
+
+      const tbody = document.getElementById('assinaturasTableBody');
+
+      if (subs.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="7" class="text-center py-8 text-gray-500">Nenhuma assinatura encontrada</td></tr>';
+        return;
+      }
+
+      const statusColors = {
+        pending: 'bg-yellow-100 text-yellow-700',
+        processing: 'bg-blue-100 text-blue-700',
+        paid: 'bg-green-100 text-green-700',
+        failed: 'bg-red-100 text-red-700',
+        cancelled: 'bg-gray-100 text-gray-700',
+        expired: 'bg-red-100 text-red-700'
+      };
+
+      tbody.innerHTML = subs.map(s => `
+        <tr class="border-b hover:bg-gray-50">
+          <td class="py-3 px-4 font-medium text-gray-800">${s.razao_social}</td>
+          <td class="py-3 px-4 text-gray-600">${s.cnpj}</td>
+          <td class="py-3 px-4 text-gray-600">R$ ${parseFloat(s.amount).toFixed(2).replace('.', ',')}</td>
+          <td class="py-3 px-4 text-gray-600">${s.payment_method === 'pix' ? 'PIX' : `Cartao ${s.installments}x`}</td>
+          <td class="py-3 px-4">
+            <span class="px-2 py-1 text-xs rounded-full ${statusColors[s.status] || 'bg-gray-100'}">${s.status}</span>
+          </td>
+          <td class="py-3 px-4 text-gray-600">${new Date(s.created_at).toLocaleDateString('pt-BR')}</td>
+          <td class="py-3 px-4 text-right">
+            ${s.status === 'pending' || s.status === 'processing' ? `
+              <button onclick="confirmPayment(${s.id})" class="px-3 py-1 text-sm bg-green-600 text-white rounded-lg hover:bg-green-700">
+                Confirmar
+              </button>
+            ` : ''}
+          </td>
+        </tr>
+      `).join('');
+    }
+
+    // Modal functions - Empresa
+    function openEmpresaModal(id = null) {
+      document.getElementById('empresaForm').reset();
+      document.getElementById('empresaId').value = '';
+      document.getElementById('empresaModalTitle').textContent = id ? 'Editar Empresa' : 'Nova Empresa';
+
+      document.getElementById('empresaModal').classList.remove('hidden');
+      document.getElementById('empresaModal').classList.add('flex');
+    }
+
+    function closeEmpresaModal() {
+      document.getElementById('empresaModal').classList.add('hidden');
+      document.getElementById('empresaModal').classList.remove('flex');
+    }
+
+    async function editEmpresa(id) {
+      const empresa = await api('/api/empresas/' + id);
+      if (!empresa) return;
+
+      document.getElementById('empresaId').value = empresa.id;
+      document.getElementById('empresaCnpj').value = empresa.cnpj;
+      document.getElementById('empresaRazao').value = empresa.razao_social;
+      document.getElementById('empresaNome').value = empresa.nome_fantasia || '';
+      document.getElementById('empresaEmail').value = empresa.email || '';
+      document.getElementById('empresaTelefone').value = empresa.telefone || '';
+      document.getElementById('empresaCidade').value = empresa.cidade || '';
+      document.getElementById('empresaEstado').value = empresa.estado || '';
+
+      document.getElementById('empresaModalTitle').textContent = 'Editar Empresa';
+      document.getElementById('empresaModal').classList.remove('hidden');
+      document.getElementById('empresaModal').classList.add('flex');
+    }
+
+    async function saveEmpresa() {
+      const id = document.getElementById('empresaId').value;
+      const data = {
+        cnpj: document.getElementById('empresaCnpj').value,
+        razao_social: document.getElementById('empresaRazao').value,
+        nome_fantasia: document.getElementById('empresaNome').value,
+        email: document.getElementById('empresaEmail').value,
+        telefone: document.getElementById('empresaTelefone').value,
+        cidade: document.getElementById('empresaCidade').value,
+        estado: document.getElementById('empresaEstado').value
+      };
+
+      if (!data.cnpj || !data.razao_social) {
+        alert('CNPJ e Razao Social sao obrigatorios');
+        return;
+      }
+
+      const url = id ? '/api/empresas/' + id : '/api/empresas';
+      const method = id ? 'PUT' : 'POST';
+
+      const result = await api(url, { method, body: JSON.stringify(data) });
+
+      if (result?.success || result?.id) {
+        closeEmpresaModal();
+        loadEmpresas();
+        loadStats();
+        alert(id ? 'Empresa atualizada!' : 'Empresa criada com 30 dias de trial!');
+      } else {
+        alert('Erro: ' + (result?.error || 'Erro desconhecido'));
+      }
+    }
+
+    // Modal functions - Unidade
+    function openUnidadeModal() {
+      document.getElementById('unidadeForm').reset();
+      document.getElementById('unidadeId').value = '';
+      document.getElementById('unidadeModalTitle').textContent = 'Nova Unidade';
+
+      document.getElementById('unidadeModal').classList.remove('hidden');
+      document.getElementById('unidadeModal').classList.add('flex');
+    }
+
+    function closeUnidadeModal() {
+      document.getElementById('unidadeModal').classList.add('hidden');
+      document.getElementById('unidadeModal').classList.remove('flex');
+    }
+
+    async function saveUnidade() {
+      const data = {
+        empresa_id: document.getElementById('unidadeEmpresa').value,
+        nome: document.getElementById('unidadeNome').value,
+        codigo: document.getElementById('unidadeCodigo').value,
+        responsavel: document.getElementById('unidadeResponsavel').value,
+        cidade: document.getElementById('unidadeCidade').value,
+        estado: document.getElementById('unidadeEstado').value
+      };
+
+      if (!data.empresa_id || !data.nome) {
+        alert('Empresa e Nome sao obrigatorios');
+        return;
+      }
+
+      const result = await api('/api/unidades', { method: 'POST', body: JSON.stringify(data) });
+
+      if (result?.success || result?.id) {
+        closeUnidadeModal();
+        loadUnidades();
+        alert('Unidade criada!');
+      } else {
+        alert('Erro: ' + (result?.error || 'Erro desconhecido'));
+      }
+    }
+
+    // Modal functions - Usuario
+    function openUsuarioModal() {
+      document.getElementById('usuarioForm').reset();
+      document.getElementById('usuarioId').value = '';
+      document.getElementById('usuarioModalTitle').textContent = 'Novo Usuario';
+      document.getElementById('usuarioSenha').placeholder = '';
+      document.getElementById('usuarioSenha').required = true;
+
+      document.getElementById('usuarioModal').classList.remove('hidden');
+      document.getElementById('usuarioModal').classList.add('flex');
+    }
+
+    function closeUsuarioModal() {
+      document.getElementById('usuarioModal').classList.add('hidden');
+      document.getElementById('usuarioModal').classList.remove('flex');
+    }
+
+    async function loadUnidadesSelect() {
+      const empresaId = document.getElementById('usuarioEmpresa').value;
+      const select = document.getElementById('usuarioUnidade');
+      select.innerHTML = '<option value="">Todas da Empresa</option>';
+
+      if (!empresaId) return;
+
+      const unidades = await api('/api/unidades?empresa_id=' + empresaId);
+      if (unidades) {
+        unidades.forEach(u => {
+          select.innerHTML += `<option value="${u.id}">${u.nome}</option>`;
+        });
+      }
+    }
+
+    async function editUsuario(id) {
+      // Load user data - simplified for now
+      document.getElementById('usuarioId').value = id;
+      document.getElementById('usuarioSenha').placeholder = 'Deixe vazio para manter';
+      document.getElementById('usuarioSenha').required = false;
+      document.getElementById('usuarioModalTitle').textContent = 'Editar Usuario';
+
+      document.getElementById('usuarioModal').classList.remove('hidden');
+      document.getElementById('usuarioModal').classList.add('flex');
+    }
+
+    async function saveUsuario() {
+      const id = document.getElementById('usuarioId').value;
+      const data = {
+        nome: document.getElementById('usuarioNome').value,
+        email: document.getElementById('usuarioEmail').value,
+        password: document.getElementById('usuarioSenha').value || undefined,
+        telefone: document.getElementById('usuarioTelefone').value,
+        role: document.getElementById('usuarioRole').value,
+        active: document.getElementById('usuarioActive').value === 'true',
+        empresa_id: document.getElementById('usuarioEmpresa').value || null,
+        unidade_id: document.getElementById('usuarioUnidade').value || null
+      };
+
+      if (!data.nome || !data.email) {
+        alert('Nome e Email sao obrigatorios');
         return;
       }
 
       if (!id && !data.password) {
-        alert('Senha e obrigatoria para novos clientes');
+        alert('Senha e obrigatoria para novos usuarios');
         return;
       }
 
-      try {
-        const url = id ? '/api/clients/' + id : '/api/clients';
-        const method = id ? 'PUT' : 'POST';
+      const url = id ? '/api/usuarios/' + id : '/api/usuarios';
+      const method = id ? 'PUT' : 'POST';
 
-        const res = await fetch(url, {
-          method,
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': 'Bearer ' + token
-          },
-          body: JSON.stringify(data)
-        });
+      const result = await api(url, { method, body: JSON.stringify(data) });
 
-        const result = await res.json();
-
-        if (res.ok && result.success) {
-          closeClientModal();
-          loadClients();
-          alert(id ? 'Cliente atualizado!' : 'Cliente criado!');
-        } else {
-          alert('Erro: ' + (result.error || result.message));
-        }
-      } catch (err) {
-        alert('Erro ao salvar: ' + err.message);
+      if (result?.success || result?.id) {
+        closeUsuarioModal();
+        loadUsuarios();
+        alert(id ? 'Usuario atualizado!' : 'Usuario criado!');
+      } else {
+        alert('Erro: ' + (result?.error || 'Erro desconhecido'));
       }
     }
 
-    // Edit client
-    function editClient(id) {
-      openClientModal(id);
-    }
+    // Confirm payment
+    async function confirmPayment(subscriptionId) {
+      if (!confirm('Confirmar pagamento manualmente?')) return;
 
-    // Delete client
-    async function deleteClient(id, name) {
-      if (!confirm(`Deseja realmente excluir o cliente "${name}"?`)) return;
+      const result = await api('/api/payment/confirm/' + subscriptionId, { method: 'POST' });
 
-      try {
-        const res = await fetch('/api/clients/' + id, {
-          method: 'DELETE',
-          headers: { 'Authorization': 'Bearer ' + token }
-        });
-
-        const result = await res.json();
-
-        if (res.ok && result.success) {
-          loadClients();
-          alert('Cliente excluido!');
-        } else {
-          alert('Erro: ' + (result.error || result.message));
-        }
-      } catch (err) {
-        alert('Erro ao excluir: ' + err.message);
+      if (result?.success) {
+        loadAssinaturas();
+        loadEmpresas();
+        loadStats();
+        alert('Pagamento confirmado!');
+      } else {
+        alert('Erro: ' + (result?.error || 'Erro desconhecido'));
       }
     }
 
-    // Check if timestamp is recent (< 10 min)
-    function isRecent(timestamp) {
-      if (!timestamp) return false;
-      const diff = Date.now() - new Date(timestamp).getTime();
-      return diff < 10 * 60 * 1000; // 10 minutes
+    // Vincular dispositivo
+    async function vincularDispositivo(serialNumber) {
+      const unidadeId = prompt('Digite o ID da unidade para vincular:');
+      if (!unidadeId) return;
+
+      const result = await api('/api/devices/' + serialNumber + '/vincular', {
+        method: 'POST',
+        body: JSON.stringify({ unidade_id: parseInt(unidadeId) })
+      });
+
+      if (result?.success) {
+        loadDevices();
+        alert('Dispositivo vinculado!');
+      } else {
+        alert('Erro: ' + (result?.error || 'Erro desconhecido'));
+      }
     }
 
     // Refresh all data
@@ -744,19 +1106,21 @@
       document.getElementById('lastUpdate').textContent = 'Atualizando...';
       await Promise.all([
         loadStats(),
-        loadDevices(),
-        loadAlerts(),
-        loadMaintenance(),
-        loadClients()
+        loadDevices()
       ]);
       document.getElementById('lastUpdate').textContent = 'Atualizado: ' + new Date().toLocaleTimeString('pt-BR');
     }
 
     // Initial load
-    refreshData();
+    async function init() {
+      const authed = await checkAuth();
+      if (authed) {
+        await refreshData();
+        setInterval(refreshData, 60000);
+      }
+    }
 
-    // Auto refresh every 30 seconds
-    setInterval(refreshData, 30000);
+    init();
   </script>
 </body>
 </html>
