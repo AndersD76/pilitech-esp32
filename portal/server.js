@@ -154,7 +154,13 @@ async function checkSubscription(req, res, next) {
 
 // Login
 app.post('/api/login', async (req, res) => {
-  const { email, password } = req.body;
+  // Aceita tanto 'email' quanto 'username' para compatibilidade
+  const email = req.body.email || req.body.username;
+  const password = req.body.password;
+
+  if (!email || !password) {
+    return res.status(400).json({ success: false, message: 'Email e senha sao obrigatorios' });
+  }
 
   try {
     // Primeiro verifica super admin hardcoded
@@ -177,8 +183,10 @@ app.post('/api/login', async (req, res) => {
         token,
         user: {
           email: SUPER_ADMIN.email,
-          role: SUPER_ADMIN.role,
-          nome: SUPER_ADMIN.nome
+          role: 'admin', // Compatibilidade com frontend antigo
+          realRole: SUPER_ADMIN.role,
+          nome: SUPER_ADMIN.nome,
+          name: SUPER_ADMIN.nome
         }
       });
     }
