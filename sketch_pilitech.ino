@@ -32,26 +32,22 @@ HTTPClient http;
 bool lastWiFiConnected = false;  // Rastreia mudança de estado WiFi
 
 // Rastrear estado anterior para detectar alertas
-bool lastMoegaCheia = false;
-bool lastFossoCheio = false;
+bool lastMoegaFosso = false;
 
-// Rastrear ciclo de operação (subida + descida = 1 ciclo)
-bool emCiclo = false;        // Está executando um ciclo?
-bool cicloSubiu = false;     // Já subiu neste ciclo?
-bool lastSubindo = false;
-bool lastDescendo = false;
+// Rastrear ciclo de operação
+// Ciclo é contado quando DI1 (sensor 0 graus): 24V -> 0V -> 24V
 
 // Pinos - Mapeamento WaveShare ESP32-S3 Digital Inputs
 // ⚠️ IMPORTANTE: Os Digital Inputs (DI1-DI8) da WaveShare são ISOLADOS e requerem 12V/24V
 // DI1=GPIO4, DI2=GPIO5, DI3=GPIO6, DI4=GPIO7, DI5=GPIO8, DI6=GPIO9, DI7=GPIO10, DI8=GPIO11
-#define TENSAO_PLATAFORMA   4   // DI1
-#define SENSOR_0_GRAUS      5   // DI2
-#define SENSOR_40_GRAUS     6   // DI3
-#define SENSOR_TRAVA_RODA   7   // DI4
-#define SENSOR_MOEGA_CHEIA  8   // DI5
-#define SENSOR_FOSSO_CHEIO  9   // DI6
-#define SUBINDO_PLATAFORMA  10  // DI7
-#define DESCENDO_PLATAFORMA 11  // DI8
+#define SENSOR_0_GRAUS      4   // DI1 - Sensor posição 0 graus
+#define SENSOR_40_GRAUS     5   // DI2 - Sensor posição 40 graus
+#define SENSOR_TRAVA_RODA   6   // DI3 - Trava rodas
+#define SENSOR_TRAVA_CHASSI 7   // DI4 - Trava chassi
+#define SENSOR_TRAVA_PINO_E 8   // DI5 - Trava pino E
+#define SENSOR_TRAVA_PINO_D 9   // DI6 - Trava pino D
+#define SENSOR_MOEGA_FOSSO  10  // DI7 - Moega/Fosso cheio
+#define SENSOR_PORTAO       11  // DI8 - Portão fechado
 #define LED_STATUS          38
 
 struct {
@@ -62,14 +58,54 @@ struct {
   unsigned long minutosOperacao;
 } stats = {0, 0, 0, 0, 0};
 
-bool sistema_ligado = false;
+// ====== TRACKING DE ETAPAS DO CICLO ======
+// Tempo de cada etapa em milissegundos
+struct CycleStage {
+  unsigned long portaoFechado;      // Tempo com portão fechado
+  unsigned long sensor0Inativo;     // Tempo com sensor 0° inativo (subindo)
+  unsigned long travaRodaAtivo;     // Tempo com trava roda ativo
+  unsigned long travaChassiAtivo;   // Tempo com trava chassi ativo
+  unsigned long travaPinosAtivo;    // Tempo com travas pinos E/D ativos
+  unsigned long sensor0Ativo;       // Tempo com sensor 0° ativo (descido)
+  unsigned long cicloTotal;         // Tempo total do ciclo (portão fecha -> portão abre)
+};
+
+CycleStage currentCycle = {0, 0, 0, 0, 0, 0, 0};
+CycleStage lastCompleteCycle = {0, 0, 0, 0, 0, 0, 0};
+
+// Timestamps de início de cada etapa
+unsigned long stageStartPortao = 0;
+unsigned long stageStartSensor0Inativo = 0;
+unsigned long stageStartTravaRoda = 0;
+unsigned long stageStartTravaChassi = 0;
+unsigned long stageStartTravaPinos = 0;
+unsigned long stageStartSensor0Ativo = 0;
+unsigned long cycleStartTime = 0;
+
+// Estados anteriores para detectar transições
+bool lastPortaoFechado = false;
+bool lastTravaRoda = false;
+bool lastTravaChassi = false;
+bool lastTravaPinoE = false;
+bool lastTravaPinoD = false;
+
+// Flag para indicar se ciclo está em andamento
+bool cycleInProgress = false;
+
+// Tempo padrão de ciclo (20 minutos em ms)
+const unsigned long CICLO_PADRAO_MS = 20 * 60 * 1000;
+
 bool sensor_0_graus = false;
 bool sensor_40_graus = false;
 bool trava_roda = false;
-bool moega_cheia = false;
-bool fosso_cheio = false;
-bool subindo = false;
-bool descendo = false;
+bool trava_chassi = false;
+bool trava_pino_e = false;
+bool trava_pino_d = false;
+bool moega_fosso = false;
+bool portao_fechado = false;
+
+// Estado anterior do sensor 0 graus para contagem de ciclos
+bool lastSensor0Graus = false;
 unsigned long uptimeSeconds = 0;
 String lastMaintenanceDate = "";
 
@@ -196,6 +232,10 @@ Logs
 FAQ
 </button>
 <button class="tab" onclick="switchTab(5)">
+<svg viewBox="0 0 24 24" stroke-width="2"><path d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"/></svg>
+Docs
+</button>
+<button class="tab" onclick="switchTab(6)">
 <svg viewBox="0 0 24 24" stroke-width="2"><path d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"/></svg>
 Contato
 </button>
@@ -209,36 +249,54 @@ Sensores do Sistema
 </div>
 <div class="sensor-grid" style="grid-template-rows:repeat(2,1fr)">
 <div class="sensor-item" id="si0">
-<div class="sensor-label">Sistema</div>
-<div class="sensor-value" id="sys">OFF</div>
-</div>
-<div class="sensor-item" id="si1">
 <div class="sensor-label">Sensor 0°</div>
 <div class="sensor-value" id="s0">-</div>
 </div>
-<div class="sensor-item" id="si2">
+<div class="sensor-item" id="si1">
 <div class="sensor-label">Sensor 40°</div>
 <div class="sensor-value" id="s40">-</div>
 </div>
-<div class="sensor-item" id="si3">
-<div class="sensor-label">Trava Roda</div>
+<div class="sensor-item" id="si2">
+<div class="sensor-label">Trava Rodas</div>
 <div class="sensor-value" id="tr">-</div>
 </div>
+<div class="sensor-item" id="si3">
+<div class="sensor-label">Trava Chassi</div>
+<div class="sensor-value" id="tc">-</div>
+</div>
 <div class="sensor-item" id="si4">
-<div class="sensor-label">Subindo</div>
-<div class="sensor-value" id="sub">-</div>
+<div class="sensor-label">Trava Pino E</div>
+<div class="sensor-value" id="tpe">-</div>
 </div>
 <div class="sensor-item" id="si5">
-<div class="sensor-label">Descendo</div>
-<div class="sensor-value" id="desc">-</div>
+<div class="sensor-label">Trava Pino D</div>
+<div class="sensor-value" id="tpd">-</div>
 </div>
 <div class="sensor-item" id="si6">
-<div class="sensor-label">Moega</div>
-<div class="sensor-value" id="moega">-</div>
+<div class="sensor-label">Moega/Fosso</div>
+<div class="sensor-value" id="mf">-</div>
 </div>
 <div class="sensor-item" id="si7">
-<div class="sensor-label">Fosso</div>
-<div class="sensor-value" id="fosso">-</div>
+<div class="sensor-label">Portão</div>
+<div class="sensor-value" id="portao">-</div>
+</div>
+</div>
+<div style="margin-top:12px;padding:10px;background:#f9fafb;border-radius:6px">
+<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+<span style="font-size:11px;font-weight:700;color:#6b7280">LINHA DO TEMPO DO CICLO</span>
+<span style="font-size:11px;color:#6b7280" id="cycleTimer">--:--</span>
+</div>
+<div id="timeline" style="display:flex;gap:4px;height:24px">
+<div class="tl-item" id="tl0" title="Portão" style="flex:1;border-radius:4px;background:#e5e7eb;transition:all 0.3s"></div>
+<div class="tl-item" id="tl1" title="Sensor 0°" style="flex:1;border-radius:4px;background:#e5e7eb;transition:all 0.3s"></div>
+<div class="tl-item" id="tl2" title="Trava Roda" style="flex:1;border-radius:4px;background:#e5e7eb;transition:all 0.3s"></div>
+<div class="tl-item" id="tl3" title="Trava Chassi" style="flex:1;border-radius:4px;background:#e5e7eb;transition:all 0.3s"></div>
+<div class="tl-item" id="tl4" title="Travas Pino" style="flex:1;border-radius:4px;background:#e5e7eb;transition:all 0.3s"></div>
+<div class="tl-item" id="tl5" title="Sensor 40°" style="flex:1;border-radius:4px;background:#e5e7eb;transition:all 0.3s"></div>
+<div class="tl-item" id="tl6" title="Moega/Fosso" style="flex:1;border-radius:4px;background:#e5e7eb;transition:all 0.3s"></div>
+</div>
+<div style="display:flex;justify-content:space-between;margin-top:4px;font-size:9px;color:#9ca3af">
+<span>PRT</span><span>0°</span><span>TR</span><span>TC</span><span>TP</span><span>40°</span><span>MF</span>
 </div>
 </div>
 </div>
@@ -332,6 +390,12 @@ Configuração WiFi
 Conectar WiFi
 </button>
 <div id="wifiMsg" style="margin-top:12px;padding:10px;border-radius:6px;display:none;font-size:12px;font-weight:600"></div>
+<div style="margin-top:16px;border-top:1px solid #e5e7eb;padding-top:16px">
+<button onclick="openConfigModal()" class="btn btn-primary" style="width:100%;background:#374151">
+<svg viewBox="0 0 24 24" stroke-width="2"><path d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><circle cx="12" cy="12" r="3"/></svg>
+Configurações Avançadas
+</button>
+</div>
 </div>
 </div>
 <div class="panel" style="grid-template-rows:auto">
@@ -350,28 +414,47 @@ Registro de Eventos
 Perguntas Frequentes
 </div>
 <div class="faq-item">
-<div class="faq-q">1. Como funciona o tombador de grãos?</div>
-<div class="faq-a">O tombador PILI inverte a posição da moega para descarregar grãos no fosso. O sistema monitora sensores em 0° (moega normal) e 40° (moega tombada) para controlar o ciclo completo.</div>
+<div class="faq-q">1. O que é o PILI TECH?</div>
+<div class="faq-a">Sistema de telemetria IoT que monitora 8 sensores digitais do tombador em tempo real, contabiliza ciclos, horímetro e envia dados para a nuvem.</div>
 </div>
 <div class="faq-item">
-<div class="faq-q">2. O que são os sensores monitorados?</div>
-<div class="faq-a">• Sensor 0°: Detecta moega na posição normal<br>• Sensor 40°: Detecta moega tombada<br>• Trava Roda: Confirma travamento antes do tombamento<br>• Moega Cheia: Indica necessidade de tombamento<br>• Fosso Cheio: Alerta quando fosso precisa esvaziamento</div>
+<div class="faq-q">2. Como acessar o PILI TECH?</div>
+<div class="faq-a">Conecte ao WiFi "PILI-TECH" (senha: 00002025) e acesse 192.168.4.1 no navegador. Com internet, acesse o portal web remotamente.</div>
 </div>
 <div class="faq-item">
-<div class="faq-q">3. Como acessar o sistema?</div>
-<div class="faq-a">Conecte ao WiFi "PILI-TECH" (senha: 00002025) e acesse http://192.168.4.1 no navegador.</div>
+<div class="faq-q">3. Como é contado um ciclo?</div>
+<div class="faq-a">Ciclo inicia quando o portão fecha e termina quando o portão abre. O sistema mede o tempo de cada etapa para análise de produtividade.</div>
 </div>
 <div class="faq-item">
-<div class="faq-q">4. O que é um ciclo de operação?</div>
-<div class="faq-a">Um ciclo completo inclui: moega em 0° → subida até 40° → descarga de grãos → descida até 0°. O sistema conta automaticamente cada ciclo.</div>
+<div class="faq-q">4. Os dados ficam salvos offline?</div>
+<div class="faq-a">Sim! Quando sem internet, os dados são salvos localmente a cada 15 minutos e sincronizados automaticamente ao reconectar.</div>
 </div>
 <div class="faq-item">
-<div class="faq-q">5. Os dados são salvos?</div>
-<div class="faq-a">Sim! Dados salvos automaticamente na memória interna a cada 5 minutos. Nada é perdido em caso de queda de energia.</div>
+<div class="faq-q">5. Para que serve o horímetro?</div>
+<div class="faq-a">Conta as horas de operação do equipamento para programar manutenções preventivas a cada 2000 horas.</div>
 </div>
 <div class="faq-item">
-<div class="faq-q">6. Como funciona o horímetro?</div>
-<div class="faq-a">Registra automaticamente as horas de operação quando o sistema está ligado. Essencial para programar manutenções preventivas.</div>
+<div class="faq-q">6. Qual o tempo padrão de ciclo?</div>
+<div class="faq-a">O ciclo padrão é 20 minutos. O sistema calcula a eficiência comparando o tempo real com o padrão.</div>
+</div>
+</div>
+</div>
+<div class="panel" style="grid-template-rows:auto">
+<div class="card" style="height:100%">
+<div class="card-title">
+<svg viewBox="0 0 24 24" stroke-width="2"><path d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"/></svg>
+Documentos
+</div>
+<div style="display:flex;flex-direction:column;gap:8px;padding:10px;overflow-y:auto;max-height:420px">
+<div onclick="openPDF('Manual de Operação tombador 30m opd 166 2025.pdf')" style="background:#dc2626;border-radius:8px;padding:12px;cursor:pointer;display:flex;align-items:center;gap:12px"><span style="font-size:24px">📕</span><span style="color:#fff;font-size:13px;font-weight:700">Manual de Operação</span></div>
+<div onclick="openPDF('painel eletrico pg 01.pdf')" style="background:#dc2626;border-radius:8px;padding:12px;cursor:pointer;display:flex;align-items:center;gap:12px"><span style="font-size:24px">📄</span><span style="color:#fff;font-size:13px;font-weight:700">Painel Elétrico Pg 01</span></div>
+<div onclick="openPDF('painel eletrico pg 02.pdf')" style="background:#dc2626;border-radius:8px;padding:12px;cursor:pointer;display:flex;align-items:center;gap:12px"><span style="font-size:24px">📄</span><span style="color:#fff;font-size:13px;font-weight:700">Painel Elétrico Pg 02</span></div>
+<div onclick="openPDF('painel eletrico pg 03.pdf')" style="background:#dc2626;border-radius:8px;padding:12px;cursor:pointer;display:flex;align-items:center;gap:12px"><span style="font-size:24px">📄</span><span style="color:#fff;font-size:13px;font-weight:700">Painel Elétrico Pg 03</span></div>
+<div onclick="openPDF('painel eletrico pg 04.pdf')" style="background:#dc2626;border-radius:8px;padding:12px;cursor:pointer;display:flex;align-items:center;gap:12px"><span style="font-size:24px">📄</span><span style="color:#fff;font-size:13px;font-weight:700">Painel Elétrico Pg 04</span></div>
+<div onclick="openPDF('painel eletrico pg 05.pdf')" style="background:#dc2626;border-radius:8px;padding:12px;cursor:pointer;display:flex;align-items:center;gap:12px"><span style="font-size:24px">📄</span><span style="color:#fff;font-size:13px;font-weight:700">Painel Elétrico Pg 05</span></div>
+<div onclick="openPDF('painel eletrico pg 06.pdf')" style="background:#dc2626;border-radius:8px;padding:12px;cursor:pointer;display:flex;align-items:center;gap:12px"><span style="font-size:24px">📄</span><span style="color:#fff;font-size:13px;font-weight:700">Painel Elétrico Pg 06</span></div>
+<div onclick="openPDF('painel eletrico pg 07.pdf')" style="background:#dc2626;border-radius:8px;padding:12px;cursor:pointer;display:flex;align-items:center;gap:12px"><span style="font-size:24px">📄</span><span style="color:#fff;font-size:13px;font-weight:700">Painel Elétrico Pg 07</span></div>
+<div onclick="openPDF('painel eletrico pg 08.pdf')" style="background:#dc2626;border-radius:8px;padding:12px;cursor:pointer;display:flex;align-items:center;gap:12px"><span style="font-size:24px">📄</span><span style="color:#fff;font-size:13px;font-weight:700">Painel Elétrico Pg 08</span></div>
 </div>
 </div>
 </div>
@@ -383,15 +466,15 @@ Contato PILI Equipamentos
 </div>
 <div class="info-row">
 <span class="info-label">Telefone</span>
-<span class="info-value">(54) 3321-4976</span>
+<span class="info-value">(54) 3522-2828</span>
 </div>
 <div class="info-row">
-<span class="info-label">Email</span>
-<span class="info-value">atendimento@pili.ind.br</span>
+<span class="info-label">Comercial</span>
+<span class="info-value">comercial1@pili.com.br</span>
 </div>
 <div class="info-row">
-<span class="info-label">Suporte Técnico</span>
-<span class="info-value">suporte@pili.ind.br</span>
+<span class="info-label">Engenharia</span>
+<span class="info-value">engenharia@pili.com.br</span>
 </div>
 <div class="info-row">
 <span class="info-label">Website</span>
@@ -399,7 +482,7 @@ Contato PILI Equipamentos
 </div>
 <div class="info-row">
 <span class="info-label">Endereço</span>
-<span class="info-value">Bairro Petit Village, Erechim - RS</span>
+<span class="info-value">Erechim - RS</span>
 </div>
 <div style="margin-top:20px;padding:16px;background:#f9fafb;border-radius:6px;text-align:center">
 <p style="font-size:11px;color:#6b7280;font-weight:700;text-transform:uppercase;letter-spacing:0.5px">Principais Clientes</p>
@@ -429,10 +512,52 @@ Registrar
 </div>
 </div>
 </div>
+<div class="modal" id="configModal">
+<div class="modal-content">
+<div class="modal-header">
+<div class="modal-title">Configurações do Sistema</div>
+<button class="modal-close" onclick="closeConfigModal()">✕</button>
+</div>
+<div class="modal-body" id="configBody">
+<div id="configLogin">
+<p style="color:#6b7280;font-size:12px;margin-bottom:12px">Digite a senha de administrador para acessar as configurações.</p>
+<input type="password" id="configPass" class="input" placeholder="Senha">
+<button onclick="checkConfigPass()" class="btn btn-primary" style="width:100%;margin-top:8px">Entrar</button>
+<div id="configError" style="display:none;color:#dc2626;font-size:12px;margin-top:8px">Senha incorreta</div>
+</div>
+<div id="configPanel" style="display:none">
+<div style="margin-bottom:16px">
+<label style="font-size:13px;font-weight:600;color:#374151">Sensores Monitorados</label>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px">
+<label style="display:flex;align-items:center;gap:6px;font-size:12px"><input type="checkbox" id="cfgS0" checked> Sensor 0°</label>
+<label style="display:flex;align-items:center;gap:6px;font-size:12px"><input type="checkbox" id="cfgS40" checked> Sensor 40°</label>
+<label style="display:flex;align-items:center;gap:6px;font-size:12px"><input type="checkbox" id="cfgTR" checked> Trava Roda</label>
+<label style="display:flex;align-items:center;gap:6px;font-size:12px"><input type="checkbox" id="cfgTC" checked> Trava Chassi</label>
+<label style="display:flex;align-items:center;gap:6px;font-size:12px"><input type="checkbox" id="cfgTPE" checked> Trava Pino E</label>
+<label style="display:flex;align-items:center;gap:6px;font-size:12px"><input type="checkbox" id="cfgTPD" checked> Trava Pino D</label>
+<label style="display:flex;align-items:center;gap:6px;font-size:12px"><input type="checkbox" id="cfgMF" checked> Moega/Fosso</label>
+<label style="display:flex;align-items:center;gap:6px;font-size:12px"><input type="checkbox" id="cfgPT" checked> Portão</label>
+</div>
+</div>
+<div style="margin-bottom:16px;padding-top:16px;border-top:1px solid #e5e7eb">
+<label style="font-size:13px;font-weight:600;color:#374151">Ações do Sistema</label>
+<div style="display:flex;gap:8px;margin-top:8px">
+<button onclick="resetCiclosHoje()" class="btn" style="flex:1;background:#f59e0b;color:#fff">Resetar Ciclos Hoje</button>
+<button onclick="resetTotal()" class="btn" style="flex:1;background:#dc2626;color:#fff">Reset Total</button>
+</div>
+</div>
+<div style="padding-top:16px;border-top:1px solid #e5e7eb">
+<button onclick="salvarConfig()" class="btn btn-success" style="width:100%">Salvar Configurações</button>
+</div>
+</div>
+</div>
+</div>
+</div>
 <script>
 console.log('PILI TECH v1.0');
+var CONFIG_PASS='pilitech2025';
 var ws=null,data={},logs=[],lastMaint=null;
-var lastMoegaCheia=false,lastFossoCheio=false;
+var lastMoegaFosso=false;
 try{logs=JSON.parse(localStorage.getItem('pilitech_logs')||'[]');}catch(e){logs=[];}
 function switchTab(n){
 var tabs=document.querySelectorAll('.tab');
@@ -499,14 +624,14 @@ updateUI();
 };
 }
 function updateUI(){
-document.getElementById('sys').textContent=data.sistema_ligado?'ON':'OFF';
 document.getElementById('s0').textContent=data.sensor_0_graus?'ATIVO':'INATIVO';
 document.getElementById('s40').textContent=data.sensor_40_graus?'ATIVO':'INATIVO';
 document.getElementById('tr').textContent=data.trava_roda?'ATIVO':'INATIVO';
-document.getElementById('sub').textContent=data.subindo?'SIM':'NAO';
-document.getElementById('desc').textContent=data.descendo?'SIM':'NAO';
-document.getElementById('moega').textContent=data.moega_cheia?'CHEIA':'OK';
-document.getElementById('fosso').textContent=data.fosso_cheio?'CHEIO':'OK';
+document.getElementById('tc').textContent=data.trava_chassi?'ATIVO':'INATIVO';
+document.getElementById('tpe').textContent=data.trava_pino_e?'ATIVO':'INATIVO';
+document.getElementById('tpd').textContent=data.trava_pino_d?'ATIVO':'INATIVO';
+document.getElementById('mf').textContent=data.moega_fosso?'CHEIO':'OK';
+document.getElementById('portao').textContent=data.portao_fechado?'FECHADO':'ABERTO';
 document.getElementById('ch').textContent=data.ciclosHoje||0;
 document.getElementById('ct').textContent=data.ciclosTotal||0;
 document.getElementById('h').textContent=data.horasOperacao||0;
@@ -522,30 +647,95 @@ document.getElementById('wifiStatus').classList.remove('connected');
 document.getElementById('wifiText').textContent='Offline';
 }
 var si=document.querySelectorAll('.sensor-item');
-si[0].classList.toggle('active',data.sistema_ligado);
-si[1].classList.toggle('active',data.sensor_0_graus);
-si[2].classList.toggle('active',data.sensor_40_graus);
-si[3].classList.toggle('active',data.trava_roda);
-si[4].classList.toggle('active',data.subindo);
-si[5].classList.toggle('active',data.descendo);
+si[0].classList.toggle('active',data.sensor_0_graus);
+si[1].classList.toggle('active',data.sensor_40_graus);
+si[2].classList.toggle('active',data.trava_roda);
+si[3].classList.toggle('active',data.trava_chassi);
+si[4].classList.toggle('active',data.trava_pino_e);
+si[5].classList.toggle('active',data.trava_pino_d);
 si[6].classList.remove('active','alert');
-if(data.moega_cheia){
+if(data.moega_fosso){
 si[6].classList.add('alert');
-if(!lastMoegaCheia){addLog('ALERTA: Moega cheia!');lastMoegaCheia=true;}
+if(!lastMoegaFosso){addLog('ALERTA: Moega/Fosso cheio!');lastMoegaFosso=true;}
 }else{
-if(lastMoegaCheia){addLog('Moega normalizada');lastMoegaCheia=false;}
+if(lastMoegaFosso){addLog('Moega/Fosso normalizado');lastMoegaFosso=false;}
 }
-si[7].classList.remove('active','alert');
-if(data.fosso_cheio){
-si[7].classList.add('alert');
-if(!lastFossoCheio){addLog('ALERTA: Fosso cheio!');lastFossoCheio=true;}
-}else{
-if(lastFossoCheio){addLog('Fosso normalizado');lastFossoCheio=false;}
-}
+si[7].classList.toggle('active',data.portao_fechado);
 var hrs=data.horasOperacao||0;
 var pct=Math.min((hrs/2000)*100,100);
 document.getElementById('maintBar').style.width=pct+'%';
 document.getElementById('maintHrs').textContent=Math.max(2000-hrs,0);
+updateTimeline();
+}
+function updateTimeline(){
+var tl=document.querySelectorAll('.tl-item');
+tl[0].style.background=data.portao_fechado?'#10b981':'#ef4444';
+tl[1].style.background=data.sensor_0_graus?'#10b981':'#ef4444';
+tl[2].style.background=data.trava_roda?'#10b981':'#ef4444';
+tl[3].style.background=data.trava_chassi?'#10b981':'#ef4444';
+tl[4].style.background=(data.trava_pino_e&&data.trava_pino_d)?'#10b981':'#ef4444';
+tl[5].style.background=data.sensor_40_graus?'#10b981':'#ef4444';
+tl[6].style.background=data.moega_fosso?'#ef4444':'#10b981';
+var timer=document.getElementById('cycleTimer');
+if(data.cycleInProgress&&data.currentCycle){
+var elapsed=data.currentCycle.elapsed||0;
+var min=Math.floor(elapsed/60);
+var sec=elapsed%60;
+timer.textContent=String(min).padStart(2,'0')+':'+String(sec).padStart(2,'0');
+timer.style.color='#10b981';
+}else if(data.lastCycle&&data.lastCycle.total>0){
+var total=data.lastCycle.total;
+var min=Math.floor(total/60);
+var sec=total%60;
+timer.textContent=String(min).padStart(2,'0')+':'+String(sec).padStart(2,'0');
+timer.style.color='#6b7280';
+}else{
+timer.textContent='--:--';
+timer.style.color='#6b7280';
+}
+}
+function openConfigModal(){
+document.getElementById('configModal').classList.add('show');
+document.getElementById('configPass').value='';
+document.getElementById('configError').style.display='none';
+document.getElementById('configLogin').style.display='block';
+document.getElementById('configPanel').style.display='none';
+}
+function closeConfigModal(){
+document.getElementById('configModal').classList.remove('show');
+}
+function checkConfigPass(){
+var pass=document.getElementById('configPass').value;
+if(pass===CONFIG_PASS){
+document.getElementById('configLogin').style.display='none';
+document.getElementById('configPanel').style.display='block';
+addLog('Acesso ao configurador');
+}else{
+document.getElementById('configError').style.display='block';
+}
+}
+function resetCiclosHoje(){
+if(confirm('Resetar ciclos de hoje para zero?')){
+if(ws&&ws.readyState===1){
+ws.send(JSON.stringify({cmd:'RESET_CICLOS'}));
+addLog('Ciclos de hoje resetados');
+}
+}
+}
+function resetTotal(){
+if(confirm('ATENÇÃO: Isso vai zerar TODOS os contadores. Continuar?')){
+if(confirm('Tem certeza? Esta ação não pode ser desfeita!')){
+if(ws&&ws.readyState===1){
+ws.send(JSON.stringify({cmd:'RESET_TOTAL'}));
+addLog('Reset total do sistema');
+}
+}
+}
+}
+function salvarConfig(){
+addLog('Configurações salvas');
+closeConfigModal();
+alert('Configurações salvas!');
 }
 function resetCiclos(){
 if(confirm('Resetar contagem de ciclos de hoje?')){
@@ -634,60 +824,75 @@ setInterval(updateClock,1000);
 updateClock();
 if(logs.length>0)document.getElementById('logs').innerHTML=logs.join('<br>');
 connectWS();
+function openPDF(filename){
+addLog('Abrindo: '+filename);
+window.location.href='http://127.0.0.1:8080/'+encodeURIComponent(filename);
+}
 </script>
 </body>
 </html>)rawliteral";
 
 void setupPins() {
-  // INPUT_PULLDOWN: sem tensão = LOW (0), com tensão = HIGH (1)
-  pinMode(TENSAO_PLATAFORMA, INPUT_PULLDOWN);
-  pinMode(SENSOR_0_GRAUS, INPUT_PULLDOWN);
-  pinMode(SENSOR_40_GRAUS, INPUT_PULLDOWN);
-  pinMode(SENSOR_TRAVA_RODA, INPUT_PULLDOWN);
-  pinMode(SENSOR_MOEGA_CHEIA, INPUT_PULLDOWN);
-  pinMode(SENSOR_FOSSO_CHEIO, INPUT_PULLDOWN);
-  pinMode(SUBINDO_PLATAFORMA, INPUT_PULLDOWN);
-  pinMode(DESCENDO_PLATAFORMA, INPUT_PULLDOWN);
+  // Entradas opto-isoladas: a placa já puxa para HIGH e ativa em LOW
+  pinMode(SENSOR_0_GRAUS,      INPUT_PULLUP);  // DI1 - GPIO4
+  pinMode(SENSOR_40_GRAUS,     INPUT_PULLUP);  // DI2 - GPIO5
+  pinMode(SENSOR_TRAVA_RODA,   INPUT_PULLUP);  // DI3 - GPIO6
+  pinMode(SENSOR_TRAVA_CHASSI, INPUT_PULLUP);  // DI4 - GPIO7
+  pinMode(SENSOR_TRAVA_PINO_E, INPUT_PULLUP);  // DI5 - GPIO8
+  pinMode(SENSOR_TRAVA_PINO_D, INPUT_PULLUP);  // DI6 - GPIO9
+  pinMode(SENSOR_MOEGA_FOSSO,  INPUT_PULLUP);  // DI7 - GPIO10
+  pinMode(SENSOR_PORTAO,       INPUT_PULLUP);  // DI8 - GPIO11
+
   pinMode(LED_STATUS, OUTPUT);
 }
 
-void readSensors() {
-  // INPUT_PULLDOWN → sem tensão = LOW (0/false), com tensão = HIGH (1/true)
-  sistema_ligado = digitalRead(TENSAO_PLATAFORMA);
-  sensor_0_graus = digitalRead(SENSOR_0_GRAUS);
-  sensor_40_graus = digitalRead(SENSOR_40_GRAUS);
-  trava_roda = digitalRead(SENSOR_TRAVA_RODA);
-  moega_cheia = digitalRead(SENSOR_MOEGA_CHEIA);
-  fosso_cheio = digitalRead(SENSOR_FOSSO_CHEIO);
-  subindo = digitalRead(SUBINDO_PLATAFORMA);
-  descendo = digitalRead(DESCENDO_PLATAFORMA);
 
-  // DEBUG: Imprimir valores lidos a cada 5 segundos
+void readSensors() {
+  // Entradas são ATIVAS-BAIXO: LOW = ativo, HIGH = inativo
+  sensor_0_graus  = !digitalRead(SENSOR_0_GRAUS);
+  sensor_40_graus = !digitalRead(SENSOR_40_GRAUS);
+  trava_roda      = !digitalRead(SENSOR_TRAVA_RODA);
+  trava_chassi    = !digitalRead(SENSOR_TRAVA_CHASSI);
+  trava_pino_e    = !digitalRead(SENSOR_TRAVA_PINO_E);
+  trava_pino_d    = !digitalRead(SENSOR_TRAVA_PINO_D);
+  moega_fosso     = !digitalRead(SENSOR_MOEGA_FOSSO);
+  portao_fechado  = !digitalRead(SENSOR_PORTAO);
+
+  // DEBUG: mostrar valor bruto do GPIO e o valor lógico que o sistema usa
   static unsigned long lastDebug = 0;
   if (millis() - lastDebug >= 5000) {
     lastDebug = millis();
-    Serial.printf("DEBUG SENSORES:\n");
-    Serial.printf("  GPIO4 (TENSAO): %d -> sistema_ligado=%d\n", digitalRead(TENSAO_PLATAFORMA), sistema_ligado);
-    Serial.printf("  GPIO5 (0°): %d -> sensor_0_graus=%d\n", digitalRead(SENSOR_0_GRAUS), sensor_0_graus);
-    Serial.printf("  GPIO6 (40°): %d -> sensor_40_graus=%d\n", digitalRead(SENSOR_40_GRAUS), sensor_40_graus);
-    Serial.printf("  GPIO7 (TRAVA): %d -> trava_roda=%d\n", digitalRead(SENSOR_TRAVA_RODA), trava_roda);
-    Serial.printf("  GPIO8 (MOEGA): %d -> moega_cheia=%d\n", digitalRead(SENSOR_MOEGA_CHEIA), moega_cheia);
-    Serial.printf("  GPIO9 (FOSSO): %d -> fosso_cheio=%d\n", digitalRead(SENSOR_FOSSO_CHEIO), fosso_cheio);
-    Serial.printf("  GPIO10 (SUBINDO): %d -> subindo=%d\n", digitalRead(SUBINDO_PLATAFORMA), subindo);
-    Serial.printf("  GPIO11 (DESCENDO): %d -> descendo=%d\n\n", digitalRead(DESCENDO_PLATAFORMA), descendo);
+    Serial.println("DEBUG SENSORES (raw -> logico):");
+    Serial.printf("  GPIO4 (0°)        raw=%d  sensor_0_graus=%d\n",
+                  digitalRead(SENSOR_0_GRAUS), sensor_0_graus);
+    Serial.printf("  GPIO5 (40°)       raw=%d  sensor_40_graus=%d\n",
+                  digitalRead(SENSOR_40_GRAUS), sensor_40_graus);
+    Serial.printf("  GPIO6 (TRAVA RODA) raw=%d  trava_roda=%d\n",
+                  digitalRead(SENSOR_TRAVA_RODA), trava_roda);
+    Serial.printf("  GPIO7 (TRAVA CHASSI) raw=%d  trava_chassi=%d\n",
+                  digitalRead(SENSOR_TRAVA_CHASSI), trava_chassi);
+    Serial.printf("  GPIO8 (TRAVA PINO E) raw=%d  trava_pino_e=%d\n",
+                  digitalRead(SENSOR_TRAVA_PINO_E), trava_pino_e);
+    Serial.printf("  GPIO9 (TRAVA PINO D) raw=%d  trava_pino_d=%d\n",
+                  digitalRead(SENSOR_TRAVA_PINO_D), trava_pino_d);
+    Serial.printf("  GPIO10 (MOEGA/FOSSO) raw=%d  moega_fosso=%d\n",
+                  digitalRead(SENSOR_MOEGA_FOSSO), moega_fosso);
+    Serial.printf("  GPIO11 (PORTAO)   raw=%d  portao_fechado=%d\n\n",
+                  digitalRead(SENSOR_PORTAO), portao_fechado);
   }
 }
 
+
 String createJsonData() {
-  StaticJsonDocument<512> doc;
-  doc["sistema_ligado"] = sistema_ligado;
+  StaticJsonDocument<1024> doc;
   doc["sensor_0_graus"] = sensor_0_graus;
   doc["sensor_40_graus"] = sensor_40_graus;
   doc["trava_roda"] = trava_roda;
-  doc["moega_cheia"] = moega_cheia;
-  doc["fosso_cheio"] = fosso_cheio;
-  doc["subindo"] = subindo;
-  doc["descendo"] = descendo;
+  doc["trava_chassi"] = trava_chassi;
+  doc["trava_pino_e"] = trava_pino_e;
+  doc["trava_pino_d"] = trava_pino_d;
+  doc["moega_fosso"] = moega_fosso;
+  doc["portao_fechado"] = portao_fechado;
   doc["ciclosHoje"] = stats.ciclosHoje;
   doc["ciclosTotal"] = stats.ciclosTotal;
   doc["horasOperacao"] = stats.horasOperacao;
@@ -696,6 +901,35 @@ String createJsonData() {
   doc["uptime"] = uptimeSeconds;
   doc["lastMaint"] = lastMaintenanceDate;
   doc["wifiConnected"] = (WiFi.status() == WL_CONNECTED);
+
+  // Dados do ciclo atual (em andamento ou último completo)
+  doc["cycleInProgress"] = cycleInProgress;
+
+  // Tempos das etapas do último ciclo completo (em segundos)
+  JsonObject lastCycle = doc.createNestedObject("lastCycle");
+  lastCycle["portaoFechado"] = lastCompleteCycle.portaoFechado / 1000;
+  lastCycle["sensor0Inativo"] = lastCompleteCycle.sensor0Inativo / 1000;
+  lastCycle["travaRoda"] = lastCompleteCycle.travaRodaAtivo / 1000;
+  lastCycle["travaChassi"] = lastCompleteCycle.travaChassiAtivo / 1000;
+  lastCycle["travaPinos"] = lastCompleteCycle.travaPinosAtivo / 1000;
+  lastCycle["sensor0Ativo"] = lastCompleteCycle.sensor0Ativo / 1000;
+  lastCycle["total"] = lastCompleteCycle.cicloTotal / 1000;
+
+  // Tempos do ciclo atual em andamento (em segundos)
+  if (cycleInProgress) {
+    JsonObject currCycle = doc.createNestedObject("currentCycle");
+    unsigned long now = millis();
+    currCycle["elapsed"] = (now - cycleStartTime) / 1000;
+    currCycle["portaoFechado"] = currentCycle.portaoFechado / 1000;
+    currCycle["sensor0Inativo"] = currentCycle.sensor0Inativo / 1000;
+    currCycle["travaRoda"] = currentCycle.travaRodaAtivo / 1000;
+    currCycle["travaChassi"] = currentCycle.travaChassiAtivo / 1000;
+    currCycle["travaPinos"] = currentCycle.travaPinosAtivo / 1000;
+    currCycle["sensor0Ativo"] = currentCycle.sensor0Ativo / 1000;
+  }
+
+  // Tempo padrão de ciclo (em segundos)
+  doc["cicloPadrao"] = CICLO_PADRAO_MS / 1000;
 
   String jsonData;
   serializeJson(doc, jsonData);
@@ -829,6 +1063,23 @@ void onWebSocketEvent(uint8_t num, WStype_t type, uint8_t *payload, size_t lengt
           stats.ciclosHoje = 0;
           Serial.println("Ciclos de hoje resetados!");
         }
+        else if (cmd == "RESET_TOTAL") {
+          stats.ciclosHoje = 0;
+          stats.ciclosTotal = 0;
+          stats.horasOperacao = 0;
+          stats.minutosOperacao = 0;
+
+          preferences.begin("pilitech", false);
+          preferences.putULong("ciclosTotal", 0);
+          preferences.putULong("horasOp", 0);
+          preferences.end();
+
+          Serial.println("⚠️ RESET TOTAL: Todos os contadores zerados!");
+
+          if (WiFi.status() == WL_CONNECTED) {
+            enviarEvento("WARNING", "Reset total do sistema realizado", "reset", true);
+          }
+        }
         else if (cmd == "SAVE_DATA") {
           preferences.begin("pilitech", false);
           preferences.putULong("ciclosTotal", stats.ciclosTotal);
@@ -893,22 +1144,20 @@ bool sendToAPI(const char* endpoint, String jsonPayload) {
 bool enviarLeituraSensores() {
   StaticJsonDocument<512> doc;
   doc["serial_number"] = SERIAL_NUMBER;
-  doc["sistema_ligado"] = sistema_ligado;
   doc["sensor_0_graus"] = sensor_0_graus;
   doc["sensor_40_graus"] = sensor_40_graus;
   doc["trava_roda"] = trava_roda;
-  doc["moega_cheia"] = moega_cheia;
-  doc["fosso_cheio"] = fosso_cheio;
-  doc["subindo"] = subindo;
-  doc["descendo"] = descendo;
+  doc["trava_chassi"] = trava_chassi;
+  doc["trava_pino_e"] = trava_pino_e;
+  doc["trava_pino_d"] = trava_pino_d;
+  doc["moega_fosso"] = moega_fosso;
+  doc["portao_fechado"] = portao_fechado;
   doc["ciclos_hoje"] = stats.ciclosHoje;
   doc["ciclos_total"] = stats.ciclosTotal;
   doc["horas_operacao"] = stats.horasOperacao;
   doc["minutos_operacao"] = stats.minutosOperacao;
   doc["free_heap"] = ESP.getFreeHeap();
   doc["uptime_seconds"] = uptimeSeconds;
-  // Se esta função está sendo chamada, o WiFi deve estar conectado
-  // A verificação real é feita dentro de sendToAPI()
   doc["wifi_connected"] = true;
 
   String payload;
@@ -951,6 +1200,37 @@ bool enviarManutencao(const char* technician, const char* description) {
   return sendToAPI("/api/maintenance", payload);
 }
 
+// Enviar dados do ciclo completo para análise de produtividade
+bool enviarDadosCiclo() {
+  StaticJsonDocument<512> doc;
+  doc["serial_number"] = SERIAL_NUMBER;
+  doc["ciclo_numero"] = stats.ciclosTotal;
+
+  // Tempos em segundos
+  doc["tempo_total"] = lastCompleteCycle.cicloTotal / 1000;
+  doc["tempo_portao_fechado"] = lastCompleteCycle.portaoFechado / 1000;
+  doc["tempo_sensor0_inativo"] = lastCompleteCycle.sensor0Inativo / 1000;
+  doc["tempo_trava_roda"] = lastCompleteCycle.travaRodaAtivo / 1000;
+  doc["tempo_trava_chassi"] = lastCompleteCycle.travaChassiAtivo / 1000;
+  doc["tempo_trava_pinos"] = lastCompleteCycle.travaPinosAtivo / 1000;
+  doc["tempo_sensor0_ativo"] = lastCompleteCycle.sensor0Ativo / 1000;
+
+  // Tempo padrão e eficiência
+  doc["tempo_padrao"] = CICLO_PADRAO_MS / 1000;
+  float eficiencia = ((float)CICLO_PADRAO_MS / (float)lastCompleteCycle.cicloTotal) * 100.0;
+  if (eficiencia > 200.0) eficiencia = 200.0;  // Cap em 200%
+  doc["eficiencia"] = eficiencia;
+
+  String payload;
+  serializeJson(doc, payload);
+
+  Serial.println("📤 Enviando dados do ciclo para análise de produtividade...");
+  Serial.printf("  Tempo total: %lu seg | Eficiência: %.1f%%\n",
+                lastCompleteCycle.cicloTotal / 1000, eficiencia);
+
+  return sendToAPI("/api/cycle-data", payload);
+}
+
 // ====== BUFFER OFFLINE ======
 
 // Salvar snapshot atual no buffer SPIFFS
@@ -959,14 +1239,14 @@ void saveSnapshotToBuffer() {
   StaticJsonDocument<512> doc;
   doc["serial_number"] = SERIAL_NUMBER;
   doc["timestamp"] = millis();
-  doc["sistema_ligado"] = sistema_ligado;
   doc["sensor_0_graus"] = sensor_0_graus;
   doc["sensor_40_graus"] = sensor_40_graus;
   doc["trava_roda"] = trava_roda;
-  doc["moega_cheia"] = moega_cheia;
-  doc["fosso_cheio"] = fosso_cheio;
-  doc["subindo"] = subindo;
-  doc["descendo"] = descendo;
+  doc["trava_chassi"] = trava_chassi;
+  doc["trava_pino_e"] = trava_pino_e;
+  doc["trava_pino_d"] = trava_pino_d;
+  doc["moega_fosso"] = moega_fosso;
+  doc["portao_fechado"] = portao_fechado;
   doc["ciclos_hoje"] = stats.ciclosHoje;
   doc["ciclos_total"] = stats.ciclosTotal;
   doc["horas_operacao"] = stats.horasOperacao;
@@ -1087,14 +1367,14 @@ void setup() {
 
   // Teste inicial dos pinos
   Serial.println("🔍 Testando leitura dos pinos digitais:");
-  Serial.printf("  GPIO4 (TENSAO): %d\n", digitalRead(TENSAO_PLATAFORMA));
-  Serial.printf("  GPIO5 (0°): %d\n", digitalRead(SENSOR_0_GRAUS));
-  Serial.printf("  GPIO6 (40°): %d\n", digitalRead(SENSOR_40_GRAUS));
-  Serial.printf("  GPIO7 (TRAVA): %d\n", digitalRead(SENSOR_TRAVA_RODA));
-  Serial.printf("  GPIO8 (MOEGA): %d\n", digitalRead(SENSOR_MOEGA_CHEIA));
-  Serial.printf("  GPIO9 (FOSSO): %d\n", digitalRead(SENSOR_FOSSO_CHEIO));
-  Serial.printf("  GPIO10 (SUBINDO): %d\n", digitalRead(SUBINDO_PLATAFORMA));
-  Serial.printf("  GPIO11 (DESCENDO): %d\n", digitalRead(DESCENDO_PLATAFORMA));
+  Serial.printf("  GPIO4 (0°): %d\n", digitalRead(SENSOR_0_GRAUS));
+  Serial.printf("  GPIO5 (40°): %d\n", digitalRead(SENSOR_40_GRAUS));
+  Serial.printf("  GPIO6 (TRAVA RODA): %d\n", digitalRead(SENSOR_TRAVA_RODA));
+  Serial.printf("  GPIO7 (TRAVA CHASSI): %d\n", digitalRead(SENSOR_TRAVA_CHASSI));
+  Serial.printf("  GPIO8 (TRAVA PINO E): %d\n", digitalRead(SENSOR_TRAVA_PINO_E));
+  Serial.printf("  GPIO9 (TRAVA PINO D): %d\n", digitalRead(SENSOR_TRAVA_PINO_D));
+  Serial.printf("  GPIO10 (MOEGA/FOSSO): %d\n", digitalRead(SENSOR_MOEGA_FOSSO));
+  Serial.printf("  GPIO11 (PORTAO): %d\n", digitalRead(SENSOR_PORTAO));
   Serial.println("✓ Se todos estão em 0, INPUT_PULLDOWN está funcionando\n");
 
   // Inicializar SPIFFS
@@ -1174,28 +1454,36 @@ void loop() {
     readSensors();
   }
 
-  // ====== DETECÇÃO DE CICLOS (Subida + Descida = 1 ciclo) ======
-  // Detecta início de subida
-  if (subindo && !lastSubindo) {
-    Serial.println("↑ Iniciando SUBIDA");
-    emCiclo = true;
-    cicloSubiu = false;  // Ainda não completou a subida
+  // ====== DETECÇÃO DE CICLOS E TRACKING DE ETAPAS ======
+  // Ciclo completo: portão fecha -> operação -> portão abre
+  // Ciclo é contado quando sensor 0° vai de ATIVO para INATIVO (plataforma começa a subir)
+
+  // --- INÍCIO DO CICLO: Portão fecha ---
+  if (portao_fechado && !lastPortaoFechado) {
+    // Portão acabou de fechar - INICIA CICLO
+    cycleInProgress = true;
+    cycleStartTime = currentMillis;
+    stageStartPortao = currentMillis;
+
+    // Resetar tempos do ciclo atual
+    currentCycle = {0, 0, 0, 0, 0, 0, 0};
+
+    Serial.println("🚀 CICLO INICIADO - Portão fechou");
+
+    if (WiFi.status() == WL_CONNECTED) {
+      enviarEvento("INFO", "Ciclo iniciado - Portão fechou", "portao_fechado", true);
+    }
   }
 
-  // Detecta fim de subida (completou a subida)
-  if (!subindo && lastSubindo && emCiclo) {
-    Serial.println("↑ Subida COMPLETA");
-    cicloSubiu = true;  // Marca que subiu
-  }
+  // --- FIM DO CICLO: Portão abre ---
+  if (!portao_fechado && lastPortaoFechado && cycleInProgress) {
+    // Portão acabou de abrir - FINALIZA CICLO
+    currentCycle.cicloTotal = currentMillis - cycleStartTime;
 
-  // Detecta início de descida
-  if (descendo && !lastDescendo && emCiclo) {
-    Serial.println("↓ Iniciando DESCIDA");
-  }
+    // Copiar ciclo atual para último ciclo completo
+    lastCompleteCycle = currentCycle;
 
-  // Detecta fim de descida (ciclo completo!)
-  if (!descendo && lastDescendo && emCiclo && cicloSubiu) {
-    Serial.println("✓ CICLO COMPLETO!");
+    // Contagem do ciclo
     stats.ciclosHoje++;
     stats.ciclosTotal++;
 
@@ -1204,25 +1492,90 @@ void loop() {
     preferences.putULong("ciclosTotal", stats.ciclosTotal);
     preferences.end();
 
-    // Enviar evento de ciclo completo
+    Serial.printf("✓ CICLO COMPLETO! Tempo total: %lu segundos\n", currentCycle.cicloTotal / 1000);
+    Serial.printf("  Ciclos hoje: %lu | Total: %lu\n", stats.ciclosHoje, stats.ciclosTotal);
+
+    // Enviar evento de ciclo completo com tempo
     if (WiFi.status() == WL_CONNECTED) {
-      char msg[64];
-      snprintf(msg, sizeof(msg), "Ciclo completo - Total hoje: %lu", stats.ciclosHoje);
+      char msg[128];
+      snprintf(msg, sizeof(msg), "Ciclo completo em %lu seg - Total hoje: %lu",
+               currentCycle.cicloTotal / 1000, stats.ciclosHoje);
       enviarEvento("INFO", msg, "ciclo", true);
+
+      // Enviar dados do ciclo para análise de produtividade
+      enviarDadosCiclo();
     }
 
-    // Resetar estado do ciclo
-    emCiclo = false;
-    cicloSubiu = false;
+    cycleInProgress = false;
+  }
+
+  // --- TRACKING DE TEMPO POR ETAPA (durante ciclo em andamento) ---
+  if (cycleInProgress) {
+    // Tempo com portão fechado
+    if (portao_fechado) {
+      currentCycle.portaoFechado = currentMillis - stageStartPortao;
+    }
+
+    // Sensor 0° inativo (plataforma subindo/descendo)
+    if (!sensor_0_graus) {
+      if (lastSensor0Graus) {
+        // Acabou de ficar inativo
+        stageStartSensor0Inativo = currentMillis;
+      }
+      currentCycle.sensor0Inativo += (currentMillis - stageStartSensor0Inativo);
+      stageStartSensor0Inativo = currentMillis;
+    }
+
+    // Sensor 0° ativo (plataforma na posição)
+    if (sensor_0_graus) {
+      if (!lastSensor0Graus) {
+        // Acabou de ficar ativo
+        stageStartSensor0Ativo = currentMillis;
+      }
+      currentCycle.sensor0Ativo += (currentMillis - stageStartSensor0Ativo);
+      stageStartSensor0Ativo = currentMillis;
+    }
+
+    // Trava roda ativa
+    if (trava_roda) {
+      if (!lastTravaRoda) {
+        stageStartTravaRoda = currentMillis;
+      }
+      currentCycle.travaRodaAtivo += (currentMillis - stageStartTravaRoda);
+      stageStartTravaRoda = currentMillis;
+    }
+
+    // Trava chassi ativa
+    if (trava_chassi) {
+      if (!lastTravaChassi) {
+        stageStartTravaChassi = currentMillis;
+      }
+      currentCycle.travaChassiAtivo += (currentMillis - stageStartTravaChassi);
+      stageStartTravaChassi = currentMillis;
+    }
+
+    // Travas pinos E/D ativos (conta quando ambos estão ativos)
+    if (trava_pino_e && trava_pino_d) {
+      if (!lastTravaPinoE || !lastTravaPinoD) {
+        stageStartTravaPinos = currentMillis;
+      }
+      currentCycle.travaPinosAtivo += (currentMillis - stageStartTravaPinos);
+      stageStartTravaPinos = currentMillis;
+    }
   }
 
   // Atualizar estados anteriores
-  lastSubindo = subindo;
-  lastDescendo = descendo;
+  lastSensor0Graus = sensor_0_graus;
+  lastPortaoFechado = portao_fechado;
+  lastTravaRoda = trava_roda;
+  lastTravaChassi = trava_chassi;
+  lastTravaPinoE = trava_pino_e;
+  lastTravaPinoD = trava_pino_d;
 
   // ====== HORÍMETRO (contagem de tempo de operação) ======
+  // Conta tempo quando sensor 0 graus está INATIVO (plataforma em movimento)
   static unsigned long lastHorimetro = 0;
-  if (sistema_ligado && currentMillis - lastHorimetro >= 60000) {  // A cada 60 segundos
+  if (!sensor_0_graus && currentMillis - lastHorimetro >= 60000) {  // A cada 60 segundos
     lastHorimetro = currentMillis;
     stats.minutosOperacao++;
 
@@ -1241,32 +1594,20 @@ void loop() {
   // ====== DETECÇÃO E ENVIO AUTOMÁTICO DE ALERTAS ======
   // Verifica mudanças nos sensores críticos e envia para NeonDB
   if (WiFi.status() == WL_CONNECTED) {
-    // Alerta: Moega ficou cheia
-    if (moega_cheia && !lastMoegaCheia) {
-      Serial.println("🚨 ALERTA: Moega cheia detectada!");
-      enviarEvento("ALERT", "Moega cheia! Necessário esvaziamento", "moega", true);
+    // Alerta: Moega/Fosso ficou cheio
+    if (moega_fosso && !lastMoegaFosso) {
+      Serial.println("🚨 ALERTA: Moega/Fosso cheio detectado!");
+      enviarEvento("ALERT", "Moega/Fosso cheio! Necessário esvaziamento", "moega_fosso", true);
     }
-    // Moega normalizada
-    else if (!moega_cheia && lastMoegaCheia) {
-      Serial.println("✓ Moega normalizada");
-      enviarEvento("INFO", "Moega esvaziada", "moega", false);
-    }
-
-    // Alerta: Fosso ficou cheio
-    if (fosso_cheio && !lastFossoCheio) {
-      Serial.println("🚨 ALERTA: Fosso cheio detectado!");
-      enviarEvento("ALERT", "Fosso cheio! Necessário esvaziamento", "fosso", true);
-    }
-    // Fosso normalizado
-    else if (!fosso_cheio && lastFossoCheio) {
-      Serial.println("✓ Fosso normalizado");
-      enviarEvento("INFO", "Fosso esvaziado", "fosso", false);
+    // Moega/Fosso normalizado
+    else if (!moega_fosso && lastMoegaFosso) {
+      Serial.println("✓ Moega/Fosso normalizado");
+      enviarEvento("INFO", "Moega/Fosso esvaziado", "moega_fosso", false);
     }
   }
 
   // Atualiza estados anteriores
-  lastMoegaCheia = moega_cheia;
-  lastFossoCheio = fosso_cheio;
+  lastMoegaFosso = moega_fosso;
 
   // Envia dados WS
   static unsigned long lastSend = 0;

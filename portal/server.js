@@ -751,6 +751,224 @@ app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
+// ============ API ENDPOINTS PARA ESP32 ============
+
+// Validar API Key do ESP32
+function validateApiKey(req, res, next) {
+  const apiKey = req.headers['x-api-key'];
+  // Formato esperado: pilitech_SERIALNUMBER_secret_key
+  if (!apiKey || !apiKey.startsWith('pilitech_')) {
+    return res.status(401).json({ error: 'API Key invalida' });
+  }
+  next();
+}
+
+// Receber leitura de sensores do ESP32
+app.post('/api/sensor-reading', validateApiKey, async (req, res) => {
+  try {
+    const {
+      serial_number, sensor_0_graus, sensor_40_graus, trava_roda, trava_chassi,
+      trava_pino_e, trava_pino_d, moega_fosso, portao_fechado,
+      ciclos_hoje, ciclos_total, horas_operacao, minutos_operacao,
+      free_heap, uptime_seconds, wifi_connected
+    } = req.body;
+
+    // Buscar ou criar dispositivo
+    let deviceResult = await pool.query(
+      'SELECT id FROM devices WHERE serial_number = $1',
+      [serial_number]
+    );
+
+    let deviceId;
+    if (deviceResult.rows.length === 0) {
+      const insertDevice = await pool.query(
+        'INSERT INTO devices (serial_number, name, last_seen) VALUES ($1, $2, NOW()) RETURNING id',
+        [serial_number, `Tombador ${serial_number}`]
+      );
+      deviceId = insertDevice.rows[0].id;
+    } else {
+      deviceId = deviceResult.rows[0].id;
+      await pool.query('UPDATE devices SET last_seen = NOW() WHERE id = $1', [deviceId]);
+    }
+
+    // Inserir leitura
+    await pool.query(`
+      INSERT INTO sensor_readings (
+        device_id, sensor_0_graus, sensor_40_graus, trava_roda, trava_chassi,
+        trava_pino_e, trava_pino_d, moega_fosso, portao_fechado,
+        ciclos_hoje, ciclos_total, horas_operacao, minutos_operacao,
+        free_heap, uptime_seconds
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+    `, [
+      deviceId, sensor_0_graus, sensor_40_graus, trava_roda, trava_chassi,
+      trava_pino_e, trava_pino_d, moega_fosso, portao_fechado,
+      ciclos_hoje, ciclos_total, horas_operacao, minutos_operacao,
+      free_heap, uptime_seconds
+    ]);
+
+    res.json({ success: true, message: 'Leitura registrada' });
+  } catch (err) {
+    console.error('Erro ao registrar leitura:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Receber eventos do ESP32
+app.post('/api/event', validateApiKey, async (req, res) => {
+  try {
+    const { serial_number, event_type, message, sensor_name, sensor_value } = req.body;
+
+    // Buscar dispositivo
+    const deviceResult = await pool.query(
+      'SELECT id FROM devices WHERE serial_number = $1',
+      [serial_number]
+    );
+
+    if (deviceResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Dispositivo não encontrado' });
+    }
+
+    const deviceId = deviceResult.rows[0].id;
+
+    // Inserir evento
+    await pool.query(`
+      INSERT INTO events (device_id, event_type, message, sensor_name, sensor_value)
+      VALUES ($1, $2, $3, $4, $5)
+    `, [deviceId, event_type, message, sensor_name || null, sensor_value || null]);
+
+    res.json({ success: true, message: 'Evento registrado' });
+  } catch (err) {
+    console.error('Erro ao registrar evento:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Receber manutenção do ESP32
+app.post('/api/maintenance', validateApiKey, async (req, res) => {
+  try {
+    const { serial_number, technician, description, horas_operacao } = req.body;
+
+    // Buscar dispositivo
+    const deviceResult = await pool.query(
+      'SELECT id FROM devices WHERE serial_number = $1',
+      [serial_number]
+    );
+
+    if (deviceResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Dispositivo não encontrado' });
+    }
+
+    const deviceId = deviceResult.rows[0].id;
+
+    // Inserir manutenção
+    await pool.query(`
+      INSERT INTO maintenances (device_id, technician, description, horas_operacao)
+      VALUES ($1, $2, $3, $4)
+    `, [deviceId, technician, description, horas_operacao || 0]);
+
+    res.json({ success: true, message: 'Manutenção registrada' });
+  } catch (err) {
+    console.error('Erro ao registrar manutenção:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Receber dados de ciclo para análise de produtividade
+app.post('/api/cycle-data', validateApiKey, async (req, res) => {
+  try {
+    const {
+      serial_number, ciclo_numero, tempo_total, tempo_portao_fechado,
+      tempo_sensor0_inativo, tempo_trava_roda, tempo_trava_chassi,
+      tempo_trava_pinos, tempo_sensor0_ativo, tempo_padrao, eficiencia
+    } = req.body;
+
+    // Buscar dispositivo
+    const deviceResult = await pool.query(
+      'SELECT id FROM devices WHERE serial_number = $1',
+      [serial_number]
+    );
+
+    if (deviceResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Dispositivo não encontrado' });
+    }
+
+    const deviceId = deviceResult.rows[0].id;
+
+    // Inserir dados do ciclo
+    await pool.query(`
+      INSERT INTO cycle_data (
+        device_id, ciclo_numero, tempo_total, tempo_portao_fechado,
+        tempo_sensor0_inativo, tempo_trava_roda, tempo_trava_chassi,
+        tempo_trava_pinos, tempo_sensor0_ativo, tempo_padrao, eficiencia
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+    `, [
+      deviceId, ciclo_numero, tempo_total, tempo_portao_fechado,
+      tempo_sensor0_inativo, tempo_trava_roda, tempo_trava_chassi,
+      tempo_trava_pinos, tempo_sensor0_ativo, tempo_padrao, eficiencia
+    ]);
+
+    console.log(`Ciclo #${ciclo_numero} registrado - ${tempo_total}s - Eficiência: ${eficiencia}%`);
+    res.json({ success: true, message: 'Dados do ciclo registrados' });
+  } catch (err) {
+    console.error('Erro ao registrar ciclo:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Buscar dados de produtividade para gráficos
+app.get('/api/productivity/:serialNumber', authenticateToken, async (req, res) => {
+  try {
+    const { serialNumber } = req.params;
+    const { days } = req.query;
+    const daysLimit = parseInt(days) || 7;
+
+    // Buscar dispositivo
+    const deviceResult = await pool.query(
+      'SELECT id FROM devices WHERE serial_number = $1',
+      [serialNumber]
+    );
+
+    if (deviceResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Dispositivo não encontrado' });
+    }
+
+    const deviceId = deviceResult.rows[0].id;
+
+    // Buscar ciclos dos últimos X dias
+    const cyclesResult = await pool.query(`
+      SELECT
+        ciclo_numero, tempo_total, tempo_portao_fechado, tempo_sensor0_inativo,
+        tempo_trava_roda, tempo_trava_chassi, tempo_trava_pinos, tempo_sensor0_ativo,
+        tempo_padrao, eficiencia, created_at
+      FROM cycle_data
+      WHERE device_id = $1 AND created_at >= NOW() - INTERVAL '${daysLimit} days'
+      ORDER BY created_at DESC
+      LIMIT 100
+    `, [deviceId]);
+
+    // Calcular estatísticas
+    const cycles = cyclesResult.rows;
+    const totalCycles = cycles.length;
+    const avgTime = cycles.length > 0
+      ? cycles.reduce((sum, c) => sum + c.tempo_total, 0) / cycles.length
+      : 0;
+    const avgEfficiency = cycles.length > 0
+      ? cycles.reduce((sum, c) => sum + parseFloat(c.eficiencia), 0) / cycles.length
+      : 0;
+
+    res.json({
+      serialNumber,
+      totalCycles,
+      avgTimeSeconds: Math.round(avgTime),
+      avgEfficiency: avgEfficiency.toFixed(1),
+      cycles: cycles.slice(0, 50) // Últimos 50 ciclos
+    });
+  } catch (err) {
+    console.error('Erro ao buscar produtividade:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ============ START SERVER ============
 
 app.listen(PORT, () => {
