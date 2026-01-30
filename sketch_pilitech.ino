@@ -447,7 +447,7 @@ Perguntas Frequentes - PILI TECH
 </div>
 <div class="faq-item">
 <div class="faq-q">2. Como acessar localmente?</div>
-<div class="faq-a">Conecte ao WiFi "PILI-TECH" (senha: 00002025) e acesse 192.168.4.1 no navegador.</div>
+<div class="faq-a">Conecte ao WiFi "PILI-TECH" (senha: numero de serie do equipamento) e acesse 192.168.4.1 no navegador.</div>
 </div>
 <div class="faq-item">
 <div class="faq-q">3. Como é contado um ciclo?</div>
@@ -515,7 +515,7 @@ Contato PILI Equipamentos
 </div>
 <div class="info-row">
 <span class="info-label">Suporte Técnico</span>
-<span class="info-value">engenharia@pili.ind.br</span>
+<span class="info-value">engenharia@pili.com.br</span>
 </div>
 <div class="info-row">
 <span class="info-label">Endereço</span>
