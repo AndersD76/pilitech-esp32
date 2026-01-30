@@ -485,6 +485,78 @@ app.post('/api/unidades', authenticateToken, requireAdmin, async (req, res) => {
   }
 });
 
+// Buscar unidade por ID
+app.get('/api/unidades/:id', authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const result = await pool.query(`
+      SELECT u.*, e.razao_social as empresa_nome
+      FROM unidades u
+      LEFT JOIN empresas e ON u.empresa_id = e.id
+      WHERE u.id = $1
+    `, [id]);
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Unidade nao encontrada' });
+    }
+
+    const unidade = result.rows[0];
+
+    // Verificar permissao
+    if (req.user.role !== 'super_admin' &&
+        req.user.role !== 'admin_empresa' &&
+        req.user.unidade_id !== parseInt(id)) {
+      return res.status(403).json({ error: 'Sem permissao para visualizar esta unidade' });
+    }
+
+    if (req.user.role === 'admin_empresa' && unidade.empresa_id !== req.user.empresa_id) {
+      return res.status(403).json({ error: 'Sem permissao para visualizar esta unidade' });
+    }
+
+    res.json(unidade);
+  } catch (err) {
+    console.error('Erro ao buscar unidade:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Atualizar unidade
+app.put('/api/unidades/:id', authenticateToken, requireAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { nome, codigo, endereco, cidade, estado, cep, responsavel, telefone, email } = req.body;
+
+    // Buscar unidade
+    const unidadeResult = await pool.query('SELECT empresa_id FROM unidades WHERE id = $1', [id]);
+    if (unidadeResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Unidade nao encontrada' });
+    }
+
+    // Verificar permissao
+    if (req.user.role === 'admin_empresa' && unidadeResult.rows[0].empresa_id !== req.user.empresa_id) {
+      return res.status(403).json({ error: 'Sem permissao para editar esta unidade' });
+    }
+
+    if (!nome) {
+      return res.status(400).json({ error: 'Nome e obrigatorio' });
+    }
+
+    await pool.query(`
+      UPDATE unidades SET
+        nome = $1, codigo = $2, endereco = $3, cidade = $4, estado = $5,
+        cep = $6, responsavel = $7, telefone = $8, email = $9
+      WHERE id = $10
+    `, [nome, codigo || null, endereco || null, cidade || null, estado || null,
+        cep || null, responsavel || null, telefone || null, email || null, id]);
+
+    res.json({ success: true, message: 'Unidade atualizada com sucesso' });
+  } catch (err) {
+    console.error('Erro ao atualizar unidade:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // Excluir unidade (super admin ou admin_empresa)
 app.delete('/api/unidades/:id', authenticateToken, requireAdmin, async (req, res) => {
   try {

@@ -527,6 +527,86 @@
     </div>
   </div>
 
+  <!-- Modal Vincular Dispositivo -->
+  <div id="vincularModal" class="fixed inset-0 modal-bg hidden items-center justify-center z-50">
+    <div class="bg-white rounded-xl shadow-xl w-full max-w-lg mx-4">
+      <div class="p-6 border-b flex items-center justify-between">
+        <h3 class="text-lg font-bold text-gray-800">Vincular Dispositivo</h3>
+        <button onclick="closeVincularModal()" class="p-2 hover:bg-gray-100 rounded-lg">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+        </button>
+      </div>
+      <div class="p-6 space-y-4">
+        <input type="hidden" id="vincularSerial">
+        <div class="bg-gray-50 p-4 rounded-lg">
+          <p class="text-sm text-gray-500">Dispositivo</p>
+          <p class="font-bold text-gray-800" id="vincularSerialDisplay">-</p>
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">Empresa *</label>
+          <select id="vincularEmpresa" onchange="loadUnidadesVincular()" class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-pili-red focus:border-transparent">
+            <option value="">Selecione a empresa...</option>
+          </select>
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">Unidade *</label>
+          <select id="vincularUnidade" class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-pili-red focus:border-transparent">
+            <option value="">Selecione a empresa primeiro</option>
+          </select>
+        </div>
+      </div>
+      <div class="p-6 border-t flex justify-end gap-3">
+        <button onclick="closeVincularModal()" class="px-4 py-2 border rounded-lg hover:bg-gray-50">Cancelar</button>
+        <button onclick="confirmarVinculo()" class="px-4 py-2 bg-pili-red text-white rounded-lg hover:bg-pili-darkred">Vincular</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal Editar Unidade -->
+  <div id="editUnidadeModal" class="fixed inset-0 modal-bg hidden items-center justify-center z-50">
+    <div class="bg-white rounded-xl shadow-xl w-full max-w-lg mx-4 max-h-[90vh] overflow-y-auto">
+      <div class="p-6 border-b flex items-center justify-between">
+        <h3 class="text-lg font-bold text-gray-800">Editar Unidade</h3>
+        <button onclick="closeEditUnidadeModal()" class="p-2 hover:bg-gray-100 rounded-lg">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+        </button>
+      </div>
+      <form id="editUnidadeForm" class="p-6 space-y-4">
+        <input type="hidden" id="editUnidadeId">
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">Empresa</label>
+          <input type="text" id="editUnidadeEmpresa" disabled class="w-full px-4 py-2 border rounded-lg bg-gray-100 text-gray-500">
+        </div>
+        <div class="grid grid-cols-2 gap-4">
+          <div class="col-span-2">
+            <label class="block text-sm font-medium text-gray-700 mb-1">Nome da Unidade *</label>
+            <input type="text" id="editUnidadeNome" required class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-pili-red focus:border-transparent">
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Codigo</label>
+            <input type="text" id="editUnidadeCodigo" class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-pili-red focus:border-transparent" placeholder="MATRIZ">
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Responsavel</label>
+            <input type="text" id="editUnidadeResponsavel" class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-pili-red focus:border-transparent">
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Cidade</label>
+            <input type="text" id="editUnidadeCidade" class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-pili-red focus:border-transparent">
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Estado</label>
+            <input type="text" id="editUnidadeEstado" maxlength="2" class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-pili-red focus:border-transparent" placeholder="RS">
+          </div>
+        </div>
+      </form>
+      <div class="p-6 border-t flex justify-end gap-3">
+        <button onclick="closeEditUnidadeModal()" class="px-4 py-2 border rounded-lg hover:bg-gray-50">Cancelar</button>
+        <button onclick="saveEditUnidade()" class="px-4 py-2 bg-pili-red text-white rounded-lg hover:bg-pili-darkred">Salvar</button>
+      </div>
+    </div>
+  </div>
+
   <script>
     let token = localStorage.getItem('pilitech_token');
     let user = null;
@@ -832,7 +912,10 @@
               <div class="font-bold text-gray-800">${u.total_devices || 0}</div>
               <div class="text-xs text-gray-500">Dispositivos</div>
             </div>
-            <button onclick="deleteUnidade(${u.id}, '${u.nome.replace(/'/g, "\\'")}', ${u.total_devices || 0})" class="w-full px-3 py-2 text-sm border border-red-300 text-red-600 rounded-lg hover:bg-red-50">Excluir</button>
+            <div class="flex gap-2">
+              <button onclick="editUnidade(${u.id})" class="flex-1 px-3 py-2 text-sm border rounded-lg hover:bg-gray-100">Editar</button>
+              <button onclick="deleteUnidade(${u.id}, '${u.nome.replace(/'/g, "\\'")}', ${u.total_devices || 0})" class="px-3 py-2 text-sm border border-red-300 text-red-600 rounded-lg hover:bg-red-50">Excluir</button>
+            </div>
           </div>
         </div>
       `).join('');
@@ -1290,10 +1373,59 @@
       }
     }
 
-    // Vincular dispositivo
-    async function vincularDispositivo(serialNumber) {
-      const unidadeId = prompt('Digite o ID da unidade para vincular:');
-      if (!unidadeId) return;
+    // Modal Vincular Dispositivo
+    function vincularDispositivo(serialNumber) {
+      document.getElementById('vincularSerial').value = serialNumber;
+      document.getElementById('vincularSerialDisplay').textContent = serialNumber;
+
+      // Popular select de empresas
+      const select = document.getElementById('vincularEmpresa');
+      select.innerHTML = '<option value="">Selecione a empresa...</option>';
+      empresasList.forEach(e => {
+        select.innerHTML += `<option value="${e.id}">${e.razao_social} (${e.cnpj})</option>`;
+      });
+
+      document.getElementById('vincularUnidade').innerHTML = '<option value="">Selecione a empresa primeiro</option>';
+
+      document.getElementById('vincularModal').classList.remove('hidden');
+      document.getElementById('vincularModal').classList.add('flex');
+    }
+
+    function closeVincularModal() {
+      document.getElementById('vincularModal').classList.add('hidden');
+      document.getElementById('vincularModal').classList.remove('flex');
+    }
+
+    async function loadUnidadesVincular() {
+      const empresaId = document.getElementById('vincularEmpresa').value;
+      const select = document.getElementById('vincularUnidade');
+
+      if (!empresaId) {
+        select.innerHTML = '<option value="">Selecione a empresa primeiro</option>';
+        return;
+      }
+
+      select.innerHTML = '<option value="">Carregando...</option>';
+
+      const unidades = await api('/api/unidades?empresa_id=' + empresaId);
+      if (unidades && unidades.length > 0) {
+        select.innerHTML = '<option value="">Selecione a unidade...</option>';
+        unidades.forEach(u => {
+          select.innerHTML += `<option value="${u.id}">${u.nome} ${u.codigo ? '(' + u.codigo + ')' : ''}</option>`;
+        });
+      } else {
+        select.innerHTML = '<option value="">Nenhuma unidade cadastrada para esta empresa</option>';
+      }
+    }
+
+    async function confirmarVinculo() {
+      const serialNumber = document.getElementById('vincularSerial').value;
+      const unidadeId = document.getElementById('vincularUnidade').value;
+
+      if (!unidadeId) {
+        alert('Selecione uma unidade');
+        return;
+      }
 
       const result = await api('/api/devices/' + serialNumber + '/vincular', {
         method: 'POST',
@@ -1301,8 +1433,60 @@
       });
 
       if (result?.success) {
+        closeVincularModal();
         loadDevices();
-        alert('Dispositivo vinculado!');
+        alert('Dispositivo vinculado com sucesso!');
+      } else {
+        alert('Erro: ' + (result?.error || 'Erro desconhecido'));
+      }
+    }
+
+    // Modal Editar Unidade
+    async function editUnidade(id) {
+      const unidade = await api('/api/unidades/' + id);
+      if (!unidade || unidade.error) {
+        alert('Erro ao carregar unidade: ' + (unidade?.error || 'Unidade nao encontrada'));
+        return;
+      }
+
+      document.getElementById('editUnidadeId').value = unidade.id;
+      document.getElementById('editUnidadeEmpresa').value = unidade.empresa_nome || '';
+      document.getElementById('editUnidadeNome').value = unidade.nome || '';
+      document.getElementById('editUnidadeCodigo').value = unidade.codigo || '';
+      document.getElementById('editUnidadeResponsavel').value = unidade.responsavel || '';
+      document.getElementById('editUnidadeCidade').value = unidade.cidade || '';
+      document.getElementById('editUnidadeEstado').value = unidade.estado || '';
+
+      document.getElementById('editUnidadeModal').classList.remove('hidden');
+      document.getElementById('editUnidadeModal').classList.add('flex');
+    }
+
+    function closeEditUnidadeModal() {
+      document.getElementById('editUnidadeModal').classList.add('hidden');
+      document.getElementById('editUnidadeModal').classList.remove('flex');
+    }
+
+    async function saveEditUnidade() {
+      const id = document.getElementById('editUnidadeId').value;
+      const data = {
+        nome: document.getElementById('editUnidadeNome').value,
+        codigo: document.getElementById('editUnidadeCodigo').value,
+        responsavel: document.getElementById('editUnidadeResponsavel').value,
+        cidade: document.getElementById('editUnidadeCidade').value,
+        estado: document.getElementById('editUnidadeEstado').value
+      };
+
+      if (!data.nome) {
+        alert('Nome e obrigatorio');
+        return;
+      }
+
+      const result = await api('/api/unidades/' + id, { method: 'PUT', body: JSON.stringify(data) });
+
+      if (result?.success) {
+        closeEditUnidadeModal();
+        loadUnidades();
+        alert('Unidade atualizada com sucesso!');
       } else {
         alert('Erro: ' + (result?.error || 'Erro desconhecido'));
       }
