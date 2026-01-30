@@ -878,6 +878,25 @@
       const statusClass = isOnline ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700';
       const statusText = isOnline ? 'Online' : d.status_conexao === 'idle' ? 'Idle' : 'Offline';
 
+      // Tag de assinatura
+      let subscriptionTag = '';
+      if (d.subscription_info && d.subscription_info.active) {
+        const expiresAt = new Date(d.subscription_info.expires_at);
+        const expiresStr = expiresAt.toLocaleDateString('pt-BR');
+        const isDeviceSub = d.subscription_info.type === 'device';
+        subscriptionTag = `
+          <span class="px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-700">
+            Assinado ate ${expiresStr} ${isDeviceSub ? '(IoT)' : '(Empresa)'}
+          </span>
+        `;
+      } else {
+        subscriptionTag = `
+          <span class="px-2 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-700">
+            Sem assinatura
+          </span>
+        `;
+      }
+
       return `
         <div class="border rounded-xl p-6 hover:shadow-md transition-shadow">
           <div class="flex items-center justify-between mb-4">
@@ -887,6 +906,7 @@
               ${d.empresa_nome
                 ? `<p class="text-xs text-gray-400">${d.empresa_nome} ${d.unidade_nome ? '> ' + d.unidade_nome : ''}</p>`
                 : '<p class="text-xs text-orange-500">Dispositivo sem vinculo - aguardando configuracao</p>'}
+              <div class="mt-2">${subscriptionTag}</div>
             </div>
             <span class="px-4 py-2 rounded-full text-sm font-bold ${statusClass}">${statusText}</span>
           </div>
@@ -1088,7 +1108,10 @@
 
       tbody.innerHTML = subs.map(s => `
         <tr class="border-b hover:bg-gray-50">
-          <td class="py-3 px-4 font-medium text-gray-800">${s.razao_social}</td>
+          <td class="py-3 px-4">
+            <div class="font-medium text-gray-800">${s.razao_social}</div>
+            ${s.device_serial ? `<div class="text-xs text-blue-600">IoT: ${s.device_serial} - ${s.device_name || 'Tombador'}</div>` : '<div class="text-xs text-gray-400">Todos os IoTs</div>'}
+          </td>
           <td class="py-3 px-4 text-gray-600">${s.cnpj}</td>
           <td class="py-3 px-4 text-gray-600">R$ ${parseFloat(s.amount).toFixed(2).replace('.', ',')}</td>
           <td class="py-3 px-4 text-gray-600">${s.payment_method === 'pix' ? 'PIX' : `Cartao ${s.installments}x`}</td>
@@ -1096,12 +1119,15 @@
             <span class="px-2 py-1 text-xs rounded-full ${statusColors[s.status] || 'bg-gray-100'}">${s.status}</span>
           </td>
           <td class="py-3 px-4 text-gray-600">${new Date(s.created_at).toLocaleDateString('pt-BR')}</td>
-          <td class="py-3 px-4 text-right">
+          <td class="py-3 px-4 text-right flex gap-2 justify-end">
             ${s.status === 'pending' || s.status === 'processing' ? `
               <button onclick="confirmPayment(${s.id})" class="px-3 py-1 text-sm bg-green-600 text-white rounded-lg hover:bg-green-700">
                 Confirmar
               </button>
             ` : ''}
+            <button onclick="deleteSubscription(${s.id})" class="px-3 py-1 text-sm border border-red-300 text-red-600 rounded-lg hover:bg-red-50">
+              Excluir
+            </button>
           </td>
         </tr>
       `).join('');
@@ -1323,6 +1349,23 @@
         loadEmpresas();
         loadStats();
         alert('Pagamento confirmado!');
+      } else {
+        alert('Erro: ' + (result?.error || 'Erro desconhecido'));
+      }
+    }
+
+    // Delete subscription
+    async function deleteSubscription(subscriptionId) {
+      if (!confirm('Tem certeza que deseja excluir esta assinatura?')) return;
+
+      const result = await api('/api/subscriptions/' + subscriptionId, { method: 'DELETE' });
+
+      if (result?.success) {
+        loadAssinaturas();
+        loadEmpresas();
+        loadDevices();
+        loadStats();
+        alert('Assinatura excluida!');
       } else {
         alert('Erro: ' + (result?.error || 'Erro desconhecido'));
       }

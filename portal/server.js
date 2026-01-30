@@ -833,7 +833,21 @@ app.get('/api/devices', authenticateToken, checkSubscription, async (req, res) =
           WHEN d.last_seen > CURRENT_TIMESTAMP - INTERVAL '5 minutes' THEN 'online'
           WHEN d.last_seen > CURRENT_TIMESTAMP - INTERVAL '1 hour' THEN 'idle'
           ELSE 'offline'
-        END as status_conexao
+        END as status_conexao,
+        (
+          SELECT json_build_object(
+            'active', s.status IN ('active', 'trial'),
+            'status', s.status,
+            'expires_at', s.expires_at,
+            'type', CASE WHEN s.device_id IS NOT NULL THEN 'device' ELSE 'empresa' END
+          )
+          FROM subscriptions s
+          WHERE (s.device_id = d.id OR (s.device_id IS NULL AND s.empresa_id = e.id))
+            AND s.status IN ('active', 'trial')
+            AND s.expires_at > CURRENT_TIMESTAMP
+          ORDER BY s.device_id NULLS LAST
+          LIMIT 1
+        ) as subscription_info
       FROM devices d
       LEFT JOIN unidades u ON d.unidade_id = u.id
       LEFT JOIN empresas e ON u.empresa_id = e.id
@@ -1494,9 +1508,11 @@ app.post('/api/payment/confirm/:subscriptionId', authenticateToken, requireSuper
 app.get('/api/subscriptions', authenticateToken, async (req, res) => {
   try {
     let query = `
-      SELECT s.*, e.razao_social, e.cnpj
+      SELECT s.*, e.razao_social, e.cnpj,
+        d.serial_number as device_serial, d.name as device_name
       FROM subscriptions s
       JOIN empresas e ON s.empresa_id = e.id
+      LEFT JOIN devices d ON s.device_id = d.id
     `;
     let params = [];
 
@@ -1511,6 +1527,18 @@ app.get('/api/subscriptions', authenticateToken, async (req, res) => {
     res.json(result.rows);
   } catch (err) {
     console.error('Erro ao buscar assinaturas:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Deletar assinatura (super admin)
+app.delete('/api/subscriptions/:id', authenticateToken, requireSuperAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+    await pool.query('DELETE FROM subscriptions WHERE id = $1', [id]);
+    res.json({ success: true, message: 'Assinatura removida' });
+  } catch (err) {
+    console.error('Erro ao deletar assinatura:', err);
     res.status(500).json({ error: err.message });
   }
 });
@@ -2116,6 +2144,15 @@ async function initDatabase() {
       )
     `);
     console.log('✅ Tabela de cupons verificada');
+
+    // Adicionar coluna device_id na tabela subscriptions (para assinatura por IoT)
+    await pool.query(`
+      ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS device_id INTEGER REFERENCES devices(id)
+    `).catch(() => {});
+    console.log('✅ Coluna device_id verificada em subscriptions');
+
+    // Apagar assinaturas pendentes antigas (limpeza)
+    await pool.query(`DELETE FROM subscriptions WHERE status = 'pending' AND created_at < NOW() - INTERVAL '7 days'`);
   } catch (err) {
     console.error('Erro ao inicializar banco:', err.message);
   }
