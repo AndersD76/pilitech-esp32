@@ -577,6 +577,44 @@ app.get('/api/usuarios', authenticateToken, async (req, res) => {
   }
 });
 
+// Buscar usuário por ID
+app.get('/api/usuarios/:id', authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const result = await pool.query(`
+      SELECT u.id, u.email, u.nome, u.telefone, u.role, u.active, u.empresa_id, u.unidade_id,
+        e.razao_social as empresa_nome,
+        un.nome as unidade_nome
+      FROM usuarios u
+      LEFT JOIN empresas e ON u.empresa_id = e.id
+      LEFT JOIN unidades un ON u.unidade_id = un.id
+      WHERE u.id = $1
+    `, [id]);
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Usuario nao encontrado' });
+    }
+
+    const user = result.rows[0];
+
+    // Verificar permissao de visualizacao
+    const canView = req.user.role === 'super_admin' ||
+      (req.user.role === 'admin_empresa' && user.empresa_id === req.user.empresa_id) ||
+      (req.user.role === 'admin_unidade' && user.unidade_id === req.user.unidade_id) ||
+      req.user.id === parseInt(id);
+
+    if (!canView) {
+      return res.status(403).json({ error: 'Sem permissao para visualizar este usuario' });
+    }
+
+    res.json(user);
+  } catch (err) {
+    console.error('Erro ao buscar usuario:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // Criar usuário
 app.post('/api/usuarios', authenticateToken, async (req, res) => {
   try {
@@ -673,6 +711,40 @@ app.put('/api/usuarios/:id', authenticateToken, async (req, res) => {
 });
 
 // ============ ROTAS DE DISPOSITIVOS ============
+
+// Criar dispositivo manualmente (super admin)
+app.post('/api/devices', authenticateToken, requireSuperAdmin, async (req, res) => {
+  try {
+    const { serial_number, name, unidade_id } = req.body;
+
+    if (!serial_number) {
+      return res.status(400).json({ error: 'Numero de serie e obrigatorio' });
+    }
+
+    // Verificar se já existe
+    const existing = await pool.query('SELECT id FROM devices WHERE serial_number = $1', [serial_number]);
+    if (existing.rows.length > 0) {
+      return res.status(400).json({ error: 'Dispositivo com este numero de serie ja existe' });
+    }
+
+    // Criar dispositivo
+    const result = await pool.query(`
+      INSERT INTO devices (serial_number, name, unidade_id, first_seen)
+      VALUES ($1, $2, $3, CURRENT_TIMESTAMP)
+      RETURNING id, serial_number
+    `, [serial_number, name || 'Tombador', unidade_id || null]);
+
+    res.json({
+      success: true,
+      id: result.rows[0].id,
+      serial_number: result.rows[0].serial_number,
+      message: 'Dispositivo cadastrado com sucesso'
+    });
+  } catch (err) {
+    console.error('Erro ao criar dispositivo:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
 
 // Listar dispositivos (filtrado por hierarquia + verificação de assinatura)
 app.get('/api/devices', authenticateToken, checkSubscription, async (req, res) => {
