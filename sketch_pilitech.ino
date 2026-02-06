@@ -131,55 +131,55 @@ const char index_html[] PROGMEM = R"rawliteral(<!DOCTYPE html>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
 body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;background:linear-gradient(135deg,#dc2626 0%,#7f1d1d 50%,#000 100%);width:1024px;height:600px;overflow:hidden}
-.header{height:60px;background:#fff;border-bottom:1px solid #e5e7eb;display:flex;align-items:center;justify-content:space-between;padding:0 24px;box-shadow:0 1px 3px rgba(0,0,0,0.1)}
-.logo{display:flex;align-items:center;gap:12px;font-size:20px;font-weight:700;color:#dc2626}
-.logo svg{width:28px;height:28px;stroke:#dc2626;fill:none}
-.datetime{display:flex;flex-direction:column;font-size:11px;color:#6b7280;font-weight:600;line-height:1.3}
-.status-area{display:flex;align-items:center;gap:10px;background:#f9fafb;padding:6px 14px;border-radius:20px;font-size:12px;font-weight:600}
+.header{height:52px;background:#fff;border-bottom:1px solid #e5e7eb;display:flex;align-items:center;justify-content:space-between;padding:0 20px;box-shadow:0 1px 3px rgba(0,0,0,0.1)}
+.logo{display:flex;align-items:center;gap:10px;font-size:18px;font-weight:700;color:#dc2626}
+.logo svg{width:24px;height:24px;stroke:#dc2626;fill:none}
+.datetime{display:flex;flex-direction:column;font-size:10px;color:#6b7280;font-weight:600;line-height:1.3}
+.status-area{display:flex;align-items:center;gap:8px;background:#f9fafb;padding:5px 12px;border-radius:20px;font-size:11px;font-weight:600}
 .dot{width:8px;height:8px;border-radius:50%;background:#ef4444}
 .dot.online{background:#10b981;animation:pulse 2s infinite}
-.wifi-status{display:flex;align-items:center;gap:6px;background:#f9fafb;padding:6px 12px;border-radius:20px;font-size:11px;font-weight:600;color:#6b7280}
+.wifi-status{display:flex;align-items:center;gap:5px;background:#f9fafb;padding:5px 10px;border-radius:20px;font-size:10px;font-weight:600;color:#6b7280}
 .wifi-status.connected{background:#d1fae5;color:#065f46}
-.wifi-status svg{width:14px;height:14px}
+.wifi-status svg{width:13px;height:13px}
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:0.6}}
-.tabs{height:50px;background:#fff;border-bottom:1px solid #e5e7eb;display:flex;padding:6px;gap:4px}
-.tab{flex:1;border:none;background:transparent;padding:8px;font-size:12px;cursor:pointer;border-radius:6px;font-weight:700;color:#6b7280;transition:all 0.2s;display:flex;align-items:center;justify-content:center;gap:6px}
-.tab svg{width:16px;height:16px;stroke:currentColor;fill:none}
+.tabs{height:40px;background:#fff;border-bottom:1px solid #e5e7eb;display:flex;padding:4px;gap:3px}
+.tab{flex:1;border:none;background:transparent;padding:6px;font-size:11px;cursor:pointer;border-radius:5px;font-weight:700;color:#6b7280;transition:all 0.2s;display:flex;align-items:center;justify-content:center;gap:4px}
+.tab svg{width:14px;height:14px;stroke:currentColor;fill:none}
 .tab:hover{background:#f3f4f6}
 .tab.active{background:#dc2626;color:#fff}
-.content{height:490px;padding:12px;overflow:hidden}
+.content{height:508px;padding:8px;overflow:hidden}
 .panel{display:none;height:100%;overflow:hidden}
-.panel.active{display:grid;gap:10px}
-.card{background:#fff;border-radius:8px;padding:16px;box-shadow:0 1px 3px rgba(0,0,0,0.1);overflow:hidden}
-.card-title{font-size:15px;font-weight:700;color:#111827;margin-bottom:12px;display:flex;align-items:center;gap:8px}
-.card-title svg{width:18px;height:18px;stroke:#dc2626;fill:none}
-.sensor-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
-.sensor-item{background:#f9fafb;padding:10px;border-radius:6px;border:2px solid #e5e7eb;font-size:12px;font-weight:600;color:#374151;transition:all 0.3s}
-.sensor-item.active{border-color:#10b981;background:#10b981;color:#fff;box-shadow:0 4px 8px rgba(16,185,129,0.3)}
+.panel.active{display:grid;gap:8px}
+.card{background:#fff;border-radius:8px;padding:10px 12px;box-shadow:0 1px 3px rgba(0,0,0,0.1);overflow:hidden}
+.card-title{font-size:13px;font-weight:700;color:#111827;margin-bottom:8px;display:flex;align-items:center;gap:6px}
+.card-title svg{width:16px;height:16px;stroke:#dc2626;fill:none}
+.sensor-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:5px}
+.sensor-item{background:#f9fafb;padding:6px;border-radius:5px;border:2px solid #e5e7eb;font-size:11px;font-weight:600;color:#374151;transition:all 0.3s}
+.sensor-item.active{border-color:#10b981;background:#10b981;color:#fff;box-shadow:0 2px 6px rgba(16,185,129,0.3)}
 .sensor-item.active .sensor-label{color:rgba(255,255,255,0.8)}
-.sensor-item.alert{border-color:#ef4444;background:#ef4444;color:#fff;animation:blink 1s infinite;box-shadow:0 4px 12px rgba(239,68,68,0.4)}
+.sensor-item.alert{border-color:#ef4444;background:#ef4444;color:#fff;animation:blink 1s infinite;box-shadow:0 2px 8px rgba(239,68,68,0.4)}
 .sensor-item.alert .sensor-label{color:rgba(255,255,255,0.9)}
 @keyframes blink{0%,100%{opacity:1}50%{opacity:0.7}}
-.sensor-label{font-size:10px;color:#6b7280;text-transform:uppercase;letter-spacing:0.5px}
-.sensor-value{font-size:14px;margin-top:2px}
-.stats-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
-.stat-card{background:#f9fafb;padding:12px;border-radius:6px;text-align:center}
-.stat-value{font-size:32px;font-weight:700;color:#dc2626;line-height:1}
-.stat-label{font-size:10px;color:#6b7280;margin-top:6px;text-transform:uppercase;letter-spacing:0.5px}
-.progress-bar{background:#e5e7eb;height:16px;border-radius:8px;overflow:hidden;margin:8px 0}
+.sensor-label{font-size:9px;color:#6b7280;text-transform:uppercase;letter-spacing:0.3px}
+.sensor-value{font-size:12px;margin-top:1px}
+.stats-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.stat-card{background:#f9fafb;padding:8px;border-radius:6px;text-align:center}
+.stat-value{font-size:26px;font-weight:700;color:#dc2626;line-height:1}
+.stat-label{font-size:9px;color:#6b7280;margin-top:4px;text-transform:uppercase;letter-spacing:0.5px}
+.progress-bar{background:#e5e7eb;height:14px;border-radius:7px;overflow:hidden;margin:6px 0}
 .progress-fill{background:linear-gradient(90deg,#10b981,#f59e0b);height:100%;transition:width 0.5s}
-.btn{padding:10px 16px;border:none;border-radius:6px;font-size:13px;font-weight:700;cursor:pointer;transition:all 0.2s;display:flex;align-items:center;justify-content:center;gap:6px}
-.btn svg{width:16px;height:16px;stroke:currentColor;fill:none}
+.btn{padding:8px 14px;border:none;border-radius:6px;font-size:12px;font-weight:700;cursor:pointer;transition:all 0.2s;display:flex;align-items:center;justify-content:center;gap:5px}
+.btn svg{width:14px;height:14px;stroke:currentColor;fill:none}
 .btn-primary{background:#dc2626;color:#fff}
 .btn-primary:hover{background:#b91c1c}
 .btn-success{background:#10b981;color:#fff}
 .btn-success:hover{background:#059669}
-.info-row{display:flex;justify-content:space-between;align-items:center;padding:10px;background:#f9fafb;border-radius:6px;margin:6px 0;font-size:13px}
+.info-row{display:flex;justify-content:space-between;align-items:center;padding:6px 8px;background:#f9fafb;border-radius:5px;margin:4px 0;font-size:12px}
 .info-label{color:#6b7280;font-weight:600}
 .info-value{color:#111827;font-weight:700}
-.input{width:100%;padding:10px;border:2px solid #e5e7eb;border-radius:6px;font-size:13px;margin:6px 0;font-family:inherit}
+.input{width:100%;padding:8px;border:2px solid #e5e7eb;border-radius:6px;font-size:12px;margin:4px 0;font-family:inherit}
 .input:focus{outline:none;border-color:#dc2626}
-.logs-area{background:#f9fafb;padding:10px;border-radius:6px;font-size:11px;font-family:monospace;line-height:1.6;color:#374151;height:420px;overflow-y:auto}
+.logs-area{background:#f9fafb;padding:8px;border-radius:6px;font-size:10px;font-family:monospace;line-height:1.5;color:#374151;height:440px;overflow-y:auto}
 .faq-item{background:#f9fafb;padding:12px;border-radius:6px;margin:8px 0;border-left:3px solid #dc2626}
 .faq-q{font-weight:700;color:#111827;font-size:13px;margin-bottom:6px}
 .faq-a{color:#4b5563;font-size:12px;line-height:1.6}
@@ -248,7 +248,7 @@ Contato
 </button>
 </div>
 <div class="content">
-<div class="panel active" style="grid-template-rows:270px 190px">
+<div class="panel active" style="grid-template-rows:260px 224px">
 <div class="card">
 <div class="card-title">
 <svg viewBox="0 0 24 24" stroke-width="2"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"/></svg>
@@ -288,12 +288,12 @@ Sensores do Sistema
 <div class="sensor-value" id="portao">-</div>
 </div>
 </div>
-<div style="margin-top:12px;padding:10px;background:#f9fafb;border-radius:6px">
-<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
-<span style="font-size:11px;font-weight:700;color:#6b7280">TIMELINE DAS 10 ETAPAS DO CICLO</span>
-<span style="font-size:11px;color:#6b7280">Etapa: <span id="etapaAtual">-</span> | <span id="cycleTimer">--:--</span></span>
+<div style="margin-top:6px;padding:6px;background:#f9fafb;border-radius:5px">
+<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+<span style="font-size:10px;font-weight:700;color:#6b7280">TIMELINE 10 ETAPAS</span>
+<span style="font-size:10px;color:#6b7280">Etapa: <span id="etapaAtual">-</span> | <span id="cycleTimer">--:--</span></span>
 </div>
-<div id="timeline" style="display:flex;gap:2px;height:28px">
+<div id="timeline" style="display:flex;gap:2px;height:22px">
 <div class="tl-item" id="tl1" title="1.Portao Fechado" style="flex:1;border-radius:4px;background:#e5e7eb;transition:all 0.3s;display:flex;align-items:center;justify-content:center;font-size:8px;font-weight:700;color:#fff"></div>
 <div class="tl-item" id="tl2" title="2.Sensor 0 Inativo" style="flex:1;border-radius:4px;background:#e5e7eb;transition:all 0.3s;display:flex;align-items:center;justify-content:center;font-size:8px;font-weight:700;color:#fff"></div>
 <div class="tl-item" id="tl3" title="3.Trava Roda" style="flex:1;border-radius:4px;background:#e5e7eb;transition:all 0.3s;display:flex;align-items:center;justify-content:center;font-size:8px;font-weight:700;color:#fff"></div>
@@ -305,7 +305,7 @@ Sensores do Sistema
 <div class="tl-item" id="tl9" title="9.Pinos Soltam" style="flex:1;border-radius:4px;background:#e5e7eb;transition:all 0.3s;display:flex;align-items:center;justify-content:center;font-size:8px;font-weight:700;color:#fff"></div>
 <div class="tl-item" id="tl10" title="10.Portao Abre" style="flex:1;border-radius:4px;background:#e5e7eb;transition:all 0.3s;display:flex;align-items:center;justify-content:center;font-size:8px;font-weight:700;color:#fff"></div>
 </div>
-<div style="display:flex;justify-content:space-between;margin-top:4px;font-size:7px;color:#9ca3af">
+<div style="display:flex;justify-content:space-between;margin-top:2px;font-size:7px;color:#9ca3af">
 <span>1</span><span>2</span><span>3</span><span>4</span><span>5</span><span>6</span><span>7</span><span>8</span><span>9</span><span>10</span>
 </div>
 </div>
@@ -329,8 +329,8 @@ Produção e Horímetro
 <div class="stat-label">Horímetro</div>
 </div>
 </div>
-<div style="margin-top:16px;padding:12px;background:#f9fafb;border-radius:6px">
-<div style="display:flex;justify-content:space-between;margin-bottom:8px;font-size:11px;font-weight:700;color:#6b7280">
+<div style="margin-top:10px;padding:8px;background:#f9fafb;border-radius:5px">
+<div style="display:flex;justify-content:space-between;margin-bottom:4px;font-size:10px;font-weight:700;color:#6b7280">
 <span>PRÓXIMA MANUTENÇÃO</span>
 <span><span id="maintHrs">2000</span>h restantes</span>
 </div>
@@ -346,17 +346,17 @@ Produção e Horímetro
 <svg viewBox="0 0 24 24" stroke-width="2"><path d="M14.7 6.3a1 1 0 000 1.4l1.6 1.6a1 1 0 001.4 0l3.77-3.77a6 6 0 01-7.94 7.94l-6.91 6.91a2.12 2.12 0 01-3-3l6.91-6.91a6 6 0 017.94-7.94l-3.76 3.76z"/></svg>
 Manutenção Preventiva
 </div>
-<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px">
-<div class="info-row" style="flex-direction:column;align-items:flex-start;gap:4px">
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px">
+<div class="info-row" style="flex-direction:column;align-items:flex-start;gap:2px">
 <span class="info-label">Última Manutenção</span>
 <span class="info-value" id="lastMaint" style="font-size:11px">Não registrada</span>
 </div>
-<div class="info-row" style="flex-direction:column;align-items:flex-start;gap:4px">
+<div class="info-row" style="flex-direction:column;align-items:flex-start;gap:2px">
 <span class="info-label">Intervalo</span>
 <span class="info-value">2000 horas</span>
 </div>
 </div>
-<div style="margin-top:20px">
+<div style="margin-top:12px">
 <button onclick="openMaintModal()" class="btn btn-success" style="width:100%">
 <svg viewBox="0 0 24 24" stroke-width="2"><path d="M12 4v16m8-8H4"/></svg>
 Nova Manutenção
@@ -364,20 +364,20 @@ Nova Manutenção
 </div>
 </div>
 </div>
-<div class="panel" style="grid-template-rows:140px 120px 190px">
+<div class="panel" style="grid-template-rows:130px 115px 229px">
 <div class="card">
 <div class="card-title">
 <svg viewBox="0 0 24 24" stroke-width="2"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
 Informações do Sistema
 </div>
-<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
-<div class="info-row"><span class="info-label">Memória Livre</span><span class="info-value"><span id="mem">0</span> KB</span></div>
-<div class="info-row"><span class="info-label">Tempo Ativo</span><span class="info-value"><span id="up">0</span> s</span></div>
-<div class="info-row"><span class="info-label">Número de Série</span><span class="info-value">00002025</span></div>
-<div class="info-row"><span class="info-label">Versão Firmware</span><span class="info-value">1.0</span></div>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:4px">
+<div class="info-row"><span class="info-label">Memória</span><span class="info-value"><span id="mem">0</span> KB</span></div>
+<div class="info-row"><span class="info-label">Uptime</span><span class="info-value"><span id="up">0</span> s</span></div>
+<div class="info-row"><span class="info-label">S/N</span><span class="info-value">00002025</span></div>
+<div class="info-row"><span class="info-label">Firmware</span><span class="info-value">v1.0</span></div>
 </div>
-<div id="sistemaStatus" style="margin-top:12px;padding:10px;border-radius:6px;background:#fef2f2;border:2px solid #fecaca;text-align:center">
-<span style="font-size:12px;font-weight:700;color:#991b1b">SISTEMA NÃO INICIADO</span>
+<div id="sistemaStatus" style="margin-top:6px;padding:6px;border-radius:5px;background:#fef2f2;border:2px solid #fecaca;text-align:center">
+<span style="font-size:11px;font-weight:700;color:#991b1b">SISTEMA NÃO INICIADO</span>
 </div>
 </div>
 <div class="card">
@@ -385,13 +385,15 @@ Informações do Sistema
 <svg viewBox="0 0 24 24" stroke-width="2"><path d="M5 12.55a11 11 0 0114.08 0M1.42 9a16 16 0 0121.16 0M8.53 16.11a6 6 0 016.95 0M12 20h.01"/></svg>
 Configuração WiFi
 </div>
-<input type="text" id="wifiSSID" placeholder="Nome da Rede (SSID)" class="input">
-<input type="password" id="wifiPass" placeholder="Senha WiFi" class="input">
-<button onclick="connectWiFi()" class="btn btn-primary" style="width:100%;margin-top:6px">
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:4px">
+<input type="text" id="wifiSSID" placeholder="SSID" class="input" style="margin:0">
+<input type="password" id="wifiPass" placeholder="Senha" class="input" style="margin:0">
+</div>
+<button onclick="connectWiFi()" class="btn btn-primary" style="width:100%;margin-top:4px">
 <svg viewBox="0 0 24 24" stroke-width="2"><path d="M5 12.55a11 11 0 0114.08 0"/></svg>
 Conectar WiFi
 </button>
-<div id="wifiMsg" style="margin-top:8px;padding:8px;border-radius:6px;display:none;font-size:11px;font-weight:600"></div>
+<div id="wifiMsg" style="margin-top:4px;padding:6px;border-radius:5px;display:none;font-size:10px;font-weight:600"></div>
 </div>
 <div class="card">
 <div class="card-title">
@@ -399,32 +401,32 @@ Conectar WiFi
 Controles do Técnico (Requer Internet)
 </div>
 <div id="techControls">
-<div id="techLogin" style="text-align:center;padding:10px">
-<p style="color:#6b7280;font-size:11px;margin-bottom:8px">Digite a senha do técnico para acessar os controles</p>
-<input type="password" id="techPass" class="input" placeholder="Senha do técnico" style="text-align:center">
-<button onclick="checkTechPass()" class="btn btn-primary" style="width:100%;margin-top:8px">Entrar</button>
-<div id="techError" style="display:none;color:#dc2626;font-size:11px;margin-top:6px">Senha incorreta</div>
+<div id="techLogin" style="text-align:center;padding:6px">
+<p style="color:#6b7280;font-size:10px;margin-bottom:4px">Senha do técnico para acessar controles</p>
+<input type="password" id="techPass" class="input" placeholder="Senha" style="text-align:center;margin:2px 0">
+<button onclick="checkTechPass()" class="btn btn-primary" style="width:100%;margin-top:4px">Entrar</button>
+<div id="techError" style="display:none;color:#dc2626;font-size:10px;margin-top:4px">Senha incorreta</div>
 </div>
 <div id="techPanel" style="display:none">
-<div style="display:grid;gap:8px">
+<div style="display:grid;gap:4px">
 <button onclick="startSistema()" class="btn btn-success" style="width:100%" id="btnStart">
 <svg viewBox="0 0 24 24" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg>
 START - Iniciar Sistema
 </button>
-<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
-<button onclick="resetCiclosHoje()" class="btn" style="background:#f59e0b;color:#fff">Resetar Ciclos Hoje</button>
-<button onclick="resetCiclosTotal()" class="btn" style="background:#f97316;color:#fff">Resetar Ciclos Total</button>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:4px">
+<button onclick="resetCiclosHoje()" class="btn" style="background:#f59e0b;color:#fff;font-size:10px;padding:6px">Ciclos Hoje</button>
+<button onclick="resetCiclosTotal()" class="btn" style="background:#f97316;color:#fff;font-size:10px;padding:6px">Ciclos Total</button>
 </div>
-<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
-<button onclick="resetHorimetro()" class="btn" style="background:#ef4444;color:#fff">Resetar Horímetro</button>
-<button onclick="restartIoT()" class="btn" style="background:#7f1d1d;color:#fff">Reiniciar IoT</button>
-</div>
-</div>
-<button onclick="openConfigModal()" class="btn" style="width:100%;margin-top:8px;background:#374151;color:#fff">Configurar Sensores</button>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:4px">
+<button onclick="resetHorimetro()" class="btn" style="background:#ef4444;color:#fff;font-size:10px;padding:6px">Horímetro</button>
+<button onclick="restartIoT()" class="btn" style="background:#7f1d1d;color:#fff;font-size:10px;padding:6px">Reiniciar IoT</button>
 </div>
 </div>
-<div id="noWifiWarning" style="display:none;padding:12px;background:#fef2f2;border-radius:6px;text-align:center">
-<span style="font-size:11px;color:#991b1b;font-weight:600">Conecte o WiFi para acessar os controles do técnico</span>
+<button onclick="openConfigModal()" class="btn" style="width:100%;margin-top:4px;background:#374151;color:#fff;font-size:10px">Configurar Sensores</button>
+</div>
+</div>
+<div id="noWifiWarning" style="display:none;padding:8px;background:#fef2f2;border-radius:5px;text-align:center">
+<span style="font-size:10px;color:#991b1b;font-weight:600">Conecte o WiFi para acessar controles</span>
 </div>
 </div>
 </div>
