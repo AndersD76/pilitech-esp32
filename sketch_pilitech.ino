@@ -248,13 +248,13 @@ Contato
 </button>
 </div>
 <div class="content">
-<div class="panel active" style="grid-template-rows:260px 224px">
+<div class="panel active" style="grid-template-columns:3fr 2fr;grid-template-rows:1fr">
 <div class="card">
 <div class="card-title">
 <svg viewBox="0 0 24 24" stroke-width="2"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"/></svg>
 Sensores do Sistema
 </div>
-<div class="sensor-grid" style="grid-template-rows:repeat(2,1fr)">
+<div class="sensor-grid" style="grid-template-columns:repeat(4,1fr);grid-template-rows:repeat(2,1fr);gap:6px">
 <div class="sensor-item" id="si0">
 <div class="sensor-label">Sensor 0°</div>
 <div class="sensor-value" id="s0">-</div>
@@ -288,12 +288,12 @@ Sensores do Sistema
 <div class="sensor-value" id="portao">-</div>
 </div>
 </div>
-<div style="margin-top:6px;padding:6px;background:#f9fafb;border-radius:5px">
-<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
-<span style="font-size:10px;font-weight:700;color:#6b7280">TIMELINE 10 ETAPAS</span>
+<div style="margin-top:8px;padding:8px;background:#f9fafb;border-radius:5px">
+<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px">
+<span style="font-size:10px;font-weight:700;color:#6b7280">TIMELINE 10 ETAPAS DO CICLO</span>
 <span style="font-size:10px;color:#6b7280">Etapa: <span id="etapaAtual">-</span> | <span id="cycleTimer">--:--</span></span>
 </div>
-<div id="timeline" style="display:flex;gap:2px;height:22px">
+<div id="timeline" style="display:flex;gap:2px;height:28px">
 <div class="tl-item" id="tl1" title="1.Portao Fechado" style="flex:1;border-radius:4px;background:#e5e7eb;transition:all 0.3s;display:flex;align-items:center;justify-content:center;font-size:8px;font-weight:700;color:#fff"></div>
 <div class="tl-item" id="tl2" title="2.Sensor 0 Inativo" style="flex:1;border-radius:4px;background:#e5e7eb;transition:all 0.3s;display:flex;align-items:center;justify-content:center;font-size:8px;font-weight:700;color:#fff"></div>
 <div class="tl-item" id="tl3" title="3.Trava Roda" style="flex:1;border-radius:4px;background:#e5e7eb;transition:all 0.3s;display:flex;align-items:center;justify-content:center;font-size:8px;font-weight:700;color:#fff"></div>
@@ -305,36 +305,38 @@ Sensores do Sistema
 <div class="tl-item" id="tl9" title="9.Pinos Soltam" style="flex:1;border-radius:4px;background:#e5e7eb;transition:all 0.3s;display:flex;align-items:center;justify-content:center;font-size:8px;font-weight:700;color:#fff"></div>
 <div class="tl-item" id="tl10" title="10.Portao Abre" style="flex:1;border-radius:4px;background:#e5e7eb;transition:all 0.3s;display:flex;align-items:center;justify-content:center;font-size:8px;font-weight:700;color:#fff"></div>
 </div>
-<div style="display:flex;justify-content:space-between;margin-top:2px;font-size:7px;color:#9ca3af">
+<div style="display:flex;justify-content:space-between;margin-top:3px;font-size:7px;color:#9ca3af">
 <span>1</span><span>2</span><span>3</span><span>4</span><span>5</span><span>6</span><span>7</span><span>8</span><span>9</span><span>10</span>
 </div>
 </div>
 </div>
-<div class="card">
+<div class="card" style="display:flex;flex-direction:column;justify-content:space-between">
+<div>
 <div class="card-title">
 <svg viewBox="0 0 24 24" stroke-width="2"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>
 Produção e Horímetro
 </div>
-<div class="stats-grid">
-<div class="stat-card">
-<div class="stat-value" id="ch">0</div>
-<div class="stat-label">Ciclos Hoje</div>
+<div style="display:grid;grid-template-columns:1fr;gap:8px">
+<div class="stat-card" style="display:flex;align-items:center;justify-content:space-between;text-align:left;padding:10px 14px">
+<div class="stat-label" style="margin:0;font-size:11px">Ciclos Hoje</div>
+<div class="stat-value" id="ch" style="font-size:32px">0</div>
 </div>
-<div class="stat-card">
-<div class="stat-value" id="ct">0</div>
-<div class="stat-label">Ciclos Totais</div>
+<div class="stat-card" style="display:flex;align-items:center;justify-content:space-between;text-align:left;padding:10px 14px">
+<div class="stat-label" style="margin:0;font-size:11px">Ciclos Totais</div>
+<div class="stat-value" id="ct" style="font-size:32px">0</div>
 </div>
-<div class="stat-card">
-<div class="stat-value"><span id="h">0</span>h <span id="m">0</span>m</div>
-<div class="stat-label">Horímetro</div>
+<div class="stat-card" style="display:flex;align-items:center;justify-content:space-between;text-align:left;padding:10px 14px">
+<div class="stat-label" style="margin:0;font-size:11px">Horímetro</div>
+<div class="stat-value" style="font-size:32px"><span id="h">0</span>h <span id="m">0</span>m</div>
 </div>
 </div>
-<div style="margin-top:10px;padding:8px;background:#f9fafb;border-radius:5px">
+</div>
+<div style="padding:8px;background:#f9fafb;border-radius:5px">
 <div style="display:flex;justify-content:space-between;margin-bottom:4px;font-size:10px;font-weight:700;color:#6b7280">
-<span>PRÓXIMA MANUTENÇÃO</span>
-<span><span id="maintHrs">2000</span>h restantes</span>
+<span>MANUTENÇÃO</span>
+<span><span id="maintHrs">2000</span>h</span>
 </div>
-<div class="progress-bar">
+<div class="progress-bar" style="height:12px;margin:4px 0">
 <div id="maintBar" class="progress-fill" style="width:0%"></div>
 </div>
 </div>
@@ -364,13 +366,14 @@ Nova Manutenção
 </div>
 </div>
 </div>
-<div class="panel" style="grid-template-rows:130px 115px 229px">
+<div class="panel" style="grid-template-rows:150px 1fr">
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
 <div class="card">
 <div class="card-title">
 <svg viewBox="0 0 24 24" stroke-width="2"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
 Informações do Sistema
 </div>
-<div style="display:grid;grid-template-columns:1fr 1fr;gap:4px">
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:3px">
 <div class="info-row"><span class="info-label">Memória</span><span class="info-value"><span id="mem">0</span> KB</span></div>
 <div class="info-row"><span class="info-label">Uptime</span><span class="info-value"><span id="up">0</span> s</span></div>
 <div class="info-row"><span class="info-label">S/N</span><span class="info-value">00002025</span></div>
@@ -385,15 +388,14 @@ Informações do Sistema
 <svg viewBox="0 0 24 24" stroke-width="2"><path d="M5 12.55a11 11 0 0114.08 0M1.42 9a16 16 0 0121.16 0M8.53 16.11a6 6 0 016.95 0M12 20h.01"/></svg>
 Configuração WiFi
 </div>
-<div style="display:grid;grid-template-columns:1fr 1fr;gap:4px">
-<input type="text" id="wifiSSID" placeholder="SSID" class="input" style="margin:0">
-<input type="password" id="wifiPass" placeholder="Senha" class="input" style="margin:0">
-</div>
+<input type="text" id="wifiSSID" placeholder="Nome da Rede (SSID)" class="input" style="margin:2px 0">
+<input type="password" id="wifiPass" placeholder="Senha WiFi" class="input" style="margin:2px 0">
 <button onclick="connectWiFi()" class="btn btn-primary" style="width:100%;margin-top:4px">
 <svg viewBox="0 0 24 24" stroke-width="2"><path d="M5 12.55a11 11 0 0114.08 0"/></svg>
-Conectar WiFi
+Conectar
 </button>
 <div id="wifiMsg" style="margin-top:4px;padding:6px;border-radius:5px;display:none;font-size:10px;font-weight:600"></div>
+</div>
 </div>
 <div class="card">
 <div class="card-title">
@@ -401,32 +403,28 @@ Conectar WiFi
 Controles do Técnico (Requer Internet)
 </div>
 <div id="techControls">
-<div id="techLogin" style="text-align:center;padding:6px">
-<p style="color:#6b7280;font-size:10px;margin-bottom:4px">Senha do técnico para acessar controles</p>
-<input type="password" id="techPass" class="input" placeholder="Senha" style="text-align:center;margin:2px 0">
-<button onclick="checkTechPass()" class="btn btn-primary" style="width:100%;margin-top:4px">Entrar</button>
-<div id="techError" style="display:none;color:#dc2626;font-size:10px;margin-top:4px">Senha incorreta</div>
+<div id="techLogin" style="text-align:center;padding:8px">
+<p style="color:#6b7280;font-size:11px;margin-bottom:6px">Digite a senha do técnico para acessar os controles</p>
+<input type="password" id="techPass" class="input" placeholder="Senha do técnico" style="text-align:center;margin:4px 0">
+<button onclick="checkTechPass()" class="btn btn-primary" style="width:100%;margin-top:6px">Entrar</button>
+<div id="techError" style="display:none;color:#dc2626;font-size:11px;margin-top:6px">Senha incorreta</div>
 </div>
 <div id="techPanel" style="display:none">
-<div style="display:grid;gap:4px">
-<button onclick="startSistema()" class="btn btn-success" style="width:100%" id="btnStart">
+<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px">
+<button onclick="startSistema()" class="btn btn-success" style="grid-column:1/-1" id="btnStart">
 <svg viewBox="0 0 24 24" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg>
 START - Iniciar Sistema
 </button>
-<div style="display:grid;grid-template-columns:1fr 1fr;gap:4px">
-<button onclick="resetCiclosHoje()" class="btn" style="background:#f59e0b;color:#fff;font-size:10px;padding:6px">Ciclos Hoje</button>
-<button onclick="resetCiclosTotal()" class="btn" style="background:#f97316;color:#fff;font-size:10px;padding:6px">Ciclos Total</button>
+<button onclick="resetCiclosHoje()" class="btn" style="background:#f59e0b;color:#fff;font-size:11px">Ciclos Hoje</button>
+<button onclick="resetCiclosTotal()" class="btn" style="background:#f97316;color:#fff;font-size:11px">Ciclos Total</button>
+<button onclick="resetHorimetro()" class="btn" style="background:#ef4444;color:#fff;font-size:11px">Horímetro</button>
+<button onclick="restartIoT()" class="btn" style="background:#7f1d1d;color:#fff;font-size:11px">Reiniciar IoT</button>
+<button onclick="openConfigModal()" class="btn" style="grid-column:2/-1;background:#374151;color:#fff;font-size:11px">Configurar Sensores</button>
 </div>
-<div style="display:grid;grid-template-columns:1fr 1fr;gap:4px">
-<button onclick="resetHorimetro()" class="btn" style="background:#ef4444;color:#fff;font-size:10px;padding:6px">Horímetro</button>
-<button onclick="restartIoT()" class="btn" style="background:#7f1d1d;color:#fff;font-size:10px;padding:6px">Reiniciar IoT</button>
-</div>
-</div>
-<button onclick="openConfigModal()" class="btn" style="width:100%;margin-top:4px;background:#374151;color:#fff;font-size:10px">Configurar Sensores</button>
 </div>
 </div>
 <div id="noWifiWarning" style="display:none;padding:8px;background:#fef2f2;border-radius:5px;text-align:center">
-<span style="font-size:10px;color:#991b1b;font-weight:600">Conecte o WiFi para acessar controles</span>
+<span style="font-size:10px;color:#991b1b;font-weight:600">Conecte o WiFi para acessar os controles do técnico</span>
 </div>
 </div>
 </div>
