@@ -12,8 +12,8 @@
 #include <HTTPClient.h>
 
 const char* AP_SSID = "PILI-TECH";
-const char* AP_PASSWORD = "00001505";
-const char* SERIAL_NUMBER = "00001505";
+const char* AP_PASSWORD = "00001504";
+const char* SERIAL_NUMBER = "00001504";
 
 // API Configuration - Railway + NeonDB
 const char* API_URL = "https://pilitech-esp32-production.up.railway.app";
@@ -95,8 +95,12 @@ bool lastTravaPinoD = false;
 // Flag para indicar se ciclo está em andamento
 bool cycleInProgress = false;
 
-// Para detectar transição do sensor 0° (contagem de ciclo)
-// CICLO = sensor 0° ATIVO → INATIVO
+// Máquina de estados para contagem de ciclo
+// CICLO = sensor 0° DESLIGADO → LIGADO → DESLIGADO
+// Estado 0: esperando sensor OFF
+// Estado 1: sensor OFF, esperando ON
+// Estado 2: sensor ON, esperando OFF → CONTA CICLO
+int cycleCountState = 0;
 
 // Tempo padrão de ciclo (20 minutos em ms)
 const unsigned long CICLO_PADRAO_MS = 20 * 60 * 1000;
@@ -712,11 +716,17 @@ document.getElementById('etapaAtual').textContent=data.cycleInProgress?etapaAtua
 for(var i=1;i<=10;i++){
 var tl=document.getElementById('tl'+i);
 if(data.cycleInProgress&&i<etapaAtual){
+var t=data.currentCycle['etapa'+i]||0;
 tl.style.background='#10b981';
-tl.textContent='OK';
+tl.textContent=t+'s';
 }else if(data.cycleInProgress&&i==etapaAtual){
+var se=data.currentCycle.stageElapsed||0;
 tl.style.background='#f59e0b';
-tl.textContent='...';
+tl.textContent=se+'s';
+}else if(!data.cycleInProgress&&data.lastCycle&&data.lastCycle.total>0){
+var t=data.lastCycle['etapa'+i]||0;
+tl.style.background='#93c5fd';
+tl.textContent=t+'s';
 }else{
 tl.style.background='#e5e7eb';
 tl.textContent='';
@@ -1045,6 +1055,7 @@ String createJsonData() {
     JsonObject currCycle = doc.createNestedObject("currentCycle");
     unsigned long now = millis();
     currCycle["elapsed"] = (now - cycleStartTime) / 1000;
+    currCycle["stageElapsed"] = (now - stageStartTime) / 1000;
     currCycle["etapaAtual"] = currentCycle.etapaAtual;
     currCycle["etapa1"] = currentCycle.etapa1_portaoFechado / 1000;
     currCycle["etapa2"] = currentCycle.etapa2_sensor0Inativo / 1000;
@@ -1394,6 +1405,10 @@ bool enviarDadosCiclo() {
   doc["etapa9_solta_pinos"] = lastCompleteCycle.etapa9_travaPinosInativo / 1000;
   doc["etapa10_portao_aberto"] = lastCompleteCycle.etapa10_portaoAberto / 1000;
 
+  // Contagem de ciclos
+  doc["ciclos_hoje"] = stats.ciclosHoje;
+  doc["ciclos_total"] = stats.ciclosTotal;
+
   // Tempo padrão e eficiência
   doc["tempo_padrao"] = CICLO_PADRAO_MS / 1000;
   float eficiencia = ((float)CICLO_PADRAO_MS / (float)lastCompleteCycle.cicloTotal) * 100.0;
@@ -1703,19 +1718,6 @@ void loop() {
     stageStartTime = currentMillis;
     currentCycle.etapaAtual = 2;
     Serial.printf("  Etapa 1 completa: %lu seg | Etapa 2 (Sensor 0° inativo)\n", currentCycle.etapa1_portaoFechado / 1000);
-
-    // *** CONTAGEM DO CICLO: sensor 0° ATIVO → INATIVO ***
-    stats.ciclosHoje++;
-    stats.ciclosTotal++;
-    preferences.begin("pilitech", false);
-    preferences.putULong("ciclosTotal", stats.ciclosTotal);
-    preferences.end();
-    Serial.printf("✓ CICLO CONTADO! Hoje: %lu | Total: %lu\n", stats.ciclosHoje, stats.ciclosTotal);
-    if (WiFi.status() == WL_CONNECTED) {
-      char msg[128];
-      snprintf(msg, sizeof(msg), "Ciclo contado - Hoje: %lu | Total: %lu", stats.ciclosHoje, stats.ciclosTotal);
-      enviarEvento("INFO", msg, "ciclo_contado", true);
-    }
   }
 
   // === ETAPA 2→3: Trava roda ativa ===
@@ -1809,6 +1811,38 @@ void loop() {
     }
 
     cycleInProgress = false;
+  }
+
+  // ====== CONTAGEM DE CICLOS (independente das etapas) ======
+  // CICLO = sensor 0° DESLIGADO → LIGADO → DESLIGADO
+  // Estado 0: esperando sensor ir OFF
+  // Estado 1: sensor OFF, esperando ir ON
+  // Estado 2: sensor ON, esperando ir OFF → CONTA CICLO
+  if (cycleCountState == 0 && !sensor_0_graus && lastSensor0Graus) {
+    // Sensor 0° foi de ON para OFF → vai para estado 1
+    cycleCountState = 1;
+    Serial.println("  Ciclo: sensor 0° OFF (estado 1 - aguardando ON)");
+  }
+  else if (cycleCountState == 1 && sensor_0_graus && !lastSensor0Graus) {
+    // Sensor 0° foi de OFF para ON → vai para estado 2
+    cycleCountState = 2;
+    Serial.println("  Ciclo: sensor 0° ON (estado 2 - aguardando OFF)");
+  }
+  else if (cycleCountState == 2 && !sensor_0_graus && lastSensor0Graus) {
+    // Sensor 0° foi de ON para OFF novamente → CICLO COMPLETO
+    stats.ciclosHoje++;
+    stats.ciclosTotal++;
+    preferences.begin("pilitech", false);
+    preferences.putULong("ciclosTotal", stats.ciclosTotal);
+    preferences.end();
+    Serial.printf("✓ CICLO CONTADO! Hoje: %lu | Total: %lu\n", stats.ciclosHoje, stats.ciclosTotal);
+    if (WiFi.status() == WL_CONNECTED) {
+      char msg[128];
+      snprintf(msg, sizeof(msg), "Ciclo contado - Hoje: %lu | Total: %lu", stats.ciclosHoje, stats.ciclosTotal);
+      enviarEvento("INFO", msg, "ciclo_contado", true);
+    }
+    // Volta para estado 1 (este OFF já é o início do próximo ciclo)
+    cycleCountState = 1;
   }
 
   // Atualizar estados anteriores
