@@ -1169,6 +1169,13 @@ void onWebSocketEvent(uint8_t num, WStype_t type, uint8_t *payload, size_t lengt
             Serial.printf("  RSSI: %d dBm\n", WiFi.RSSI());
             Serial.println("  ✓ Internet disponível - dados serão sincronizados com NeonDB");
 
+            // Salvar credenciais WiFi para auto-reconexão no boot
+            preferences.begin("pilitech", false);
+            preferences.putString("wifiSSID", ssid);
+            preferences.putString("wifiPass", pass);
+            preferences.end();
+            Serial.println("  ✓ Credenciais WiFi salvas para reconexão automática");
+
             // ENVIAR DADOS IMEDIATAMENTE ao conectar para aparecer como Online
             Serial.println("📤 Enviando dados IMEDIATAMENTE para atualizar status Online...");
             if (enviarLeituraSensores()) {
@@ -1650,6 +1657,32 @@ void setup() {
   Serial.printf("  Senha: %s\n", AP_PASSWORD);
   Serial.printf("  IP: %s\n\n", IP.toString().c_str());
 
+  // Auto-reconexão WiFi: tenta conectar com credenciais salvas
+  preferences.begin("pilitech", true);
+  String savedSSID = preferences.getString("wifiSSID", "");
+  String savedPass = preferences.getString("wifiPass", "");
+  preferences.end();
+
+  if (savedSSID.length() > 0) {
+    Serial.printf("📶 Tentando reconectar WiFi salvo: %s\n", savedSSID.c_str());
+    WiFi.begin(savedSSID.c_str(), savedPass.c_str());
+    int attempts = 0;
+    while (WiFi.status() != WL_CONNECTED && attempts < 20) {
+      delay(500);
+      Serial.print(".");
+      attempts++;
+    }
+    if (WiFi.status() == WL_CONNECTED) {
+      Serial.printf("\n✓ WiFi reconectado automaticamente!\n");
+      Serial.printf("  SSID: %s | IP: %s | RSSI: %d dBm\n",
+                    savedSSID.c_str(), WiFi.localIP().toString().c_str(), WiFi.RSSI());
+    } else {
+      Serial.println("\n⚠ WiFi salvo não disponível - aguardando configuração manual");
+    }
+  } else {
+    Serial.println("📶 Nenhum WiFi salvo - aguardando configuração via interface");
+  }
+
   server.on("/", handleRoot);
   server.begin();
   Serial.println("✓ HTTP iniciado (porta 80)");
@@ -1919,6 +1952,22 @@ void loop() {
                   webSocket.connectedClients(),
                   stats.ciclosHoje, stats.ciclosTotal,
                   buffered);
+  }
+
+  // ====== AUTO-RECONEXÃO WiFi (a cada 30 segundos se desconectado) ======
+  static unsigned long lastWiFiRetry = 0;
+  if (WiFi.status() != WL_CONNECTED && currentMillis - lastWiFiRetry >= 30000) {
+    lastWiFiRetry = currentMillis;
+    preferences.begin("pilitech", true);
+    String sSSID = preferences.getString("wifiSSID", "");
+    String sPass = preferences.getString("wifiPass", "");
+    preferences.end();
+    if (sSSID.length() > 0) {
+      Serial.printf("📶 Tentando reconectar WiFi: %s\n", sSSID.c_str());
+      WiFi.disconnect();
+      delay(100);
+      WiFi.begin(sSSID.c_str(), sPass.c_str());
+    }
   }
 
   // ====== GERENCIAMENTO OFFLINE/ONLINE ======
