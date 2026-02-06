@@ -1076,9 +1076,12 @@
               ${u.active ? 'Ativo' : 'Inativo'}
             </span>
           </td>
-          <td class="py-3 px-4 text-right">
+          <td class="py-3 px-4 text-right flex gap-1 justify-end">
             <button onclick="editUsuario(${u.id})" class="p-2 hover:bg-gray-200 rounded-lg" title="Editar">
               <svg class="w-4 h-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
+            </button>
+            <button onclick="deleteUsuario(${u.id}, '${u.nome}')" class="p-2 hover:bg-red-100 rounded-lg" title="Excluir">
+              <svg class="w-4 h-4 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
             </button>
           </td>
         </tr>
@@ -1333,6 +1336,21 @@
         closeUsuarioModal();
         loadUsuarios();
         alert(id ? 'Usuario atualizado!' : 'Usuario criado!');
+      } else {
+        alert('Erro: ' + (result?.error || 'Erro desconhecido'));
+      }
+    }
+
+    // Excluir usuario
+    async function deleteUsuario(id, nome) {
+      if (!confirm(`Tem certeza que deseja excluir o usuario "${nome}"?\nEssa acao nao pode ser desfeita.`)) return;
+
+      const result = await api('/api/usuarios/' + id, { method: 'DELETE' });
+
+      if (result?.success) {
+        loadUsuarios();
+        loadStats();
+        alert('Usuario excluido com sucesso!');
       } else {
         alert('Erro: ' + (result?.error || 'Erro desconhecido'));
       }

@@ -785,6 +785,31 @@ app.put('/api/usuarios/:id', authenticateToken, async (req, res) => {
   }
 });
 
+// Excluir usuário
+app.delete('/api/usuarios/:id', authenticateToken, requireAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const userResult = await pool.query('SELECT * FROM usuarios WHERE id = $1', [id]);
+    if (userResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Usuário não encontrado' });
+    }
+
+    const targetUser = userResult.rows[0];
+
+    // Verificar permissão
+    if (req.user.role === 'admin_empresa' && targetUser.empresa_id !== req.user.empresa_id) {
+      return res.status(403).json({ error: 'Sem permissão para excluir este usuário' });
+    }
+
+    await pool.query('DELETE FROM usuarios WHERE id = $1', [id]);
+    res.json({ success: true, message: 'Usuário excluído com sucesso' });
+  } catch (err) {
+    console.error('Erro ao excluir usuário:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ============ ROTAS DE DISPOSITIVOS ============
 
 // Criar dispositivo manualmente (super admin)
