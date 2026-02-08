@@ -717,7 +717,7 @@
         const data = await res.json();
         user = data.user;
 
-        if (user.role !== 'super_admin') {
+        if (!['super_admin', 'admin'].includes(user.role)) {
           alert('Acesso negado. Apenas Super Admin.');
           window.location.href = '/cliente.html';
           return false;
@@ -743,7 +743,7 @@
         }
       });
 
-      if (res.status === 401 || res.status === 403) {
+      if (res.status === 401) {
         logout();
         return null;
       }

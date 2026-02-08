@@ -73,7 +73,7 @@ function authenticateToken(req, res, next) {
 
 // Middleware para verificar se é super admin
 function requireSuperAdmin(req, res, next) {
-  if (req.user.role !== 'super_admin') {
+  if (req.user.role !== 'super_admin' && req.user.role !== 'admin') {
     return res.status(403).json({ error: 'Acesso negado. Apenas super administradores.' });
   }
   next();
@@ -81,7 +81,7 @@ function requireSuperAdmin(req, res, next) {
 
 // Middleware para verificar se é admin (empresa ou super)
 function requireAdmin(req, res, next) {
-  if (!['super_admin', 'admin_empresa'].includes(req.user.role)) {
+  if (!['super_admin', 'admin_empresa', 'admin'].includes(req.user.role)) {
     return res.status(403).json({ error: 'Acesso negado. Apenas administradores.' });
   }
   next();
@@ -92,7 +92,7 @@ function requireAdmin(req, res, next) {
 async function checkSubscription(req, res, next) {
   try {
     // Super admin sempre tem acesso total
-    if (req.user.role === 'super_admin') {
+    if (req.user.role === 'super_admin' || req.user.role === 'admin') {
       req.subscriptionStatus = { active: true, canViewTelemetry: true };
       return next();
     }
