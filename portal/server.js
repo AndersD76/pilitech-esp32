@@ -802,6 +802,8 @@ app.delete('/api/usuarios/:id', authenticateToken, requireAdmin, async (req, res
       return res.status(403).json({ error: 'Sem permissão para excluir este usuário' });
     }
 
+    // Remover registros relacionados antes de excluir o usuário
+    await pool.query('DELETE FROM crm_vendedores WHERE usuario_id = $1', [id]);
     await pool.query('DELETE FROM usuarios WHERE id = $1', [id]);
     res.json({ success: true, message: 'Usuário excluído com sucesso' });
   } catch (err) {
