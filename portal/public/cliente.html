@@ -767,57 +767,79 @@
 
             <div class="p-4">
               <!-- 8 Sensores -->
-              <div class="mb-4">
+              <div class="mb-3">
                 <div class="text-xs font-bold text-gray-500 mb-2">SENSORES DO SISTEMA</div>
                 <div class="grid grid-cols-4 gap-2">
-                  <div class="text-center p-2 ${s0.class} rounded-lg">
+                  <div class="text-center p-2 ${s0.class} rounded-lg border-2 ${s0.text === 'Ativo' ? 'border-green-300' : 'border-gray-200'}">
+                    <div class="text-[10px] text-gray-500 uppercase">Sensor 0°</div>
                     <div class="text-sm font-bold">${s0.text}</div>
-                    <div class="text-xs">0 Graus</div>
                   </div>
-                  <div class="text-center p-2 ${s40.class} rounded-lg">
+                  <div class="text-center p-2 ${s40.class} rounded-lg border-2 ${s40.text === 'Ativo' ? 'border-green-300' : 'border-gray-200'}">
+                    <div class="text-[10px] text-gray-500 uppercase">Sensor 40°</div>
                     <div class="text-sm font-bold">${s40.text}</div>
-                    <div class="text-xs">40 Graus</div>
                   </div>
-                  <div class="text-center p-2 ${tRoda.class} rounded-lg">
+                  <div class="text-center p-2 ${tRoda.class} rounded-lg border-2 ${tRoda.text === 'Ativo' ? 'border-green-300' : 'border-gray-200'}">
+                    <div class="text-[10px] text-gray-500 uppercase">Trava Rodas</div>
                     <div class="text-sm font-bold">${tRoda.text}</div>
-                    <div class="text-xs">Trava Roda</div>
                   </div>
-                  <div class="text-center p-2 ${tChassi.class} rounded-lg">
+                  <div class="text-center p-2 ${tChassi.class} rounded-lg border-2 ${tChassi.text === 'Ativo' ? 'border-green-300' : 'border-gray-200'}">
+                    <div class="text-[10px] text-gray-500 uppercase">Trava Chassi</div>
                     <div class="text-sm font-bold">${tChassi.text}</div>
-                    <div class="text-xs">Trava Chassi</div>
                   </div>
-                  <div class="text-center p-2 ${tPinoE.class} rounded-lg">
+                  <div class="text-center p-2 ${tPinoE.class} rounded-lg border-2 ${tPinoE.text === 'Ativo' ? 'border-green-300' : 'border-gray-200'}">
+                    <div class="text-[10px] text-gray-500 uppercase">Trava Pino E</div>
                     <div class="text-sm font-bold">${tPinoE.text}</div>
-                    <div class="text-xs">Pino E</div>
                   </div>
-                  <div class="text-center p-2 ${tPinoD.class} rounded-lg">
+                  <div class="text-center p-2 ${tPinoD.class} rounded-lg border-2 ${tPinoD.text === 'Ativo' ? 'border-green-300' : 'border-gray-200'}">
+                    <div class="text-[10px] text-gray-500 uppercase">Trava Pino D</div>
                     <div class="text-sm font-bold">${tPinoD.text}</div>
-                    <div class="text-xs">Pino D</div>
                   </div>
-                  <div class="text-center p-2 ${moega.class} rounded-lg">
+                  <div class="text-center p-2 ${moega.class} rounded-lg border-2 ${moega.text === 'Cheia' ? 'border-red-300' : 'border-gray-200'}">
+                    <div class="text-[10px] text-gray-500 uppercase">Moega/Fosso</div>
                     <div class="text-sm font-bold">${moega.text}</div>
-                    <div class="text-xs">Moega</div>
                   </div>
-                  <div class="text-center p-2 ${portao.class} rounded-lg">
+                  <div class="text-center p-2 ${portao.class} rounded-lg border-2 ${portao.text === 'Fechado' ? 'border-green-300' : 'border-gray-200'}">
+                    <div class="text-[10px] text-gray-500 uppercase">Portão</div>
                     <div class="text-sm font-bold">${portao.text}</div>
-                    <div class="text-xs">Portao</div>
                   </div>
                 </div>
               </div>
 
-              <!-- Timeline 10 Etapas -->
-              <div class="mb-4 p-3 bg-gray-50 rounded-lg">
-                <div class="flex justify-between items-center mb-2">
-                  <span class="text-xs font-bold text-gray-500">TIMELINE DAS 10 ETAPAS</span>
-                  <span class="text-xs text-gray-400">Etapa: -</span>
+              <!-- Ciclo + Plataforma -->
+              <div class="mb-3 p-3 bg-gray-50 rounded-lg">
+                <div class="flex justify-between items-center">
+                  <span class="text-xs font-bold text-gray-500">CICLO PARADO</span>
+                  <span class="text-lg font-bold text-gray-400 font-mono">--:--</span>
                 </div>
-                <div class="flex gap-1 h-6">
-                  ${[1,2,3,4,5,6,7,8,9,10].map(i => `<div class="flex-1 bg-gray-200 rounded text-center text-xs text-gray-400 flex items-center justify-center">${i}</div>`).join('')}
+                <div class="flex justify-between items-center mt-1 pt-1 border-t border-gray-200">
+                  <span class="text-[10px] font-bold ${t.sensor_0_graus === false ? 'text-amber-500' : 'text-gray-400'}">PLATAFORMA: ${t.sensor_0_graus === false ? 'SUBINDO' : 'PARADA'}</span>
+                </div>
+              </div>
+
+              <!-- Ultimo Ciclo -->
+              <div class="mb-3">
+                <div class="text-[10px] font-bold text-gray-500 mb-1 tracking-wider">ÚLTIMO CICLO</div>
+                <div class="space-y-1">
+                  ${['Sensor 0°','Sensor 40°','Trava Roda','Trava Chassi','Trava Pino E','Trava Pino D'].map((name, i) => {
+                    const keys = ['sensor0','sensor40','trava_roda','trava_chassi','trava_pino_e','trava_pino_d'];
+                    const val = t.last_cycle ? (t.last_cycle[keys[i]] || 0) : 0;
+                    const total = t.last_cycle ? (t.last_cycle.tempo_total || 1) : 1;
+                    const pct = Math.min(Math.round((val / total) * 100), 100);
+                    return `<div class="flex items-center gap-2 ${i % 2 === 1 ? 'bg-gray-50' : ''} px-2 py-1 rounded">
+                      <span class="text-xs text-gray-600 w-24 shrink-0">${name}</span>
+                      <span class="text-xs font-bold w-8 text-right">${val ? val + 's' : '-'}</span>
+                      <div class="flex-1 bg-gray-200 h-2.5 rounded-full overflow-hidden"><div class="h-full bg-red-600 rounded-full transition-all" style="width:${pct}%"></div></div>
+                    </div>`;
+                  }).join('')}
+                  <div class="flex items-center gap-2 px-2 pt-1 border-t-2 border-gray-200">
+                    <span class="text-xs font-bold text-gray-700 w-24">TOTAL CICLO</span>
+                    <span class="text-xs font-bold text-red-600">${t.last_cycle ? (Math.floor(t.last_cycle.tempo_total / 60) + ':' + String(t.last_cycle.tempo_total % 60).padStart(2, '0')) : '-'}</span>
+                  </div>
                 </div>
               </div>
 
               <!-- Producao e Horimetro -->
-              <div class="grid grid-cols-3 gap-3 mb-4">
+              <div class="grid grid-cols-3 gap-3 mb-3">
                 <div class="text-center p-3 bg-pili-red/10 rounded-lg">
                   <div class="text-xl font-bold text-pili-red">${t.ciclos_hoje || 0}</div>
                   <div class="text-xs text-gray-500">Ciclos Hoje</div>
@@ -828,7 +850,7 @@
                 </div>
                 <div class="text-center p-3 bg-pili-red/10 rounded-lg">
                   <div class="text-xl font-bold text-pili-red">${t.horas_operacao || 0}h</div>
-                  <div class="text-xs text-gray-500">Horimetro</div>
+                  <div class="text-xs text-gray-500">Horímetro</div>
                 </div>
               </div>
 

@@ -1,0 +1,826 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dashboard - Portal do Cliente PILI TECH</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            primary: '#DC2626',
+            'primary-dark': '#991B1B',
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    @keyframes blink {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.5; }
+    }
+    .blink { animation: blink 1s infinite; }
+  </style>
+</head>
+<body class="bg-gray-50">
+  <!-- Header -->
+  <header class="bg-white border-b border-gray-200 sticky top-0 z-50 shadow-sm">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="flex items-center justify-between h-16">
+        <div class="flex items-center">
+          <svg class="w-8 h-8 text-primary mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z"/>
+          </svg>
+          <div>
+            <h1 class="text-xl font-bold text-gray-900">PILI TECH</h1>
+            <p class="text-xs text-gray-500">Portal do Cliente</p>
+          </div>
+        </div>
+        <div class="flex items-center gap-4">
+          <div class="text-right hidden sm:block">
+            <div id="companyName" class="text-sm font-semibold text-gray-900">-</div>
+            <div id="clientCode" class="text-xs text-gray-500">-</div>
+          </div>
+          <button onclick="logout()" class="inline-flex items-center px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary-dark transition-colors text-sm font-medium">
+            <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/>
+            </svg>
+            Sair
+          </button>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <!-- Loading -->
+    <div id="loading" class="text-center py-12">
+      <svg class="animate-spin h-8 w-8 text-primary mx-auto mb-4" fill="none" viewBox="0 0 24 24">
+        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+      </svg>
+      <p class="text-gray-600">Carregando dados...</p>
+    </div>
+
+    <!-- Stats Grid -->
+    <div id="statsSection" class="hidden mb-8">
+      <h2 class="text-2xl font-bold text-gray-900 mb-6">Visão Geral</h2>
+      <div id="statsGrid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6"></div>
+    </div>
+
+    <!-- Devices Grid -->
+    <div id="devicesSection" class="hidden mb-8">
+      <h2 class="text-2xl font-bold text-gray-900 mb-6">Meus Dispositivos</h2>
+      <div id="devicesGrid" class="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6"></div>
+    </div>
+
+    <!-- Charts -->
+    <div id="chartsSection" class="hidden mb-8">
+      <h2 class="text-2xl font-bold text-gray-900 mb-6">Análise de Desempenho</h2>
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div class="bg-white rounded-lg shadow p-6">
+          <h3 class="text-lg font-semibold text-gray-900 mb-4">Ciclos Totais por Dispositivo</h3>
+          <div class="h-64">
+            <canvas id="cyclesChart"></canvas>
+          </div>
+        </div>
+        <div class="bg-white rounded-lg shadow p-6">
+          <h3 class="text-lg font-semibold text-gray-900 mb-4">Horas de Operação</h3>
+          <div class="h-64">
+            <canvas id="hoursChart"></canvas>
+          </div>
+        </div>
+        <div class="bg-white rounded-lg shadow p-6">
+          <h3 class="text-lg font-semibold text-gray-900 mb-4">Ciclos dos Últimos Dias</h3>
+          <div class="h-64">
+            <canvas id="cyclesHistoryChart"></canvas>
+          </div>
+        </div>
+        <div class="bg-white rounded-lg shadow p-6">
+          <h3 class="text-lg font-semibold text-gray-900 mb-4">Status dos Sensores</h3>
+          <div class="h-64">
+            <canvas id="sensorsChart"></canvas>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Alerts -->
+    <div id="alertsSection" class="hidden mb-8">
+      <div class="flex items-center justify-between mb-6">
+        <h2 class="text-2xl font-bold text-gray-900">Alertas Recentes</h2>
+        <span class="text-sm text-gray-500">Últimas 24 horas</span>
+      </div>
+      <div class="bg-white rounded-lg shadow">
+        <div id="alertsContainer" class="max-h-96 overflow-y-auto"></div>
+      </div>
+    </div>
+
+    <!-- Logs -->
+    <div id="logsSection" class="hidden mb-8">
+      <div class="flex items-center justify-between mb-6">
+        <h2 class="text-2xl font-bold text-gray-900">Registro de Eventos</h2>
+        <span class="text-sm text-gray-500">Últimos 100 eventos</span>
+      </div>
+      <div class="bg-white rounded-lg shadow">
+        <div id="logsContainer" class="max-h-96 overflow-y-auto"></div>
+      </div>
+    </div>
+
+    <!-- Maintenances -->
+    <div id="maintenancesSection" class="hidden mb-8">
+      <h2 class="text-2xl font-bold text-gray-900 mb-6">Histórico de Manutenções</h2>
+      <div id="maintenancesContainer" class="space-y-4"></div>
+    </div>
+  </main>
+
+  <!-- Device Modal -->
+  <div id="deviceModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+    <div class="bg-white rounded-lg max-w-6xl w-full max-h-[90vh] overflow-hidden flex flex-col">
+      <div class="bg-gradient-to-r from-primary to-primary-dark text-white p-6 flex items-center justify-between">
+        <h3 id="modalTitle" class="text-2xl font-bold">Detalhes do Dispositivo</h3>
+        <button onclick="closeModal()" class="text-white hover:bg-white hover:bg-opacity-20 rounded-lg p-2 transition-colors">
+          <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+          </svg>
+        </button>
+      </div>
+      <div id="modalBody" class="flex-1 overflow-auto p-6"></div>
+    </div>
+  </div>
+
+  <!-- Refresh Indicator -->
+  <div class="fixed bottom-4 right-4 bg-white border border-gray-200 rounded-lg shadow-lg px-4 py-2 text-sm text-gray-600">
+    <div class="flex items-center">
+      <div class="w-2 h-2 bg-green-500 rounded-full mr-2 animate-pulse"></div>
+      <span>Atualiza em <span id="countdown" class="font-semibold">30</span>s</span>
+    </div>
+  </div>
+
+  <script>
+    let currentDevices = [];
+    let charts = {};
+    let refreshInterval;
+    let countdownInterval;
+    let countdown = 30;
+
+    // Check authentication
+    async function checkAuth() {
+      try {
+        const response = await fetch('/api/session');
+        const data = await response.json();
+
+        if (!data.authenticated) {
+          window.location.href = '/login.html';
+          return false;
+        }
+
+        document.getElementById('companyName').textContent = data.companyName || 'Cliente';
+        document.getElementById('clientCode').textContent = `Código: ${data.clientCode}`;
+        return true;
+      } catch (error) {
+        console.error('Erro ao verificar autenticação:', error);
+        window.location.href = '/login.html';
+        return false;
+      }
+    }
+
+    // Logout
+    async function logout() {
+      try {
+        await fetch('/logout', { method: 'POST' });
+        window.location.href = '/login.html';
+      } catch (error) {
+        console.error('Erro ao fazer logout:', error);
+        window.location.href = '/login.html';
+      }
+    }
+
+    // Load all data
+    async function loadAllData() {
+      try {
+        const [devices, alerts, logs, maintenances] = await Promise.all([
+          fetch('/api/latest-readings').then(r => r.json()),
+          fetch('/api/devices').then(async r => {
+            const devs = await r.json();
+            const allAlerts = await Promise.all(
+              devs.map(d => fetch(`/api/device/${d.id}/alerts?limit=20`).then(r => r.json()))
+            );
+            return allAlerts.flat();
+          }),
+          fetch('/api/devices').then(async r => {
+            const devs = await r.json();
+            const allLogs = await Promise.all(
+              devs.map(d => fetch(`/api/device/${d.id}/events?limit=50`).then(r => r.json()))
+            );
+            return allLogs.flat().sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp)).slice(0, 100);
+          }),
+          fetch('/api/devices').then(async r => {
+            const devs = await r.json();
+            const allMaint = await Promise.all(
+              devs.map(d => fetch(`/api/device/${d.id}/maintenances`).then(r => r.json()))
+            );
+            return allMaint.flat().sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+          })
+        ]);
+
+        currentDevices = devices;
+        document.getElementById('loading').classList.add('hidden');
+
+        if (devices.length === 0) {
+          document.getElementById('devicesGrid').innerHTML = `
+            <div class="col-span-full text-center py-12 text-gray-500">
+              <svg class="w-16 h-16 mx-auto mb-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+              </svg>
+              <p>Nenhum dispositivo encontrado</p>
+            </div>
+          `;
+          document.getElementById('devicesSection').classList.remove('hidden');
+          return;
+        }
+
+        renderStats(devices);
+        renderDevices(devices);
+        renderCharts(devices);
+        renderAlerts(alerts);
+        renderLogs(logs);
+        renderMaintenances(maintenances);
+
+      } catch (error) {
+        console.error('Erro ao carregar dados:', error);
+        document.getElementById('loading').innerHTML = `
+          <svg class="w-12 h-12 text-red-500 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+          </svg>
+          <p class="text-red-600">Erro ao carregar dados</p>
+        `;
+      }
+    }
+
+    // Render stats
+    function renderStats(devices) {
+      const totalDevices = devices.length;
+      const onlineDevices = devices.filter(d => d.wifi_connected && d.timestamp && (new Date() - new Date(d.timestamp)) < 600000).length;
+      const totalCycles = devices.reduce((sum, d) => sum + (d.ciclos_total || 0), 0);
+      const avgCyclesToday = devices.length > 0 ? Math.round(devices.reduce((sum, d) => sum + (d.ciclos_hoje || 0), 0) / devices.length) : 0;
+
+      const statsHtml = `
+        <div class="bg-white rounded-lg shadow p-6">
+          <div class="flex items-center justify-between">
+            <div>
+              <p class="text-sm font-medium text-gray-500 uppercase">Dispositivos Online</p>
+              <p class="text-3xl font-bold ${onlineDevices === totalDevices ? 'text-green-600' : 'text-red-600'} mt-2">${onlineDevices}/${totalDevices}</p>
+            </div>
+            <div class="p-3 ${onlineDevices === totalDevices ? 'bg-green-100' : 'bg-red-100'} rounded-lg">
+              <svg class="w-8 h-8 ${onlineDevices === totalDevices ? 'text-green-600' : 'text-red-600'}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+              </svg>
+            </div>
+          </div>
+        </div>
+        <div class="bg-white rounded-lg shadow p-6">
+          <div class="flex items-center justify-between">
+            <div>
+              <p class="text-sm font-medium text-gray-500 uppercase">Total de Ciclos</p>
+              <p class="text-3xl font-bold text-gray-900 mt-2">${totalCycles.toLocaleString()}</p>
+            </div>
+            <div class="p-3 bg-blue-100 rounded-lg">
+              <svg class="w-8 h-8 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+              </svg>
+            </div>
+          </div>
+        </div>
+        <div class="bg-white rounded-lg shadow p-6">
+          <div class="flex items-center justify-between">
+            <div>
+              <p class="text-sm font-medium text-gray-500 uppercase">Média Ciclos Hoje</p>
+              <p class="text-3xl font-bold text-gray-900 mt-2">${avgCyclesToday}</p>
+            </div>
+            <div class="p-3 bg-purple-100 rounded-lg">
+              <svg class="w-8 h-8 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
+              </svg>
+            </div>
+          </div>
+        </div>
+        <div class="bg-white rounded-lg shadow p-6">
+          <div class="flex items-center justify-between">
+            <div>
+              <p class="text-sm font-medium text-gray-500 uppercase">Horas de Operação</p>
+              <p class="text-3xl font-bold text-gray-900 mt-2">${Math.round(devices.reduce((sum, d) => sum + (d.horas_operacao || 0), 0))}h</p>
+            </div>
+            <div class="p-3 bg-orange-100 rounded-lg">
+              <svg class="w-8 h-8 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+              </svg>
+            </div>
+          </div>
+        </div>
+      `;
+
+      document.getElementById('statsGrid').innerHTML = statsHtml;
+      document.getElementById('statsSection').classList.remove('hidden');
+    }
+
+    // Render devices
+    function renderDevices(devices) {
+      const grid = document.getElementById('devicesGrid');
+
+      grid.innerHTML = devices.map(device => {
+        const isOnline = device.wifi_connected && device.timestamp && (new Date() - new Date(device.timestamp)) < 600000;
+
+        return `
+          <div onclick="openDeviceModal(${device.id})" class="bg-white rounded-lg shadow hover:shadow-lg transition-shadow cursor-pointer overflow-hidden">
+            <div class="p-6">
+              <div class="flex items-center justify-between mb-4">
+                <div>
+                  <h3 class="text-lg font-bold text-gray-900">${device.name || device.serial_number}</h3>
+                  <p class="text-sm text-gray-500">${device.serial_number}</p>
+                </div>
+                <span class="px-3 py-1 rounded-full text-xs font-semibold ${isOnline ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}">
+                  ${isOnline ? 'Online' : 'Offline'}
+                </span>
+              </div>
+
+              ${device.sistema_ligado !== null ? `
+                <div class="grid grid-cols-4 gap-2 mb-3">
+                  <div class="text-center p-2 rounded border-2 ${device.sensor_0_graus ? 'bg-green-100 text-green-700 border-green-300' : 'bg-gray-100 text-gray-600 border-gray-200'}">
+                    <div class="text-[10px] text-gray-500 uppercase">Sensor 0°</div>
+                    <div class="text-xs font-bold">${device.sensor_0_graus ? 'Ativo' : 'Inativo'}</div>
+                  </div>
+                  <div class="text-center p-2 rounded border-2 ${device.sensor_40_graus ? 'bg-green-100 text-green-700 border-green-300' : 'bg-gray-100 text-gray-600 border-gray-200'}">
+                    <div class="text-[10px] text-gray-500 uppercase">Sensor 40°</div>
+                    <div class="text-xs font-bold">${device.sensor_40_graus ? 'Ativo' : 'Inativo'}</div>
+                  </div>
+                  <div class="text-center p-2 rounded border-2 ${device.trava_roda ? 'bg-green-100 text-green-700 border-green-300' : 'bg-gray-100 text-gray-600 border-gray-200'}">
+                    <div class="text-[10px] text-gray-500 uppercase">Trava Rodas</div>
+                    <div class="text-xs font-bold">${device.trava_roda ? 'Ativo' : 'Inativo'}</div>
+                  </div>
+                  <div class="text-center p-2 rounded border-2 ${device.trava_chassi ? 'bg-green-100 text-green-700 border-green-300' : 'bg-gray-100 text-gray-600 border-gray-200'}">
+                    <div class="text-[10px] text-gray-500 uppercase">Trava Chassi</div>
+                    <div class="text-xs font-bold">${device.trava_chassi ? 'Ativo' : 'Inativo'}</div>
+                  </div>
+                  <div class="text-center p-2 rounded border-2 ${device.trava_pino_e ? 'bg-green-100 text-green-700 border-green-300' : 'bg-gray-100 text-gray-600 border-gray-200'}">
+                    <div class="text-[10px] text-gray-500 uppercase">Trava Pino E</div>
+                    <div class="text-xs font-bold">${device.trava_pino_e ? 'Ativo' : 'Inativo'}</div>
+                  </div>
+                  <div class="text-center p-2 rounded border-2 ${device.trava_pino_d ? 'bg-green-100 text-green-700 border-green-300' : 'bg-gray-100 text-gray-600 border-gray-200'}">
+                    <div class="text-[10px] text-gray-500 uppercase">Trava Pino D</div>
+                    <div class="text-xs font-bold">${device.trava_pino_d ? 'Ativo' : 'Inativo'}</div>
+                  </div>
+                  <div class="text-center p-2 rounded border-2 ${device.moega_cheia ? 'bg-red-100 text-red-700 border-red-300' : 'bg-gray-100 text-gray-600 border-gray-200'}">
+                    <div class="text-[10px] text-gray-500 uppercase">Moega/Fosso</div>
+                    <div class="text-xs font-bold">${device.moega_cheia ? 'Cheia' : 'OK'}</div>
+                  </div>
+                  <div class="text-center p-2 rounded border-2 ${device.portao_fechado ? 'bg-green-100 text-green-700 border-green-300' : 'bg-gray-100 text-gray-600 border-gray-200'}">
+                    <div class="text-[10px] text-gray-500 uppercase">Portão</div>
+                    <div class="text-xs font-bold">${device.portao_fechado ? 'Fechado' : 'Aberto'}</div>
+                  </div>
+                </div>
+
+                <div class="p-2 bg-gray-50 rounded-lg mb-3">
+                  <div class="flex justify-between items-center">
+                    <span class="text-[10px] font-bold text-gray-500">CICLO PARADO</span>
+                    <span class="text-sm font-bold text-gray-400 font-mono">--:--</span>
+                  </div>
+                  <div class="flex justify-between items-center mt-1 pt-1 border-t border-gray-200">
+                    <span class="text-[10px] font-bold ${device.sensor_0_graus === false ? 'text-amber-500' : 'text-gray-400'}">PLATAFORMA: ${device.sensor_0_graus === false ? 'SUBINDO' : 'PARADA'}</span>
+                  </div>
+                </div>
+
+                <div class="grid grid-cols-3 gap-3 pt-3 border-t border-gray-200">
+                  <div class="text-center">
+                    <div class="text-2xl font-bold text-primary">${device.ciclos_hoje || 0}</div>
+                    <div class="text-xs text-gray-500 mt-1">Ciclos Hoje</div>
+                  </div>
+                  <div class="text-center">
+                    <div class="text-2xl font-bold text-primary">${device.ciclos_total || 0}</div>
+                    <div class="text-xs text-gray-500 mt-1">Total</div>
+                  </div>
+                  <div class="text-center">
+                    <div class="text-2xl font-bold text-primary">${device.horas_operacao || 0}h</div>
+                    <div class="text-xs text-gray-500 mt-1">Horímetro</div>
+                  </div>
+                </div>
+              ` : `
+                <div class="text-center py-8 text-gray-500 text-sm">
+                  Aguardando primeira leitura...
+                </div>
+              `}
+            </div>
+          </div>
+        `;
+      }).join('');
+
+      document.getElementById('devicesSection').classList.remove('hidden');
+    }
+
+    // Render charts
+    function renderCharts(devices) {
+      document.getElementById('chartsSection').classList.remove('hidden');
+
+      const labels = devices.map(d => d.serial_number);
+      const cyclesData = devices.map(d => d.ciclos_total || 0);
+      const hoursData = devices.map(d => (d.horas_operacao || 0) + ((d.minutos_operacao || 0) / 60));
+      const cyclesTodayData = devices.map(d => d.ciclos_hoje || 0);
+
+      // Cycles Chart
+      const cyclesCtx = document.getElementById('cyclesChart');
+      if (charts.cycles) charts.cycles.destroy();
+      charts.cycles = new Chart(cyclesCtx, {
+        type: 'bar',
+        data: {
+          labels: labels,
+          datasets: [{
+            label: 'Ciclos Totais',
+            data: cyclesData,
+            backgroundColor: 'rgba(220, 38, 38, 0.7)',
+            borderColor: 'rgba(220, 38, 38, 1)',
+            borderWidth: 2
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: { legend: { display: false } },
+          scales: {
+            y: { beginAtZero: true, grid: { color: 'rgba(0, 0, 0, 0.05)' } },
+            x: { grid: { display: false } }
+          }
+        }
+      });
+
+      // Hours Chart
+      const hoursCtx = document.getElementById('hoursChart');
+      if (charts.hours) charts.hours.destroy();
+      charts.hours = new Chart(hoursCtx, {
+        type: 'bar',
+        data: {
+          labels: labels,
+          datasets: [{
+            label: 'Horas de Operação',
+            data: hoursData,
+            backgroundColor: 'rgba(16, 185, 129, 0.7)',
+            borderColor: 'rgba(16, 185, 129, 1)',
+            borderWidth: 2
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: { legend: { display: false } },
+          scales: {
+            y: { beginAtZero: true, grid: { color: 'rgba(0, 0, 0, 0.05)' } },
+            x: { grid: { display: false } }
+          }
+        }
+      });
+
+      // Cycles History Chart
+      const cyclesHistoryCtx = document.getElementById('cyclesHistoryChart');
+      if (charts.cyclesHistory) charts.cyclesHistory.destroy();
+      charts.cyclesHistory = new Chart(cyclesHistoryCtx, {
+        type: 'line',
+        data: {
+          labels: labels,
+          datasets: [{
+            label: 'Ciclos Hoje',
+            data: cyclesTodayData,
+            backgroundColor: 'rgba(59, 130, 246, 0.2)',
+            borderColor: 'rgba(59, 130, 246, 1)',
+            borderWidth: 3,
+            tension: 0.4,
+            fill: true
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: { legend: { display: false } },
+          scales: {
+            y: { beginAtZero: true, grid: { color: 'rgba(0, 0, 0, 0.05)' } },
+            x: { grid: { display: false } }
+          }
+        }
+      });
+
+      // Sensors Chart
+      if (devices.length > 0) {
+        const device = devices[0];
+        const sensorsCtx = document.getElementById('sensorsChart');
+        if (charts.sensors) charts.sensors.destroy();
+        charts.sensors = new Chart(sensorsCtx, {
+          type: 'doughnut',
+          data: {
+            labels: ['Sensor 0°', 'Sensor 40°', 'Moega', 'Fosso', 'Trava'],
+            datasets: [{
+              data: [
+                device.sensor_0_graus ? 1 : 0,
+                device.sensor_40_graus ? 1 : 0,
+                device.moega_cheia ? 1 : 0,
+                device.fosso_cheio ? 1 : 0,
+                device.trava_roda ? 1 : 0
+              ],
+              backgroundColor: [
+                device.sensor_0_graus ? '#10b981' : '#e5e7eb',
+                device.sensor_40_graus ? '#10b981' : '#e5e7eb',
+                device.moega_cheia ? '#ef4444' : '#e5e7eb',
+                device.fosso_cheio ? '#ef4444' : '#e5e7eb',
+                device.trava_roda ? '#10b981' : '#e5e7eb'
+              ]
+            }]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { legend: { position: 'bottom' } }
+          }
+        });
+      }
+    }
+
+    // Render alerts
+    function renderAlerts(alerts) {
+      const container = document.getElementById('alertsContainer');
+
+      if (alerts.length === 0) {
+        container.innerHTML = `
+          <div class="text-center py-12">
+            <svg class="w-16 h-16 mx-auto mb-4 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+            </svg>
+            <p class="text-gray-500">Nenhum alerta nas últimas 24 horas</p>
+          </div>
+        `;
+      } else {
+        container.innerHTML = alerts.map(alert => `
+          <div class="flex items-start justify-between p-4 border-b border-gray-200 last:border-b-0 hover:bg-gray-50">
+            <div class="flex-1">
+              <div class="flex items-center gap-2 mb-1">
+                <span class="px-2 py-1 bg-red-100 text-red-800 rounded text-xs font-semibold">ALERTA</span>
+                <span class="text-sm text-gray-900">${alert.message || 'Sem mensagem'}</span>
+              </div>
+              <p class="text-xs text-gray-500">Dispositivo: ${alert.serial_number || 'N/A'}</p>
+            </div>
+            <span class="text-xs text-gray-400 whitespace-nowrap ml-4">${new Date(alert.timestamp).toLocaleString('pt-BR')}</span>
+          </div>
+        `).join('');
+      }
+
+      document.getElementById('alertsSection').classList.remove('hidden');
+    }
+
+    // Render logs
+    function renderLogs(logs) {
+      const container = document.getElementById('logsContainer');
+
+      if (logs.length === 0) {
+        container.innerHTML = `
+          <div class="text-center py-12 text-gray-500">
+            <svg class="w-16 h-16 mx-auto mb-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+            </svg>
+            <p>Nenhum evento registrado</p>
+          </div>
+        `;
+      } else {
+        container.innerHTML = logs.map(log => {
+          const typeColors = {
+            'ALERT': 'bg-red-100 text-red-800',
+            'INFO': 'bg-blue-100 text-blue-800',
+            'WARNING': 'bg-yellow-100 text-yellow-800'
+          };
+          return `
+            <div class="flex items-start justify-between p-4 border-b border-gray-200 last:border-b-0 hover:bg-gray-50">
+              <div class="flex-1">
+                <div class="flex items-center gap-2">
+                  <span class="px-2 py-1 rounded text-xs font-semibold ${typeColors[log.event_type] || 'bg-gray-100 text-gray-800'}">${log.event_type}</span>
+                  <span class="text-sm text-gray-900">${log.message || 'Sem mensagem'}</span>
+                </div>
+              </div>
+              <span class="text-xs text-gray-400 whitespace-nowrap ml-4">${new Date(log.timestamp).toLocaleString('pt-BR')}</span>
+            </div>
+          `;
+        }).join('');
+      }
+
+      document.getElementById('logsSection').classList.remove('hidden');
+    }
+
+    // Render maintenances
+    function renderMaintenances(maintenances) {
+      const container = document.getElementById('maintenancesContainer');
+
+      if (maintenances.length === 0) {
+        container.innerHTML = `
+          <div class="bg-white rounded-lg shadow text-center py-12 text-gray-500">
+            <svg class="w-16 h-16 mx-auto mb-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.7 6.3a1 1 0 000 1.4l1.6 1.6a1 1 0 001.4 0l3.77-3.77a6 6 0 01-7.94 7.94l-6.91 6.91a2.12 2.12 0 01-3-3l6.91-6.91a6 6 0 017.94-7.94l-3.76 3.76z"/>
+            </svg>
+            <p>Nenhuma manutenção registrada</p>
+          </div>
+        `;
+      } else {
+        container.innerHTML = maintenances.map(maint => `
+          <div class="bg-white rounded-lg shadow p-6 border-l-4 border-green-500">
+            <div class="flex items-center justify-between mb-3">
+              <div class="flex items-center">
+                <svg class="w-5 h-5 text-green-500 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.7 6.3a1 1 0 000 1.4l1.6 1.6a1 1 0 001.4 0l3.77-3.77a6 6 0 01-7.94 7.94l-6.91 6.91a2.12 2.12 0 01-3-3l6.91-6.91a6 6 0 017.94-7.94l-3.76 3.76z"/>
+                </svg>
+                <span class="font-semibold text-gray-900">${maint.technician}</span>
+              </div>
+              <span class="text-sm text-gray-500">${new Date(maint.timestamp).toLocaleString('pt-BR')}</span>
+            </div>
+            <p class="text-gray-700">${maint.description}</p>
+            ${maint.horas_operacao ? `<p class="text-sm text-gray-500 mt-2">Horímetro: ${maint.horas_operacao}h</p>` : ''}
+          </div>
+        `).join('');
+      }
+
+      document.getElementById('maintenancesSection').classList.remove('hidden');
+    }
+
+    // Device Modal
+    async function openDeviceModal(deviceId) {
+      const modal = document.getElementById('deviceModal');
+      const modalBody = document.getElementById('modalBody');
+      const modalTitle = document.getElementById('modalTitle');
+
+      modal.classList.remove('hidden');
+      modalBody.innerHTML = '<div class="text-center py-12 text-gray-500">Carregando detalhes...</div>';
+
+      try {
+        const [device, latest, stats, alerts, events] = await Promise.all([
+          fetch(`/api/device/${deviceId}`).then(r => r.json()),
+          fetch(`/api/device/${deviceId}/latest`).then(r => r.json()),
+          fetch(`/api/device/${deviceId}/stats`).then(r => r.json()),
+          fetch(`/api/device/${deviceId}/alerts?limit=10`).then(r => r.json()),
+          fetch(`/api/device/${deviceId}/events?limit=20`).then(r => r.json())
+        ]);
+
+        modalTitle.textContent = `${device.name} - ${device.serial_number}`;
+
+        const isOnline = latest && latest.wifi_connected && latest.timestamp && (new Date() - new Date(latest.timestamp)) < 600000;
+
+        modalBody.innerHTML = `
+          <div class="space-y-6">
+            <div>
+              <h4 class="text-lg font-semibold text-gray-900 mb-3">Status Atual</h4>
+              <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div class="bg-gray-50 p-4 rounded-lg border-l-4 border-primary">
+                  <div class="text-xs text-gray-500 uppercase font-semibold">Status</div>
+                  <div class="text-sm font-bold mt-1 ${isOnline ? 'text-green-600' : 'text-red-600'}">${isOnline ? 'Online' : 'Offline'}</div>
+                </div>
+                <div class="bg-gray-50 p-4 rounded-lg border-l-4 border-primary">
+                  <div class="text-xs text-gray-500 uppercase font-semibold">Sistema</div>
+                  <div class="text-sm font-bold mt-1 ${latest?.sistema_ligado ? 'text-green-600' : 'text-red-600'}">${latest?.sistema_ligado ? 'LIGADO' : 'DESLIGADO'}</div>
+                </div>
+                <div class="bg-gray-50 p-4 rounded-lg border-l-4 border-primary">
+                  <div class="text-xs text-gray-500 uppercase font-semibold">Sensor 0°</div>
+                  <div class="text-sm font-bold mt-1">${latest?.sensor_0_graus ? 'Ativo' : 'Inativo'}</div>
+                </div>
+                <div class="bg-gray-50 p-4 rounded-lg border-l-4 border-primary">
+                  <div class="text-xs text-gray-500 uppercase font-semibold">Sensor 40°</div>
+                  <div class="text-sm font-bold mt-1">${latest?.sensor_40_graus ? 'Ativo' : 'Inativo'}</div>
+                </div>
+                <div class="bg-gray-50 p-4 rounded-lg border-l-4 border-primary">
+                  <div class="text-xs text-gray-500 uppercase font-semibold">Trava Roda</div>
+                  <div class="text-sm font-bold mt-1">${latest?.trava_roda ? 'Ativo' : 'Inativo'}</div>
+                </div>
+                <div class="bg-gray-50 p-4 rounded-lg border-l-4 border-primary">
+                  <div class="text-xs text-gray-500 uppercase font-semibold">Moega</div>
+                  <div class="text-sm font-bold mt-1 ${latest?.moega_cheia ? 'text-red-600' : 'text-green-600'}">${latest?.moega_cheia ? 'CHEIA' : 'OK'}</div>
+                </div>
+                <div class="bg-gray-50 p-4 rounded-lg border-l-4 border-primary">
+                  <div class="text-xs text-gray-500 uppercase font-semibold">Fosso</div>
+                  <div class="text-sm font-bold mt-1 ${latest?.fosso_cheio ? 'text-red-600' : 'text-green-600'}">${latest?.fosso_cheio ? 'CHEIO' : 'OK'}</div>
+                </div>
+                <div class="bg-gray-50 p-4 rounded-lg border-l-4 border-primary">
+                  <div class="text-xs text-gray-500 uppercase font-semibold">Movimento</div>
+                  <div class="text-sm font-bold mt-1">${latest?.subindo ? '↑ Subindo' : latest?.descendo ? '↓ Descendo' : 'Parado'}</div>
+                </div>
+                <div class="bg-gray-50 p-4 rounded-lg border-l-4 border-primary">
+                  <div class="text-xs text-gray-500 uppercase font-semibold">Ciclos Hoje</div>
+                  <div class="text-sm font-bold mt-1 text-primary">${latest?.ciclos_hoje || 0}</div>
+                </div>
+                <div class="bg-gray-50 p-4 rounded-lg border-l-4 border-primary">
+                  <div class="text-xs text-gray-500 uppercase font-semibold">Ciclos Total</div>
+                  <div class="text-sm font-bold mt-1 text-primary">${stats.ciclos_total || 0}</div>
+                </div>
+                <div class="bg-gray-50 p-4 rounded-lg border-l-4 border-primary">
+                  <div class="text-xs text-gray-500 uppercase font-semibold">Horímetro</div>
+                  <div class="text-sm font-bold mt-1 text-primary">${stats.horas_operacao || 0}h ${stats.minutos_operacao || 0}m</div>
+                </div>
+                <div class="bg-gray-50 p-4 rounded-lg border-l-4 border-primary">
+                  <div class="text-xs text-gray-500 uppercase font-semibold">Uptime</div>
+                  <div class="text-sm font-bold mt-1">${Math.floor((latest?.uptime_seconds || 0) / 3600)}h</div>
+                </div>
+              </div>
+            </div>
+
+            ${alerts.length > 0 ? `
+              <div>
+                <h4 class="text-lg font-semibold text-gray-900 mb-3">Últimos Alertas</h4>
+                <div class="bg-gray-50 rounded-lg max-h-60 overflow-y-auto">
+                  ${alerts.map(alert => `
+                    <div class="flex items-start justify-between p-3 border-b border-gray-200 last:border-b-0">
+                      <div class="flex-1">
+                        <span class="px-2 py-1 bg-red-100 text-red-800 rounded text-xs font-semibold">ALERTA</span>
+                        <span class="text-sm text-gray-900 ml-2">${alert.message}</span>
+                      </div>
+                      <span class="text-xs text-gray-400 whitespace-nowrap ml-4">${new Date(alert.timestamp).toLocaleString('pt-BR')}</span>
+                    </div>
+                  `).join('')}
+                </div>
+              </div>
+            ` : ''}
+
+            ${events.length > 0 ? `
+              <div>
+                <h4 class="text-lg font-semibold text-gray-900 mb-3">Eventos Recentes</h4>
+                <div class="bg-gray-50 rounded-lg max-h-60 overflow-y-auto">
+                  ${events.map(event => {
+                    const typeColors = {
+                      'ALERT': 'bg-red-100 text-red-800',
+                      'INFO': 'bg-blue-100 text-blue-800',
+                      'WARNING': 'bg-yellow-100 text-yellow-800'
+                    };
+                    return `
+                      <div class="flex items-start justify-between p-3 border-b border-gray-200 last:border-b-0">
+                        <div class="flex-1">
+                          <span class="px-2 py-1 rounded text-xs font-semibold ${typeColors[event.event_type] || 'bg-gray-100 text-gray-800'}">${event.event_type}</span>
+                          <span class="text-sm text-gray-900 ml-2">${event.message}</span>
+                        </div>
+                        <span class="text-xs text-gray-400 whitespace-nowrap ml-4">${new Date(event.timestamp).toLocaleString('pt-BR')}</span>
+                      </div>
+                    `;
+                  }).join('')}
+                </div>
+              </div>
+            ` : ''}
+          </div>
+        `;
+
+      } catch (error) {
+        console.error('Erro ao carregar detalhes:', error);
+        modalBody.innerHTML = `
+          <div class="text-center py-12">
+            <svg class="w-12 h-12 text-red-500 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+            </svg>
+            <div class="font-semibold text-red-600">Erro ao carregar detalhes</div>
+          </div>
+        `;
+      }
+    }
+
+    function closeModal() {
+      document.getElementById('deviceModal').classList.add('hidden');
+    }
+
+    // Close modal on outside click
+    document.getElementById('deviceModal').addEventListener('click', function(e) {
+      if (e.target === this) {
+        closeModal();
+      }
+    });
+
+    // Auto-refresh
+    function startAutoRefresh() {
+      countdown = 30;
+      document.getElementById('countdown').textContent = countdown;
+
+      if (countdownInterval) clearInterval(countdownInterval);
+      if (refreshInterval) clearInterval(refreshInterval);
+
+      countdownInterval = setInterval(() => {
+        countdown--;
+        document.getElementById('countdown').textContent = countdown;
+        if (countdown <= 0) countdown = 30;
+      }, 1000);
+
+      refreshInterval = setInterval(() => {
+        loadAllData();
+      }, 30000);
+    }
+
+    // Initialize
+    async function init() {
+      const authenticated = await checkAuth();
+      if (authenticated) {
+        await loadAllData();
+        startAutoRefresh();
+      }
+    }
+
+    init();
+  </script>
+</body>
+</html>
