@@ -2296,6 +2296,12 @@ async function initDatabase() {
 
     // Apagar assinaturas pendentes antigas (limpeza)
     await pool.query(`DELETE FROM subscriptions WHERE status = 'pending' AND created_at < NOW() - INTERVAL '7 days'`);
+
+    // Limpar ciclos com tempo absurdamente curto (dados de bug da logica invertida)
+    const cleaned = await pool.query(`DELETE FROM cycle_data WHERE tempo_total < 60 RETURNING id`);
+    if (cleaned.rowCount > 0) {
+      console.log(`🧹 Limpeza: ${cleaned.rowCount} ciclos invalidos removidos (tempo_total < 60s)`);
+    }
   } catch (err) {
     console.error('Erro ao inicializar banco:', err.message);
   }

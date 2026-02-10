@@ -502,29 +502,45 @@
       window.location.href = '/';
     }
 
-    // Verificar se ja esta no trial e ajustar mensagem
+    // Verificar status e adaptar toda a pagina
     (async function checkTrialStatus() {
       try {
         const res = await fetch('/api/subscription-status', {
           headers: { 'Authorization': 'Bearer ' + token }
         });
-        if (res.ok) {
-          const data = await res.json();
-          const trialInfo = document.querySelector('.trial-info');
-          if (trialInfo && data.status === 'trial') {
-            const dias = data.trialDaysRemaining || data.daysRemaining || 0;
-            trialInfo.innerHTML = `
-              <h2>Assinar Plano Anual</h2>
-              <div class="trial-badge" style="background:linear-gradient(135deg,#f59e0b,#d97706)">TRIAL ATIVO - ${dias} dias restantes</div>
-              <p>Voce esta no periodo de avaliacao gratuita. Cadastre seu cartao para garantir a continuidade do servico apos o trial. <strong>Nao sera cobrado nada</strong> ate o fim do trial.</p>
-            `;
-          } else if (trialInfo && data.status === 'active') {
-            trialInfo.innerHTML = `
-              <h2>Assinatura Ativa</h2>
-              <div class="trial-badge" style="background:linear-gradient(135deg,#22c55e,#16a34a)">PLANO ATIVO</div>
-              <p>Sua assinatura esta ativa. Voce pode atualizar seus dados de pagamento abaixo.</p>
-            `;
-          }
+        if (!res.ok) return;
+        const data = await res.json();
+        const trialInfo = document.querySelector('.trial-info');
+        const submitBtn = document.getElementById('submitBtn');
+        const summary = document.querySelector('.plan-summary');
+        const terms = document.querySelector('.terms');
+        const dias = data.trialDaysRemaining || 0;
+
+        if (data.status === 'trial') {
+          // Ja esta no trial
+          if (trialInfo) trialInfo.innerHTML = `
+            <h2 style="font-size:1.6rem">Assinar Plano Anual</h2>
+            <div class="trial-badge" style="background:linear-gradient(135deg,#f59e0b,#d97706);font-size:0.95rem;padding:10px 24px">TRIAL ATIVO - ${dias} dias restantes</div>
+            <p>Cadastre seu cartao para garantir a continuidade apos o trial. <strong>Nao sera cobrado nada</strong> ate o fim dos ${dias} dias restantes.</p>
+          `;
+          if (summary) summary.innerHTML = `
+            <h4>Resumo do Plano Anual</h4>
+            <div class="plan-item"><span>Status atual</span><span style="color:#f59e0b;font-weight:700">TRIAL (${dias} dias)</span></div>
+            <div class="plan-item"><span>Valor apos trial</span><span id="precoOriginal">R$ 2.000,00/ano</span></div>
+            <div class="plan-item" id="descontoRow" style="display:none;color:#4ade80"><span>Desconto (<span id="cupomAplicado">-</span>)</span><span id="valorDesconto">-R$ 0,00</span></div>
+            <div class="plan-item" id="precoFinalRow" style="display:none"><span>Valor final</span><span id="precoFinal">R$ 2.000,00</span></div>
+            <div class="plan-item"><span><strong>Cobranca hoje</strong></span><span class="free" style="font-size:1.1rem"><strong>R$ 0,00</strong></span></div>
+          `;
+          if (submitBtn) submitBtn.textContent = 'Cadastrar Cartao';
+          if (terms) terms.innerHTML = 'Ao continuar, voce concorda com os <a href="#">Termos de Uso</a> e <a href="#">Politica de Privacidade</a>.<br>A cobranca sera efetuada automaticamente apos o fim do trial (${dias} dias), caso nao cancele antes.';
+        } else if (data.status === 'active') {
+          if (trialInfo) trialInfo.innerHTML = `
+            <h2 style="font-size:1.6rem">Assinatura Ativa</h2>
+            <div class="trial-badge" style="background:linear-gradient(135deg,#22c55e,#16a34a);font-size:0.95rem;padding:10px 24px">PLANO ATIVO</div>
+            <p>Sua assinatura esta ativa. Voce pode atualizar seus dados de pagamento abaixo.</p>
+          `;
+          if (submitBtn) submitBtn.textContent = 'Atualizar Cartao';
+          if (terms) terms.innerHTML = 'Ao continuar, voce concorda com os <a href="#">Termos de Uso</a> e <a href="#">Politica de Privacidade</a>.';
         }
       } catch(e) { /* silencioso */ }
     })();
