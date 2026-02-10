@@ -109,7 +109,8 @@ async function checkSubscription(req, res, next) {
       return next();
     }
 
-    const result = await pool.query(`
+    // 1) Verificar trial/assinatura da EMPRESA (tabela empresas)
+    const empresaResult = await pool.query(`
       SELECT
         trial_ends_at,
         subscription_active,
@@ -128,25 +129,86 @@ async function checkSubscription(req, res, next) {
       WHERE id = $1
     `, [req.user.empresa_id]);
 
-    if (result.rows.length === 0) {
+    if (empresaResult.rows.length === 0) {
       req.subscriptionStatus = { active: false, canViewTelemetry: false, message: 'Empresa não encontrada' };
       return next();
     }
 
-    const empresa = result.rows[0];
-    const canViewTelemetry = empresa.status !== 'expired';
+    const empresa = empresaResult.rows[0];
 
+    // Se empresa está ativa (trial ou assinatura), todos da empresa têm acesso
+    if (empresa.status !== 'expired') {
+      req.subscriptionStatus = {
+        active: true,
+        canViewTelemetry: true,
+        status: empresa.status,
+        level: 'empresa',
+        trialDaysRemaining: empresa.trial_days_remaining,
+        expiresAt: empresa.status === 'trial' ? empresa.trial_ends_at : empresa.subscription_expires_at,
+        message: empresa.status === 'trial'
+          ? `Período de teste: ${empresa.trial_days_remaining} dias restantes`
+          : 'Assinatura ativa'
+      };
+      return next();
+    }
+
+    // 2) Empresa expirada - verificar assinatura da UNIDADE (tabela subscriptions)
+    if (req.user.unidade_id) {
+      const unidadeResult = await pool.query(`
+        SELECT id, status, expires_at,
+          CASE
+            WHEN status = 'active' AND expires_at > CURRENT_TIMESTAMP THEN true
+            ELSE false
+          END as is_active
+        FROM subscriptions
+        WHERE unidade_id = $1 AND status = 'active' AND expires_at > CURRENT_TIMESTAMP
+        ORDER BY expires_at DESC LIMIT 1
+      `, [req.user.unidade_id]);
+
+      if (unidadeResult.rows.length > 0) {
+        const sub = unidadeResult.rows[0];
+        req.subscriptionStatus = {
+          active: true,
+          canViewTelemetry: true,
+          status: 'active',
+          level: 'unidade',
+          expiresAt: sub.expires_at,
+          message: 'Assinatura ativa (unidade)'
+        };
+        return next();
+      }
+    }
+
+    // 3) Verificar assinatura por empresa na tabela subscriptions (fallback)
+    const subEmpresaResult = await pool.query(`
+      SELECT id, status, expires_at
+      FROM subscriptions
+      WHERE empresa_id = $1 AND status = 'active' AND expires_at > CURRENT_TIMESTAMP
+      ORDER BY expires_at DESC LIMIT 1
+    `, [req.user.empresa_id]);
+
+    if (subEmpresaResult.rows.length > 0) {
+      const sub = subEmpresaResult.rows[0];
+      req.subscriptionStatus = {
+        active: true,
+        canViewTelemetry: true,
+        status: 'active',
+        level: 'empresa',
+        expiresAt: sub.expires_at,
+        message: 'Assinatura ativa'
+      };
+      return next();
+    }
+
+    // 4) Nenhuma assinatura encontrada - expirado
     req.subscriptionStatus = {
-      active: empresa.status !== 'expired',
-      canViewTelemetry,
-      status: empresa.status,
-      trialDaysRemaining: empresa.trial_days_remaining,
-      expiresAt: empresa.status === 'trial' ? empresa.trial_ends_at : empresa.subscription_expires_at,
-      message: empresa.status === 'expired'
-        ? 'Seu período de teste expirou. Assine para continuar acessando a telemetria.'
-        : empresa.status === 'trial'
-        ? `Período de teste: ${empresa.trial_days_remaining} dias restantes`
-        : 'Assinatura ativa'
+      active: false,
+      canViewTelemetry: false,
+      status: 'expired',
+      level: null,
+      trialDaysRemaining: 0,
+      expiresAt: null,
+      message: 'Seu período de teste expirou. Assine para continuar acessando a telemetria.'
     };
 
     next();
@@ -1316,13 +1378,14 @@ app.post('/api/payment/register-card', authenticateToken, async (req, res) => {
     // Criar registro de assinatura pendente (será cobrada após 30 dias)
     const trialEnds = new Date();
     trialEnds.setDate(trialEnds.getDate() + 30);
+    const unidade_id = req.body.unidade_id || req.user.unidade_id || null;
 
     await pool.query(`
       INSERT INTO subscriptions (
-        empresa_id, plan_type, amount, payment_method, status,
+        empresa_id, unidade_id, plan_type, amount, payment_method, status,
         transaction_id, expires_at
-      ) VALUES ($1, 'anual', $2, 'cartao', 'trial', $3, $4)
-    `, [empresa_id, valorFinal, cardToken, new Date(trialEnds.getTime() + 365 * 24 * 60 * 60 * 1000)]);
+      ) VALUES ($1, $2, 'anual', $3, 'cartao', 'trial', $4, $5)
+    `, [empresa_id, unidade_id, valorFinal, cardToken, new Date(trialEnds.getTime() + 365 * 24 * 60 * 60 * 1000)]);
 
     // Atualizar trial da empresa
     await pool.query(`
@@ -1386,14 +1449,15 @@ app.post('/api/payment/pix', authenticateToken, async (req, res) => {
     });
 
     // Criar registro de assinatura
+    const unidade_id = req.body.unidade_id || req.user.unidade_id || null;
     const subscriptionResult = await pool.query(`
       INSERT INTO subscriptions (
-        empresa_id, plan_type, amount, payment_method, status,
+        empresa_id, unidade_id, plan_type, amount, payment_method, status,
         transaction_id, pix_code, pix_expiration, expires_at
-      ) VALUES ($1, 'anual', $2, 'pix', 'pending', $3, $4, $5, $6)
+      ) VALUES ($1, $2, 'anual', $3, 'pix', 'pending', $4, $5, $6, $7)
       RETURNING id
     `, [
-      empresa_id, SUBSCRIPTION_PRICE, transactionId, pixCode,
+      empresa_id, unidade_id, SUBSCRIPTION_PRICE, transactionId, pixCode,
       pixExpiration, new Date(Date.now() + 365 * 24 * 60 * 60 * 1000) // 1 ano
     ]);
 
@@ -1439,14 +1503,15 @@ app.post('/api/payment/cartao', authenticateToken, async (req, res) => {
     const transactionId = `PILI${Date.now()}${crypto.randomBytes(4).toString('hex').toUpperCase()}`;
 
     // Criar registro de assinatura
+    const unidade_id = req.body.unidade_id || req.user.unidade_id || null;
     const subscriptionResult = await pool.query(`
       INSERT INTO subscriptions (
-        empresa_id, plan_type, amount, payment_method, installments, status,
+        empresa_id, unidade_id, plan_type, amount, payment_method, installments, status,
         transaction_id, expires_at
-      ) VALUES ($1, 'anual', $2, 'cartao', $3, 'processing', $4, $5)
+      ) VALUES ($1, $2, 'anual', $3, 'cartao', $4, 'processing', $5, $6)
       RETURNING id
     `, [
-      empresa_id, SUBSCRIPTION_PRICE, numParcelas, transactionId,
+      empresa_id, unidade_id, SUBSCRIPTION_PRICE, numParcelas, transactionId,
       new Date(Date.now() + 365 * 24 * 60 * 60 * 1000)
     ]);
 
@@ -2288,11 +2353,14 @@ async function initDatabase() {
     `);
     console.log('✅ Tabela de cupons verificada');
 
-    // Adicionar coluna device_id na tabela subscriptions (para assinatura por IoT)
+    // Adicionar colunas device_id e unidade_id na tabela subscriptions
     await pool.query(`
       ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS device_id INTEGER REFERENCES devices(id)
     `).catch(() => {});
-    console.log('✅ Coluna device_id verificada em subscriptions');
+    await pool.query(`
+      ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS unidade_id INTEGER REFERENCES unidades(id)
+    `).catch(() => {});
+    console.log('✅ Colunas device_id e unidade_id verificadas em subscriptions');
 
     // Apagar assinaturas pendentes antigas (limpeza)
     await pool.query(`DELETE FROM subscriptions WHERE status = 'pending' AND created_at < NOW() - INTERVAL '7 days'`);
