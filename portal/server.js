@@ -93,7 +93,7 @@ async function checkSubscription(req, res, next) {
   try {
     // Super admin sempre tem acesso total
     if (req.user.role === 'super_admin' || req.user.role === 'admin') {
-      req.subscriptionStatus = { active: true, canViewTelemetry: true };
+      req.subscriptionStatus = { active: true, canViewTelemetry: true, status: 'active', message: 'Acesso administrativo' };
       return next();
     }
 
