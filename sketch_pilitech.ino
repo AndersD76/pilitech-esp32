@@ -792,22 +792,65 @@ if(ps===1){platL.textContent='PLATAFORMA: SUBINDO';platL.style.color='#f59e0b';p
 else if(ps===2){platL.textContent='PLATAFORMA: DESCENDO';platL.style.color='#3b82f6';platT.textContent='';platT.style.color='#3b82f6';}
 else if(ps===3){platL.textContent='CICLO COMPLETO';platL.style.color='#10b981';platT.textContent='';platT.style.color='#10b981';}
 else{platL.textContent='PLATAFORMA: PARADA';platL.style.color='#6b7280';platT.textContent='';platT.style.color='#6b7280';}
+// Barras em tempo real: usa currentCycle (sempre disponivel agora)
+var cc=data.currentCycle;
 var lc=data.lastCycle;
-if(lc&&lc.total>0){
-var vals=[lc.sensor0||0,lc.sensor40||0,lc.travaRoda||0,lc.travaChassi||0,lc.travaPinoE||0,lc.travaPinoD||0];
-var mx=Math.max.apply(null,vals)||1;
 var ids=['lc0','lc1','lc2','lc3','lc4','lc5'];
 var bars=['lb0','lb1','lb2','lb3','lb4','lb5'];
+var tableTitle=document.getElementById('lastCycleTable');
+var titleEl=tableTitle?tableTitle.previousElementSibling:null;
+if(cc){
+var vals=[cc.sensor0||0,cc.sensor40||0,cc.travaRoda||0,cc.travaChassi||0,cc.travaPinoE||0,cc.travaPinoD||0];
+var anyActive=vals.some(function(v){return v>0;});
+if(anyActive||data.cycleInProgress){
+// Barras em tempo real com dados atuais
+var mx=Math.max.apply(null,vals)||1;
+var onKeys=['s0on','s40on','tRon','tCon','tPEon','tPDon'];
 for(var i=0;i<6;i++){
 document.getElementById(ids[i]).textContent=vals[i]+'s';
 document.getElementById(bars[i]).style.width=Math.round((vals[i]/mx)*100)+'%';
+document.getElementById(bars[i]).style.background=cc[onKeys[i]]?'#10b981':'#dc2626';
+}
+if(data.cycleInProgress){
+var elapsed=cc.elapsed||0;
+var mn2=Math.floor(elapsed/60);var sc2=elapsed%60;
+document.getElementById('lcTotal').textContent=String(mn2).padStart(2,'0')+':'+String(sc2).padStart(2,'0');
+if(titleEl)titleEl.textContent='CICLO ATUAL';
+}else{
+var totalSec=Math.max.apply(null,vals)||0;
+var mn3=Math.floor(totalSec/60);var sc3=totalSec%60;
+document.getElementById('lcTotal').textContent=totalSec>0?String(mn3).padStart(2,'0')+':'+String(sc3).padStart(2,'0'):'-';
+if(titleEl)titleEl.textContent='SENSORES AO VIVO';
+}
+}else if(lc&&lc.total>0){
+// Sem atividade atual, mostra ultimo ciclo
+var vals2=[lc.sensor0||0,lc.sensor40||0,lc.travaRoda||0,lc.travaChassi||0,lc.travaPinoE||0,lc.travaPinoD||0];
+var mx2=Math.max.apply(null,vals2)||1;
+for(var i=0;i<6;i++){
+document.getElementById(ids[i]).textContent=vals2[i]+'s';
+document.getElementById(bars[i]).style.width=Math.round((vals2[i]/mx2)*100)+'%';
+document.getElementById(bars[i]).style.background='#dc2626';
 }
 var tt=lc.total;var mn=Math.floor(tt/60);var sc=tt%60;
 document.getElementById('lcTotal').textContent=String(mn).padStart(2,'0')+':'+String(sc).padStart(2,'0');
-if(!data.cycleInProgress){
-timer.textContent=String(mn).padStart(2,'0')+':'+String(sc).padStart(2,'0');
-timer.style.color='#6b7280';label.textContent='ULTIMO CICLO';label.style.color='#6b7280';
+if(titleEl)titleEl.textContent='ÚLTIMO CICLO';
 }
+}else if(lc&&lc.total>0){
+var vals3=[lc.sensor0||0,lc.sensor40||0,lc.travaRoda||0,lc.travaChassi||0,lc.travaPinoE||0,lc.travaPinoD||0];
+var mx3=Math.max.apply(null,vals3)||1;
+for(var i=0;i<6;i++){
+document.getElementById(ids[i]).textContent=vals3[i]+'s';
+document.getElementById(bars[i]).style.width=Math.round((vals3[i]/mx3)*100)+'%';
+document.getElementById(bars[i]).style.background='#dc2626';
+}
+var tt2=lc.total;var mn4=Math.floor(tt2/60);var sc4=tt2%60;
+document.getElementById('lcTotal').textContent=String(mn4).padStart(2,'0')+':'+String(sc4).padStart(2,'0');
+if(titleEl)titleEl.textContent='ÚLTIMO CICLO';
+}
+if(!data.cycleInProgress&&lc&&lc.total>0){
+var tt5=lc.total;var mn5=Math.floor(tt5/60);var sc5=tt5%60;
+timer.textContent=String(mn5).padStart(2,'0')+':'+String(sc5).padStart(2,'0');
+timer.style.color='#6b7280';label.textContent='ULTIMO CICLO';label.style.color='#6b7280';
 }
 updateSistemaStatus();
 }
@@ -1133,26 +1176,24 @@ String createJsonData() {
   lastCycle["travaPinoD"] = lastCompleteDurations.travaPinoD / 1000;
   lastCycle["total"] = lastCompleteDurations.cicloTotal / 1000;
 
-  // Durações do ciclo atual em andamento (em segundos)
-  if (cycleInProgress) {
-    JsonObject currCycle = doc.createNestedObject("currentCycle");
-    unsigned long now = millis();
-    currCycle["elapsed"] = (now - cycleStartTime) / 1000;
-    // Para sensores ativos agora, incluir tempo parcial
-    currCycle["sensor0"] = (currentDurations.sensor0 + (sensor0_timing ? now - sensor0_start : 0)) / 1000;
-    currCycle["sensor40"] = (currentDurations.sensor40 + (sensor40_timing ? now - sensor40_start : 0)) / 1000;
-    currCycle["travaRoda"] = (currentDurations.travaRoda + (travaRoda_timing ? now - travaRoda_start : 0)) / 1000;
-    currCycle["travaChassi"] = (currentDurations.travaChassi + (travaChassi_timing ? now - travaChassi_start : 0)) / 1000;
-    currCycle["travaPinoE"] = (currentDurations.travaPinoE + (travaPinoE_timing ? now - travaPinoE_start : 0)) / 1000;
-    currCycle["travaPinoD"] = (currentDurations.travaPinoD + (travaPinoD_timing ? now - travaPinoD_start : 0)) / 1000;
-    // Flags de qual sensor está ativo agora (para UI mostrar ao vivo)
-    currCycle["s0on"] = sensor0_timing;
-    currCycle["s40on"] = sensor40_timing;
-    currCycle["tRon"] = travaRoda_timing;
-    currCycle["tCon"] = travaChassi_timing;
-    currCycle["tPEon"] = travaPinoE_timing;
-    currCycle["tPDon"] = travaPinoD_timing;
-  }
+  // Durações dos sensores em tempo real (SEMPRE, não só durante ciclo)
+  JsonObject currCycle = doc.createNestedObject("currentCycle");
+  unsigned long now = millis();
+  currCycle["elapsed"] = cycleInProgress ? (now - cycleStartTime) / 1000 : 0;
+  // Tempo acumulado + tempo parcial dos sensores ativos agora
+  currCycle["sensor0"] = (currentDurations.sensor0 + (sensor0_timing ? now - sensor0_start : 0)) / 1000;
+  currCycle["sensor40"] = (currentDurations.sensor40 + (sensor40_timing ? now - sensor40_start : 0)) / 1000;
+  currCycle["travaRoda"] = (currentDurations.travaRoda + (travaRoda_timing ? now - travaRoda_start : 0)) / 1000;
+  currCycle["travaChassi"] = (currentDurations.travaChassi + (travaChassi_timing ? now - travaChassi_start : 0)) / 1000;
+  currCycle["travaPinoE"] = (currentDurations.travaPinoE + (travaPinoE_timing ? now - travaPinoE_start : 0)) / 1000;
+  currCycle["travaPinoD"] = (currentDurations.travaPinoD + (travaPinoD_timing ? now - travaPinoD_start : 0)) / 1000;
+  // Flags de qual sensor está ativo agora (para UI mostrar ao vivo)
+  currCycle["s0on"] = sensor0_timing;
+  currCycle["s40on"] = sensor40_timing;
+  currCycle["tRon"] = travaRoda_timing;
+  currCycle["tCon"] = travaChassi_timing;
+  currCycle["tPEon"] = travaPinoE_timing;
+  currCycle["tPDon"] = travaPinoD_timing;
 
   // Tempo padrão de ciclo (em segundos)
   doc["cicloPadrao"] = CICLO_PADRAO_MS / 1000;
@@ -2265,11 +2306,11 @@ void loop() {
     liveDoc["cycle_in_progress"] = cycleInProgress;
     liveDoc["platform_state"] = platformState;
 
-    // Durações do ciclo atual (em segundos)
-    if (cycleInProgress) {
+    // Durações dos sensores em tempo real (SEMPRE)
+    {
       unsigned long now = millis();
       JsonObject currCycle = liveDoc.createNestedObject("current_cycle");
-      currCycle["elapsed"] = (now - cycleStartTime) / 1000;
+      currCycle["elapsed"] = cycleInProgress ? (now - cycleStartTime) / 1000 : 0;
       currCycle["sensor0"] = (currentDurations.sensor0 + (sensor0_timing ? now - sensor0_start : 0)) / 1000;
       currCycle["sensor40"] = (currentDurations.sensor40 + (sensor40_timing ? now - sensor40_start : 0)) / 1000;
       currCycle["trava_roda"] = (currentDurations.travaRoda + (travaRoda_timing ? now - travaRoda_start : 0)) / 1000;

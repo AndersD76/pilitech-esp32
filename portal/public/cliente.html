@@ -1115,30 +1115,61 @@
           const sensorKeys = ['sensor0', 'sensor40', 'trava_roda', 'trava_chassi', 'trava_pino_e', 'trava_pino_d'];
           const timingKeys = ['s0on', 's40on', 'tr_on', 'tc_on', 'tpe_on', 'tpd_on'];
 
-          if (d.cycle_in_progress && d.current_cycle) {
-            // Mostrar durações do ciclo ATUAL
-            if (durTitle) durTitle.textContent = 'CICLO ATUAL';
+          // Barras em tempo real (current_cycle agora é SEMPRE enviado)
+          if (d.current_cycle) {
             const cc = d.current_cycle;
-            const maxVal = Math.max(...sensorKeys.map(k => cc[k] || 0)) || 1;
-            durRows.forEach((row, i) => {
-              if (i >= sensorKeys.length) return;
-              const val = cc[sensorKeys[i]] || 0;
-              const isTiming = cc[timingKeys[i]] || false;
-              const pct = Math.min(Math.round((val / maxVal) * 100), 100);
-              const valEl = row.querySelector('.live-dur-val');
-              const barEl = row.querySelector('.live-dur-bar');
-              if (valEl) valEl.textContent = val + 's';
-              if (barEl) {
-                barEl.style.width = pct + '%';
-                barEl.className = 'live-dur-bar h-full rounded-full transition-all ' + (isTiming ? 'bg-green-500 animate-pulse' : 'bg-red-600');
+            const vals = sensorKeys.map(k => cc[k] || 0);
+            const anyActive = vals.some(v => v > 0);
+
+            if (anyActive || d.cycle_in_progress) {
+              // Tempo real dos sensores
+              if (durTitle) durTitle.textContent = d.cycle_in_progress ? 'CICLO ATUAL' : 'SENSORES AO VIVO';
+              const maxVal = Math.max(...vals) || 1;
+              durRows.forEach((row, i) => {
+                if (i >= sensorKeys.length) return;
+                const val = vals[i];
+                const isTiming = cc[timingKeys[i]] || false;
+                const pct = Math.min(Math.round((val / maxVal) * 100), 100);
+                const valEl = row.querySelector('.live-dur-val');
+                const barEl = row.querySelector('.live-dur-bar');
+                if (valEl) valEl.textContent = val + 's';
+                if (barEl) {
+                  barEl.style.width = pct + '%';
+                  barEl.className = 'live-dur-bar h-full rounded-full transition-all ' + (isTiming ? 'bg-green-500 animate-pulse' : 'bg-red-600');
+                }
+              });
+              if (durTotal) {
+                if (d.cycle_in_progress) {
+                  const elapsed = cc.elapsed || 0;
+                  durTotal.textContent = Math.floor(elapsed / 60) + ':' + String(elapsed % 60).padStart(2, '0');
+                } else {
+                  const maxSec = Math.max(...vals) || 0;
+                  durTotal.textContent = maxSec > 0 ? Math.floor(maxSec / 60) + ':' + String(maxSec % 60).padStart(2, '0') : '-';
+                }
               }
-            });
-            if (durTotal) {
-              const elapsed = cc.elapsed || 0;
-              durTotal.textContent = Math.floor(elapsed / 60) + ':' + String(elapsed % 60).padStart(2, '0');
+            } else if (d.last_cycle && d.last_cycle.tempo_total > 0) {
+              // Sem atividade atual, mostra ultimo ciclo
+              if (durTitle) durTitle.textContent = 'ULTIMO CICLO';
+              const lc = d.last_cycle;
+              const maxVal = Math.max(...sensorKeys.map(k => lc[k] || 0)) || 1;
+              durRows.forEach((row, i) => {
+                if (i >= sensorKeys.length) return;
+                const val = lc[sensorKeys[i]] || 0;
+                const pct = Math.min(Math.round((val / maxVal) * 100), 100);
+                const valEl = row.querySelector('.live-dur-val');
+                const barEl = row.querySelector('.live-dur-bar');
+                if (valEl) valEl.textContent = val ? val + 's' : '-';
+                if (barEl) {
+                  barEl.style.width = pct + '%';
+                  barEl.className = 'live-dur-bar h-full bg-red-600 rounded-full transition-all';
+                }
+              });
+              if (durTotal) {
+                const tt = lc.tempo_total;
+                durTotal.textContent = Math.floor(tt / 60) + ':' + String(tt % 60).padStart(2, '0');
+              }
             }
           } else if (d.last_cycle && d.last_cycle.tempo_total > 0) {
-            // Mostrar durações do ÚLTIMO ciclo
             if (durTitle) durTitle.textContent = 'ULTIMO CICLO';
             const lc = d.last_cycle;
             const maxVal = Math.max(...sensorKeys.map(k => lc[k] || 0)) || 1;
