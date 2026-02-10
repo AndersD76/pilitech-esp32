@@ -1851,9 +1851,9 @@ app.post('/api/live-status', validateApiKey, (req, res) => {
 app.get('/api/live-status', authenticateToken, (req, res) => {
   const devices = {};
   liveDeviceStatus.forEach((data, serial) => {
-    // Considerar offline se não atualizou há mais de 30 segundos
+    // Considerar offline se não atualizou há mais de 20 segundos
     const age = Date.now() - new Date(data.timestamp).getTime();
-    if (age < 30000) {
+    if (age < 20000) {
       devices[serial] = data;
     }
   });

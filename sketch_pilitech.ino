@@ -599,13 +599,7 @@ Registrar
 <button class="modal-close" onclick="closeConfigModal()">✕</button>
 </div>
 <div class="modal-body" id="configBody">
-<div id="configLogin">
-<p style="color:#6b7280;font-size:12px;margin-bottom:12px">Digite a senha de administrador para acessar as configurações.</p>
-<input type="password" id="configPass" class="input" placeholder="Senha">
-<button onclick="checkConfigPass()" class="btn btn-primary" style="width:100%;margin-top:8px">Entrar</button>
-<div id="configError" style="display:none;color:#dc2626;font-size:12px;margin-top:8px">Senha incorreta</div>
-</div>
-<div id="configPanel" style="display:none">
+<div id="configPanel">
 <div style="margin-bottom:16px">
 <label style="font-size:13px;font-weight:600;color:#374151">Sensores Monitorados</label>
 <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px">
@@ -617,13 +611,6 @@ Registrar
 <label style="display:flex;align-items:center;gap:6px;font-size:12px"><input type="checkbox" id="cfgTPD" checked onchange="configDirty=true"> Trava Pino D</label>
 <label style="display:flex;align-items:center;gap:6px;font-size:12px"><input type="checkbox" id="cfgMF" checked onchange="configDirty=true"> Moega/Fosso</label>
 <label style="display:flex;align-items:center;gap:6px;font-size:12px"><input type="checkbox" id="cfgPT" checked onchange="configDirty=true"> Portão</label>
-</div>
-</div>
-<div style="margin-bottom:16px;padding-top:16px;border-top:1px solid #e5e7eb">
-<label style="font-size:13px;font-weight:600;color:#374151">Ações do Sistema</label>
-<div style="display:flex;gap:8px;margin-top:8px">
-<button onclick="resetCiclosHoje()" class="btn" style="flex:1;background:#f59e0b;color:#fff">Resetar Ciclos Hoje</button>
-<button onclick="resetTotal()" class="btn" style="flex:1;background:#dc2626;color:#fff">Reset Total</button>
 </div>
 </div>
 <div style="padding-top:16px;border-top:1px solid #e5e7eb">
@@ -853,23 +840,10 @@ wTxt.style.color='#991b1b';wTxt.textContent='SEM CONEXAO';
 }
 function openConfigModal(){
 document.getElementById('configModal').classList.add('show');
-document.getElementById('configPass').value='';
-document.getElementById('configError').style.display='none';
-document.getElementById('configLogin').style.display='block';
-document.getElementById('configPanel').style.display='none';
+document.getElementById('configPanel').style.display='block';
 }
 function closeConfigModal(){
 document.getElementById('configModal').classList.remove('show');
-}
-function checkConfigPass(){
-var pass=document.getElementById('configPass').value;
-if(pass===CONFIG_PASS){
-document.getElementById('configLogin').style.display='none';
-document.getElementById('configPanel').style.display='block';
-addLog('Acesso ao configurador');
-}else{
-document.getElementById('configError').style.display='block';
-}
 }
 function resetCiclosHoje(){
 if(confirm('Resetar ciclos de hoje para zero?')){
@@ -1329,21 +1303,33 @@ void onWebSocketEvent(uint8_t num, WStype_t type, uint8_t *payload, size_t lengt
           Serial.println("Ciclos de hoje resetados!");
         }
         else if (cmd == "RESET_TOTAL") {
+          // Zerar tudo na memória
           stats.ciclosHoje = 0;
           stats.ciclosTotal = 0;
           stats.horasOperacao = 0;
           stats.minutosOperacao = 0;
           sistemaIniciado = false;
+          lastMaintenanceDate = "Não registrada";
 
+          // Resetar config sensores para padrão (todos habilitados)
+          for (int i = 0; i < 8; i++) sensorEnabled[i] = true;
+
+          // Limpar TODA a NVS (wifi, sensores, contadores, tudo)
           preferences.begin("pilitech", false);
-          preferences.putULong("ciclosTotal", 0);
-          preferences.putULong("horasOp", 0);
+          preferences.clear();
           preferences.end();
 
-          Serial.println("RESET TOTAL: Todos os contadores zerados + sistema parado!");
-          enviarEvento("WARNING", "Reset total do sistema realizado", "reset", true);
+          // Desconectar WiFi e apagar credenciais salvas
+          WiFi.disconnect(true, true);
+
+          Serial.println("RESET TOTAL: NVS limpa, WiFi apagado, tudo zerado!");
+          enviarEvento("WARNING", "Reset total (factory reset) realizado", "reset", true);
           String resetJson = createJsonData();
           webSocket.broadcastTXT(resetJson);
+
+          // Reiniciar ESP32 após 2 segundos
+          delay(2000);
+          ESP.restart();
         }
         else if (cmd == "SAVE_DATA") {
           preferences.begin("pilitech", false);
