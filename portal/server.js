@@ -50,6 +50,13 @@ const SUPER_ADMIN = {
 // Middleware
 app.use(cors());
 app.use(express.json());
+app.use((req, res, next) => {
+  if (req.path.endsWith('.html') || req.path === '/') {
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
+    res.setHeader('Pragma', 'no-cache');
+  }
+  next();
+});
 app.use(express.static(path.join(__dirname, 'public')));
 
 // ============ MIDDLEWARE DE AUTENTICAÇÃO ============
@@ -1107,7 +1114,14 @@ app.get('/api/stats', authenticateToken, checkSubscription, async (req, res) => 
     });
   } catch (err) {
     console.error('Erro ao buscar stats:', err);
-    res.status(500).json({ error: err.message });
+    res.json({
+      blocked: false,
+      subscription: req.subscriptionStatus,
+      totalDevices: 0,
+      onlineDevices: 0,
+      totalCiclos: 0,
+      error: err.message
+    });
   }
 });
 

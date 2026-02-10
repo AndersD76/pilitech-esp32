@@ -634,24 +634,27 @@
 
     // Load stats
     async function loadStats() {
-      const stats = await api('/api/stats');
-      if (stats) {
-        if (stats.blocked) {
-          // Telemetria bloqueada
-          document.getElementById('statTotal').textContent = '-';
-          document.getElementById('statOnline').textContent = '-';
-          document.getElementById('statCiclos').textContent = '-';
-        } else {
-          document.getElementById('statTotal').textContent = stats.totalDevices || 0;
-          document.getElementById('statOnline').textContent = stats.onlineDevices || 0;
-          document.getElementById('statCiclos').textContent = (stats.totalCiclos || 0).toLocaleString();
-        }
+      try {
+        const stats = await api('/api/stats');
+        if (stats) {
+          if (stats.blocked) {
+            document.getElementById('statTotal').textContent = '-';
+            document.getElementById('statOnline').textContent = '-';
+            document.getElementById('statCiclos').textContent = '-';
+          } else {
+            document.getElementById('statTotal').textContent = stats.totalDevices || 0;
+            document.getElementById('statOnline').textContent = stats.onlineDevices || 0;
+            document.getElementById('statCiclos').textContent = (stats.totalCiclos || 0).toLocaleString();
+          }
 
-        // Show subscription banner
-        if (stats.subscription) {
-          subscriptionStatus = stats.subscription;
-          showTrialBanner(stats.subscription);
+          // Show subscription banner
+          if (stats.subscription) {
+            subscriptionStatus = stats.subscription;
+            showTrialBanner(stats.subscription);
+          }
         }
+      } catch (e) {
+        console.error('loadStats error:', e);
       }
     }
 
@@ -666,6 +669,12 @@
       if (!devResponse) {
         document.getElementById('devicesGrid').innerHTML = '<div class="text-center py-8 text-red-500">Erro ao carregar dispositivos</div>';
         return;
+      }
+
+      // Fallback: se loadStats não setou subscriptionStatus, pegar do devices response
+      if (!subscriptionStatus && devResponse.subscription) {
+        subscriptionStatus = devResponse.subscription;
+        showTrialBanner(devResponse.subscription);
       }
 
       const grid = document.getElementById('devicesGrid');
@@ -729,19 +738,22 @@
         const moega = sensorStatus(t.moega_fosso, 'Ativo', 'Inativo');
         const portao = sensorStatus(t.portao_fechado, 'Fechado', 'Aberto');
 
-        // Subscription tag - usar status global da empresa
+        // Subscription tag - usar status global OU fallback para subscription_info do device
         let subTag = '';
         const subSt = subscriptionStatus || {};
-        if (subSt.status === 'active' || (subSt.active && !subSt.status)) {
-          const expiresAt = subSt.expiresAt ? new Date(subSt.expiresAt).toLocaleDateString('pt-BR') : '';
-          subTag = expiresAt
-            ? `<span class="px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-700">Assinado ate ${expiresAt}</span>`
-            : `<span class="px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-700">Assinatura ativa</span>`;
-        } else if (subSt.status === 'trial') {
-          const daysLeft = subSt.trialDaysRemaining || 0;
+        const devSub = d.subscription_info || {};
+        const effStatus = subSt.status || devSub.status || (subSt.active ? 'active' : (devSub.active ? 'active' : ''));
+        if (effStatus === 'trial') {
+          const daysLeft = subSt.trialDaysRemaining || Math.max(0, Math.ceil((new Date(devSub.expires_at || subSt.expiresAt) - new Date()) / (1000*60*60*24)));
           subTag = `<span class="px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-700">Trial: ${daysLeft} dias restantes</span>`;
+        } else if (effStatus === 'active') {
+          const expiresAt = subSt.expiresAt || devSub.expires_at;
+          const dateStr = expiresAt ? new Date(expiresAt).toLocaleDateString('pt-BR') : '';
+          subTag = dateStr
+            ? `<span class="px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-700">Assinado ate ${dateStr}</span>`
+            : `<span class="px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-700">Assinatura ativa</span>`;
         } else {
-          subTag = `<span class="px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-700">Assinatura expirada</span>`;
+          subTag = `<span class="px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-700">Sem assinatura</span>`;
         }
 
         return `
