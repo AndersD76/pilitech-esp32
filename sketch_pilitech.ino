@@ -1310,7 +1310,8 @@ void onWebSocketEvent(uint8_t num, WStype_t type, uint8_t *payload, size_t lengt
 
           Serial.println("RESET TOTAL: Todos os contadores zerados + sistema parado!");
           enviarEvento("WARNING", "Reset total do sistema realizado", "reset", true);
-          webSocket.broadcastTXT(createJsonData());
+          String resetJson = createJsonData();
+          webSocket.broadcastTXT(resetJson);
         }
         else if (cmd == "SAVE_DATA") {
           preferences.begin("pilitech", false);
@@ -1370,7 +1371,8 @@ void onWebSocketEvent(uint8_t num, WStype_t type, uint8_t *payload, size_t lengt
             Serial.println("📤 Enviando dados ao portal apos START...");
             enviarLeituraSensores();
           }
-          webSocket.broadcastTXT(createJsonData());
+          String startJson = createJsonData();
+          webSocket.broadcastTXT(startJson);
         }
         else if (cmd == "RESTART_IOT") {
           Serial.println("REINICIANDO IoT...");
