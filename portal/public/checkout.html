@@ -456,7 +456,7 @@
       </div>
 
       <!-- Error Message -->
-      <div id="errorMsg" class="message error"></div>
+      <div id="errorMsg" class="message"></div>
 
       <!-- Submit Button -->
       <button type="button" class="submit-btn" id="submitBtn" onclick="registerCard()">
@@ -532,7 +532,7 @@
             <div class="plan-item"><span><strong>Cobranca hoje</strong></span><span class="free" style="font-size:1.1rem"><strong>R$ 0,00</strong></span></div>
           `;
           if (submitBtn) submitBtn.textContent = 'Cadastrar Cartao';
-          if (terms) terms.innerHTML = 'Ao continuar, voce concorda com os <a href="#">Termos de Uso</a> e <a href="#">Politica de Privacidade</a>.<br>A cobranca sera efetuada automaticamente apos o fim do trial (${dias} dias), caso nao cancele antes.';
+          if (terms) terms.innerHTML = `Ao continuar, voce concorda com os <a href="#">Termos de Uso</a> e <a href="#">Politica de Privacidade</a>.<br>A cobranca sera efetuada automaticamente apos o fim do trial (${dias} dias), caso nao cancele antes.`;
         } else if (data.status === 'active') {
           if (trialInfo) trialInfo.innerHTML = `
             <h2 style="font-size:1.6rem">Assinatura Ativa</h2>
@@ -681,7 +681,7 @@
       const submitBtn = document.getElementById('submitBtn');
 
       try {
-        errorMsg.style.display = 'none';
+        errorMsg.classList.remove('error');
         const cardData = validateCard();
 
         submitBtn.disabled = true;
@@ -736,7 +736,7 @@
         document.getElementById('loading').classList.remove('show');
         document.getElementById('formView').style.display = 'block';
         errorMsg.textContent = err.message;
-        errorMsg.style.display = 'block';
+        errorMsg.classList.add('error');
         submitBtn.disabled = false;
         submitBtn.textContent = 'Cadastrar Cartao e Iniciar Trial';
       }
