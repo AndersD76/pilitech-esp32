@@ -289,10 +289,10 @@
 
       <!-- GRAFICOS SECUNDARIOS -->
       <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
-        <!-- Grafico de Rosca - Distribuicao por Etapa -->
+        <!-- Grafico de Rosca - Distribuicao por Sensor -->
         <div class="bg-gradient-to-br from-gray-50 to-white border-2 border-gray-100 rounded-2xl p-5 shadow-sm">
-          <h4 class="font-bold text-gray-800 mb-2">Tempo por Fase</h4>
-          <p class="text-xs text-gray-500 mb-4">Distribuicao do ciclo</p>
+          <h4 class="font-bold text-gray-800 mb-2">Tempo por Sensor</h4>
+          <p class="text-xs text-gray-500 mb-4">Distribuicao do tempo ON</p>
           <canvas id="chartPizza" height="180"></canvas>
         </div>
 
@@ -309,7 +309,7 @@
           <div class="space-y-4">
             <div>
               <div class="flex justify-between text-sm mb-1">
-                <span class="text-gray-400">Etapa mais rapida</span>
+                <span class="text-gray-400">Sensor mais rapido</span>
                 <span class="font-bold text-green-400" id="etapaMaisRapida">-</span>
               </div>
               <div class="h-2 bg-gray-700 rounded-full overflow-hidden">
@@ -318,7 +318,7 @@
             </div>
             <div>
               <div class="flex justify-between text-sm mb-1">
-                <span class="text-gray-400">Etapa mais lenta</span>
+                <span class="text-gray-400">Sensor mais lento</span>
                 <span class="font-bold text-red-400" id="etapaMaisLenta">-</span>
               </div>
               <div class="h-2 bg-gray-700 rounded-full overflow-hidden">
@@ -341,45 +341,33 @@
         </div>
       </div>
 
-      <!-- Timeline das 10 Etapas -->
+      <!-- Timeline dos 6 Sensores -->
       <div class="border rounded-lg p-4 mb-6">
-        <h4 class="font-semibold text-gray-700 mb-4">Timeline Media das 10 Etapas do Ciclo</h4>
-        <p class="text-xs text-gray-500 mb-4">Tempo medio de cada transicao no ultimo ciclo registrado</p>
-        <div class="grid grid-cols-10 gap-1 mb-2" id="timelineEtapas">
-          <div class="bg-gray-200 rounded p-2 text-center"><div class="text-xs font-bold text-gray-600">-</div><div class="text-[7px] text-gray-400">1.Port.Fecha</div></div>
-          <div class="bg-gray-200 rounded p-2 text-center"><div class="text-xs font-bold text-gray-600">-</div><div class="text-[7px] text-gray-400">2.Sen0°Inat</div></div>
-          <div class="bg-gray-200 rounded p-2 text-center"><div class="text-xs font-bold text-gray-600">-</div><div class="text-[7px] text-gray-400">3.Tr.Roda</div></div>
-          <div class="bg-gray-200 rounded p-2 text-center"><div class="text-xs font-bold text-gray-600">-</div><div class="text-[7px] text-gray-400">4.Tr.Chassi</div></div>
-          <div class="bg-gray-200 rounded p-2 text-center"><div class="text-xs font-bold text-gray-600">-</div><div class="text-[7px] text-gray-400">5.Tr.Pinos</div></div>
-          <div class="bg-gray-200 rounded p-2 text-center"><div class="text-xs font-bold text-gray-600">-</div><div class="text-[7px] text-gray-400">6.Sen0°Ativ</div></div>
-          <div class="bg-gray-200 rounded p-2 text-center"><div class="text-xs font-bold text-gray-600">-</div><div class="text-[7px] text-gray-400">7.Solt.Roda</div></div>
-          <div class="bg-gray-200 rounded p-2 text-center"><div class="text-xs font-bold text-gray-600">-</div><div class="text-[7px] text-gray-400">8.Solt.Chas</div></div>
-          <div class="bg-gray-200 rounded p-2 text-center"><div class="text-xs font-bold text-gray-600">-</div><div class="text-[7px] text-gray-400">9.Solt.Pino</div></div>
-          <div class="bg-gray-200 rounded p-2 text-center"><div class="text-xs font-bold text-gray-600">-</div><div class="text-[7px] text-gray-400">10.Port.Abre</div></div>
+        <h4 class="font-semibold text-gray-700 mb-4">Tempo ON por Sensor - Ultimo Ciclo</h4>
+        <p class="text-xs text-gray-500 mb-4">Duracao ativa de cada sensor no ultimo ciclo registrado</p>
+        <div class="grid grid-cols-6 gap-2 mb-2" id="timelineEtapas">
+          <div class="bg-gray-200 rounded p-2 text-center"><div class="text-xs font-bold text-gray-600">-</div><div class="text-[8px] text-gray-400">Sensor 0°</div></div>
+          <div class="bg-gray-200 rounded p-2 text-center"><div class="text-xs font-bold text-gray-600">-</div><div class="text-[8px] text-gray-400">Sensor 40°</div></div>
+          <div class="bg-gray-200 rounded p-2 text-center"><div class="text-xs font-bold text-gray-600">-</div><div class="text-[8px] text-gray-400">Trava Roda</div></div>
+          <div class="bg-gray-200 rounded p-2 text-center"><div class="text-xs font-bold text-gray-600">-</div><div class="text-[8px] text-gray-400">Trava Chassi</div></div>
+          <div class="bg-gray-200 rounded p-2 text-center"><div class="text-xs font-bold text-gray-600">-</div><div class="text-[8px] text-gray-400">Trava Pino E</div></div>
+          <div class="bg-gray-200 rounded p-2 text-center"><div class="text-xs font-bold text-gray-600">-</div><div class="text-[8px] text-gray-400">Trava Pino D</div></div>
         </div>
-        <div class="flex justify-between text-[10px] text-gray-400 px-1">
-          <span>INICIO</span>
-          <span class="text-pili-red font-bold">⬆ CICLO CONTA (6)</span>
-          <span>FIM</span>
+        <div class="text-center text-[10px] text-gray-400">
+          Tempo ON de cada sensor durante o ciclo (portao fechado ate portao aberto)
         </div>
       </div>
 
-      <!-- Grafico de Tempos das 10 Etapas -->
+      <!-- Grafico de Tempos dos 6 Sensores -->
       <div class="bg-gradient-to-br from-gray-50 to-white border-2 border-gray-100 rounded-2xl p-5 shadow-sm">
         <div class="flex items-center justify-between mb-4">
           <div>
-            <h4 class="font-bold text-gray-800">Tempo Medio por Etapa</h4>
-            <p class="text-xs text-gray-500">Analise das 10 etapas do ciclo de producao</p>
+            <h4 class="font-bold text-gray-800">Tempo Medio por Sensor</h4>
+            <p class="text-xs text-gray-500">Tempo ON medio de cada sensor no ciclo</p>
           </div>
-          <span class="px-3 py-1 bg-pili-red/10 text-pili-red rounded-full text-xs font-bold">10 ETAPAS</span>
+          <span class="px-3 py-1 bg-pili-red/10 text-pili-red rounded-full text-xs font-bold">6 SENSORES</span>
         </div>
         <canvas id="chartEtapas" height="150"></canvas>
-        <div class="mt-4 flex items-center justify-center gap-6 text-xs text-gray-500">
-          <div class="flex items-center gap-2"><span class="w-3 h-3 rounded bg-blue-500"></span> Portao</div>
-          <div class="flex items-center gap-2"><span class="w-3 h-3 rounded bg-green-500"></span> Travamento</div>
-          <div class="flex items-center gap-2"><span class="w-3 h-3 rounded bg-pili-red"></span> Conta Ciclo</div>
-          <div class="flex items-center gap-2"><span class="w-3 h-3 rounded bg-red-400"></span> Destravamento</div>
-        </div>
       </div>
     </div>
 
@@ -731,13 +719,14 @@
             : { class: 'bg-red-100 text-red-700', text: inactiveLabel };
         };
 
+        const sistemaAtivo = t.sistema_ativo === true;
         const s0 = sensorStatus(t.sensor_0_graus);
         const s40 = sensorStatus(t.sensor_40_graus);
         const tRoda = sensorStatus(t.trava_roda);
         const tChassi = sensorStatus(t.trava_chassi);
         const tPinoE = sensorStatus(t.trava_pino_e);
         const tPinoD = sensorStatus(t.trava_pino_d);
-        const moega = sensorStatus(t.moega_cheia, 'Cheia', 'OK');
+        const moega = sensorStatus(t.moega_fosso, 'Ativo', 'Inativo');
         const portao = sensorStatus(t.portao_fechado, 'Fechado', 'Aberto');
 
         // Subscription tag
@@ -750,7 +739,7 @@
         }
 
         return `
-          <div class="border-2 ${isOnline ? 'border-green-200' : 'border-gray-200'} rounded-xl overflow-hidden">
+          <div class="border-2 ${isOnline ? 'border-green-200' : 'border-gray-200'} rounded-xl overflow-hidden" data-serial="${d.serial_number}">
             <!-- Header -->
             <div class="bg-gradient-to-r from-pili-red to-pili-darkred p-4 text-white">
               <div class="flex items-center justify-between">
@@ -759,87 +748,100 @@
                   <p class="text-sm text-white/80">S/N: ${d.serial_number} | ${d.unidade_nome || 'Sem unidade'}</p>
                 </div>
                 <div class="flex items-center gap-2">
-                  <span class="w-3 h-3 rounded-full ${statusDot} ${isOnline ? 'animate-pulse' : ''}"></span>
-                  <span class="px-3 py-1 rounded-full text-xs font-bold bg-white/20">${statusText}</span>
+                  <span class="live-dot w-3 h-3 rounded-full ${statusDot} ${isOnline ? 'animate-pulse' : ''}"></span>
+                  <span class="live-status-label px-3 py-1 rounded-full text-xs font-bold bg-white/20">${statusText}</span>
                 </div>
               </div>
             </div>
 
             <div class="p-4">
+              ${isOnline && !sistemaAtivo ? `
+              <!-- Aguardando Ativação -->
+              <div class="live-activation text-center py-8">
+                <div class="inline-flex items-center justify-center w-16 h-16 rounded-full bg-amber-100 mb-4">
+                  <svg class="w-8 h-8 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z"/>
+                  </svg>
+                </div>
+                <h4 class="text-lg font-bold text-amber-600 mb-1">AGUARDANDO ATIVACAO</h4>
+                <p class="text-sm text-gray-500 mb-3">O dispositivo esta online mas o sistema ainda nao foi iniciado pelo tecnico.</p>
+                <p class="text-xs text-gray-400">Acesse o IoT (192.168.4.1) → Aba Sistema → Digite a senha → START</p>
+              </div>
+              ` : `
               <!-- 8 Sensores -->
-              <div class="mb-3">
+              <div class="live-content mb-3">
                 <div class="text-xs font-bold text-gray-500 mb-2">SENSORES DO SISTEMA</div>
                 <div class="grid grid-cols-4 gap-2">
-                  <div class="text-center p-2 ${s0.class} rounded-lg border-2 ${s0.text === 'Ativo' ? 'border-green-300' : 'border-gray-200'}">
+                  <div class="live-sensor text-center p-2 ${s0.class} rounded-lg border-2 ${s0.text === 'Ativo' ? 'border-green-300' : 'border-gray-200'}">
                     <div class="text-[10px] text-gray-500 uppercase">Sensor 0°</div>
-                    <div class="text-sm font-bold">${s0.text}</div>
+                    <div class="live-val text-sm font-bold">${s0.text}</div>
                   </div>
-                  <div class="text-center p-2 ${s40.class} rounded-lg border-2 ${s40.text === 'Ativo' ? 'border-green-300' : 'border-gray-200'}">
+                  <div class="live-sensor text-center p-2 ${s40.class} rounded-lg border-2 ${s40.text === 'Ativo' ? 'border-green-300' : 'border-gray-200'}">
                     <div class="text-[10px] text-gray-500 uppercase">Sensor 40°</div>
-                    <div class="text-sm font-bold">${s40.text}</div>
+                    <div class="live-val text-sm font-bold">${s40.text}</div>
                   </div>
-                  <div class="text-center p-2 ${tRoda.class} rounded-lg border-2 ${tRoda.text === 'Ativo' ? 'border-green-300' : 'border-gray-200'}">
+                  <div class="live-sensor text-center p-2 ${tRoda.class} rounded-lg border-2 ${tRoda.text === 'Ativo' ? 'border-green-300' : 'border-gray-200'}">
                     <div class="text-[10px] text-gray-500 uppercase">Trava Rodas</div>
-                    <div class="text-sm font-bold">${tRoda.text}</div>
+                    <div class="live-val text-sm font-bold">${tRoda.text}</div>
                   </div>
-                  <div class="text-center p-2 ${tChassi.class} rounded-lg border-2 ${tChassi.text === 'Ativo' ? 'border-green-300' : 'border-gray-200'}">
+                  <div class="live-sensor text-center p-2 ${tChassi.class} rounded-lg border-2 ${tChassi.text === 'Ativo' ? 'border-green-300' : 'border-gray-200'}">
                     <div class="text-[10px] text-gray-500 uppercase">Trava Chassi</div>
-                    <div class="text-sm font-bold">${tChassi.text}</div>
+                    <div class="live-val text-sm font-bold">${tChassi.text}</div>
                   </div>
-                  <div class="text-center p-2 ${tPinoE.class} rounded-lg border-2 ${tPinoE.text === 'Ativo' ? 'border-green-300' : 'border-gray-200'}">
+                  <div class="live-sensor text-center p-2 ${tPinoE.class} rounded-lg border-2 ${tPinoE.text === 'Ativo' ? 'border-green-300' : 'border-gray-200'}">
                     <div class="text-[10px] text-gray-500 uppercase">Trava Pino E</div>
-                    <div class="text-sm font-bold">${tPinoE.text}</div>
+                    <div class="live-val text-sm font-bold">${tPinoE.text}</div>
                   </div>
-                  <div class="text-center p-2 ${tPinoD.class} rounded-lg border-2 ${tPinoD.text === 'Ativo' ? 'border-green-300' : 'border-gray-200'}">
+                  <div class="live-sensor text-center p-2 ${tPinoD.class} rounded-lg border-2 ${tPinoD.text === 'Ativo' ? 'border-green-300' : 'border-gray-200'}">
                     <div class="text-[10px] text-gray-500 uppercase">Trava Pino D</div>
-                    <div class="text-sm font-bold">${tPinoD.text}</div>
+                    <div class="live-val text-sm font-bold">${tPinoD.text}</div>
                   </div>
-                  <div class="text-center p-2 ${moega.class} rounded-lg border-2 ${moega.text === 'Cheia' ? 'border-red-300' : 'border-gray-200'}">
+                  <div class="live-sensor text-center p-2 ${moega.class} rounded-lg border-2 ${moega.text === 'Ativo' ? 'border-green-300' : 'border-gray-200'}">
                     <div class="text-[10px] text-gray-500 uppercase">Moega/Fosso</div>
-                    <div class="text-sm font-bold">${moega.text}</div>
+                    <div class="live-val text-sm font-bold">${moega.text}</div>
                   </div>
-                  <div class="text-center p-2 ${portao.class} rounded-lg border-2 ${portao.text === 'Fechado' ? 'border-green-300' : 'border-gray-200'}">
-                    <div class="text-[10px] text-gray-500 uppercase">Portão</div>
-                    <div class="text-sm font-bold">${portao.text}</div>
+                  <div class="live-sensor text-center p-2 ${portao.class} rounded-lg border-2 ${portao.text === 'Fechado' ? 'border-green-300' : 'border-gray-200'}">
+                    <div class="text-[10px] text-gray-500 uppercase">Portao</div>
+                    <div class="live-val text-sm font-bold">${portao.text}</div>
                   </div>
                 </div>
               </div>
 
               <!-- Ciclo + Plataforma -->
-              <div class="mb-3 p-3 bg-gray-50 rounded-lg">
+              <div class="live-cycle-box mb-3 p-3 bg-gray-50 rounded-lg">
                 <div class="flex justify-between items-center">
-                  <span class="text-xs font-bold text-gray-500">CICLO PARADO</span>
-                  <span class="text-lg font-bold text-gray-400 font-mono">--:--</span>
+                  <span class="live-cycle-label text-xs font-bold text-gray-500">CICLO PARADO</span>
+                  <span class="live-cycle-timer text-lg font-bold text-gray-400 font-mono">--:--</span>
                 </div>
                 <div class="flex justify-between items-center mt-1 pt-1 border-t border-gray-200">
-                  <span class="text-[10px] font-bold ${t.sensor_0_graus === false ? 'text-amber-500' : 'text-gray-400'}">PLATAFORMA: ${t.sensor_0_graus === false ? 'SUBINDO' : 'PARADA'}</span>
+                  <span class="live-platform text-[10px] font-bold text-gray-400">PLATAFORMA: PARADA</span>
                 </div>
               </div>
 
-              <!-- Ultimo Ciclo -->
-              <div class="mb-3">
-                <div class="text-[10px] font-bold text-gray-500 mb-1 tracking-wider">ÚLTIMO CICLO</div>
+              <!-- Ultimo Ciclo / Ciclo Atual -->
+              <div class="live-durations mb-3">
+                <div class="live-dur-title text-[10px] font-bold text-gray-500 mb-1 tracking-wider">ULTIMO CICLO</div>
                 <div class="space-y-1">
                   ${['Sensor 0°','Sensor 40°','Trava Roda','Trava Chassi','Trava Pino E','Trava Pino D'].map((name, i) => {
                     const keys = ['sensor0','sensor40','trava_roda','trava_chassi','trava_pino_e','trava_pino_d'];
                     const val = t.last_cycle ? (t.last_cycle[keys[i]] || 0) : 0;
                     const total = t.last_cycle ? (t.last_cycle.tempo_total || 1) : 1;
                     const pct = Math.min(Math.round((val / total) * 100), 100);
-                    return `<div class="flex items-center gap-2 ${i % 2 === 1 ? 'bg-gray-50' : ''} px-2 py-1 rounded">
+                    return `<div class="live-dur-row flex items-center gap-2 ${i % 2 === 1 ? 'bg-gray-50' : ''} px-2 py-1 rounded" data-sensor="${keys[i]}">
                       <span class="text-xs text-gray-600 w-24 shrink-0">${name}</span>
-                      <span class="text-xs font-bold w-8 text-right">${val ? val + 's' : '-'}</span>
-                      <div class="flex-1 bg-gray-200 h-2.5 rounded-full overflow-hidden"><div class="h-full bg-red-600 rounded-full transition-all" style="width:${pct}%"></div></div>
+                      <span class="live-dur-val text-xs font-bold w-8 text-right">${val ? val + 's' : '-'}</span>
+                      <div class="flex-1 bg-gray-200 h-2.5 rounded-full overflow-hidden"><div class="live-dur-bar h-full bg-red-600 rounded-full transition-all" style="width:${pct}%"></div></div>
                     </div>`;
                   }).join('')}
                   <div class="flex items-center gap-2 px-2 pt-1 border-t-2 border-gray-200">
                     <span class="text-xs font-bold text-gray-700 w-24">TOTAL CICLO</span>
-                    <span class="text-xs font-bold text-red-600">${t.last_cycle ? (Math.floor(t.last_cycle.tempo_total / 60) + ':' + String(t.last_cycle.tempo_total % 60).padStart(2, '0')) : '-'}</span>
+                    <span class="live-dur-total text-xs font-bold text-red-600">${t.last_cycle ? (Math.floor(t.last_cycle.tempo_total / 60) + ':' + String(t.last_cycle.tempo_total % 60).padStart(2, '0')) : '-'}</span>
                   </div>
                 </div>
               </div>
 
               <!-- Producao e Horimetro -->
-              <div class="grid grid-cols-3 gap-3 mb-3">
+              <div class="live-stats grid grid-cols-3 gap-3 mb-3">
                 <div class="text-center p-3 bg-pili-red/10 rounded-lg">
                   <div class="text-xl font-bold text-pili-red">${t.ciclos_hoje || 0}</div>
                   <div class="text-xs text-gray-500">Ciclos Hoje</div>
@@ -853,6 +855,7 @@
                   <div class="text-xs text-gray-500">Horímetro</div>
                 </div>
               </div>
+              `}
 
               <!-- Footer -->
               <div class="flex items-center justify-between pt-3 border-t border-gray-100">
@@ -937,8 +940,176 @@
     refreshData();
     checkFirstLogin();
 
-    // Auto refresh every 30 seconds
-    setInterval(refreshData, 30000);
+    // Full refresh (DB) every 60 seconds
+    setInterval(refreshData, 60000);
+
+    // ========== LIVE STATUS - TEMPO REAL (3 segundos) ==========
+    async function pollLiveStatus() {
+      try {
+        const liveData = await api('/api/live-status');
+        if (!liveData) return;
+
+        // Atualizar cards dos dispositivos com dados em tempo real
+        Object.keys(liveData).forEach(serial => {
+          const d = liveData[serial];
+          const card = document.querySelector(`[data-serial="${serial}"]`);
+          if (!card) return;
+
+          // Atualizar sensores
+          const sensors = card.querySelectorAll('.live-sensor');
+          const vals = [d.sensor_0_graus, d.sensor_40_graus, d.trava_roda, d.trava_chassi, d.trava_pino_e, d.trava_pino_d, d.moega_fosso, d.portao_fechado];
+          const labels = ['Ativo', 'Ativo', 'Ativo', 'Ativo', 'Ativo', 'Ativo', 'Ativo', 'Fechado'];
+          const labelsOff = ['Inativo', 'Inativo', 'Inativo', 'Inativo', 'Inativo', 'Inativo', 'Inativo', 'Aberto'];
+          sensors.forEach((el, i) => {
+            if (i < vals.length) {
+              // Esconder sensores desabilitados
+              if (d.sensor_config && i < d.sensor_config.length && !d.sensor_config[i]) {
+                el.style.display = 'none';
+                return;
+              }
+              el.style.display = '';
+              const isOn = vals[i] === true;
+              el.className = 'live-sensor text-center p-2 rounded-lg border-2 ' + (isOn ? 'bg-green-100 text-green-700 border-green-300' : 'bg-red-100 text-red-700 border-gray-200');
+              el.querySelector('.live-val').textContent = isOn ? labels[i] : labelsOff[i];
+            }
+          });
+
+          // Atualizar contadores
+          const liveStats = card.querySelector('.live-stats');
+          if (liveStats) {
+            liveStats.innerHTML = `
+              <div class="text-center p-3 bg-pili-red/10 rounded-lg">
+                <div class="text-xl font-bold text-pili-red">${d.ciclos_hoje || 0}</div>
+                <div class="text-xs text-gray-500">Ciclos Hoje</div>
+              </div>
+              <div class="text-center p-3 bg-pili-red/10 rounded-lg">
+                <div class="text-xl font-bold text-pili-red">${(d.ciclos_total || 0).toLocaleString()}</div>
+                <div class="text-xs text-gray-500">Ciclos Total</div>
+              </div>
+              <div class="text-center p-3 bg-pili-red/10 rounded-lg">
+                <div class="text-xl font-bold text-pili-red">${d.horas_operacao || 0}h</div>
+                <div class="text-xs text-gray-500">Horimetro</div>
+              </div>
+            `;
+          }
+
+          // Atualizar ciclo + plataforma (espelho IoT)
+          const cycleLabel = card.querySelector('.live-cycle-label');
+          const cycleTimer = card.querySelector('.live-cycle-timer');
+          const platformEl = card.querySelector('.live-platform');
+          const cycleBox = card.querySelector('.live-cycle-box');
+
+          if (cycleLabel && cycleTimer) {
+            if (d.cycle_in_progress && d.current_cycle) {
+              const elapsed = d.current_cycle.elapsed || 0;
+              const min = Math.floor(elapsed / 60);
+              const sec = elapsed % 60;
+              cycleLabel.textContent = 'CICLO EM ANDAMENTO';
+              cycleLabel.className = 'live-cycle-label text-xs font-bold text-green-600';
+              cycleTimer.textContent = String(min).padStart(2, '0') + ':' + String(sec).padStart(2, '0');
+              cycleTimer.className = 'live-cycle-timer text-lg font-bold text-green-600 font-mono';
+              if (cycleBox) cycleBox.className = 'live-cycle-box mb-3 p-3 bg-green-50 rounded-lg border border-green-200';
+            } else {
+              if (d.last_cycle && d.last_cycle.tempo_total > 0) {
+                const tt = d.last_cycle.tempo_total;
+                const mn = Math.floor(tt / 60);
+                const sc = tt % 60;
+                cycleLabel.textContent = 'ULTIMO CICLO';
+                cycleTimer.textContent = String(mn).padStart(2, '0') + ':' + String(sc).padStart(2, '0');
+              } else {
+                cycleLabel.textContent = 'CICLO PARADO';
+                cycleTimer.textContent = '--:--';
+              }
+              cycleLabel.className = 'live-cycle-label text-xs font-bold text-gray-500';
+              cycleTimer.className = 'live-cycle-timer text-lg font-bold text-gray-400 font-mono';
+              if (cycleBox) cycleBox.className = 'live-cycle-box mb-3 p-3 bg-gray-50 rounded-lg';
+            }
+          }
+
+          // Estado da plataforma
+          if (platformEl) {
+            const ps = d.platform_state || 0;
+            const states = {0: ['PARADA', 'text-gray-400'], 1: ['SUBINDO', 'text-amber-500'], 2: ['DESCENDO', 'text-blue-500'], 3: ['CICLO COMPLETO', 'text-green-500']};
+            const [label, color] = states[ps] || states[0];
+            platformEl.textContent = 'PLATAFORMA: ' + label;
+            platformEl.className = 'live-platform text-[10px] font-bold ' + color;
+          }
+
+          // Durações dos sensores (ciclo atual ou último)
+          const durRows = card.querySelectorAll('.live-dur-row');
+          const durTitle = card.querySelector('.live-dur-title');
+          const durTotal = card.querySelector('.live-dur-total');
+          const sensorKeys = ['sensor0', 'sensor40', 'trava_roda', 'trava_chassi', 'trava_pino_e', 'trava_pino_d'];
+          const timingKeys = ['s0on', 's40on', 'tr_on', 'tc_on', 'tpe_on', 'tpd_on'];
+
+          if (d.cycle_in_progress && d.current_cycle) {
+            // Mostrar durações do ciclo ATUAL
+            if (durTitle) durTitle.textContent = 'CICLO ATUAL';
+            const cc = d.current_cycle;
+            const maxVal = Math.max(...sensorKeys.map(k => cc[k] || 0)) || 1;
+            durRows.forEach((row, i) => {
+              if (i >= sensorKeys.length) return;
+              const val = cc[sensorKeys[i]] || 0;
+              const isTiming = cc[timingKeys[i]] || false;
+              const pct = Math.min(Math.round((val / maxVal) * 100), 100);
+              const valEl = row.querySelector('.live-dur-val');
+              const barEl = row.querySelector('.live-dur-bar');
+              if (valEl) valEl.textContent = val + 's';
+              if (barEl) {
+                barEl.style.width = pct + '%';
+                barEl.className = 'live-dur-bar h-full rounded-full transition-all ' + (isTiming ? 'bg-green-500 animate-pulse' : 'bg-red-600');
+              }
+            });
+            if (durTotal) {
+              const elapsed = cc.elapsed || 0;
+              durTotal.textContent = Math.floor(elapsed / 60) + ':' + String(elapsed % 60).padStart(2, '0');
+            }
+          } else if (d.last_cycle && d.last_cycle.tempo_total > 0) {
+            // Mostrar durações do ÚLTIMO ciclo
+            if (durTitle) durTitle.textContent = 'ULTIMO CICLO';
+            const lc = d.last_cycle;
+            const maxVal = Math.max(...sensorKeys.map(k => lc[k] || 0)) || 1;
+            durRows.forEach((row, i) => {
+              if (i >= sensorKeys.length) return;
+              const val = lc[sensorKeys[i]] || 0;
+              const pct = Math.min(Math.round((val / maxVal) * 100), 100);
+              const valEl = row.querySelector('.live-dur-val');
+              const barEl = row.querySelector('.live-dur-bar');
+              if (valEl) valEl.textContent = val ? val + 's' : '-';
+              if (barEl) {
+                barEl.style.width = pct + '%';
+                barEl.className = 'live-dur-bar h-full bg-red-600 rounded-full transition-all';
+              }
+            });
+            if (durTotal) {
+              const tt = lc.tempo_total;
+              durTotal.textContent = Math.floor(tt / 60) + ':' + String(tt % 60).padStart(2, '0');
+            }
+          }
+
+          // Atualizar status sistema ativo
+          const liveActivation = card.querySelector('.live-activation');
+          if (liveActivation && d.sistema_ativo === true) {
+            liveActivation.style.display = 'none';
+            const liveContent = card.querySelector('.live-content');
+            if (liveContent) liveContent.style.display = 'block';
+          }
+
+          // Marca online
+          const statusDot = card.querySelector('.live-dot');
+          if (statusDot) statusDot.className = 'live-dot w-3 h-3 rounded-full bg-green-500 animate-pulse';
+          const statusLabel = card.querySelector('.live-status-label');
+          if (statusLabel) statusLabel.textContent = 'Online';
+        });
+
+        document.getElementById('lastUpdate').textContent = 'Ao vivo: ' + new Date().toLocaleTimeString('pt-BR');
+      } catch (e) {
+        // Silencioso - não interromper polling
+      }
+    }
+
+    // Poll a cada 3 segundos
+    setInterval(pollLiveStatus, 3000);
 
     // ========== TOGGLE VIEW ALL IOTs ==========
     let viewAllMode = false;
@@ -1192,28 +1363,28 @@
 
       if (chartPizza) chartPizza.destroy();
 
-      // Calcular media das etapas principais
+      // Calcular media de tempo ON por sensor
       const count = data.length || 1;
-      const fases = {
-        'Travamento': 0,
-        'Subida': 0,
-        'Descarga': 0,
-        'Destravamento': 0
+      const sensores = {
+        'Sensor 0°': 0,
+        'Sensor 40°': 0,
+        'Trava Roda': 0,
+        'Trava Chassi': 0,
+        'Trava Pino E': 0,
+        'Trava Pino D': 0
       };
 
       data.forEach(c => {
-        // Travamento = etapas 1-5 (portao fecha ate travas)
-        fases['Travamento'] += (c.etapa1_portao_aberto_fechado || 0) + (c.etapa2_portao_fechado_trava_roda || 0) + (c.etapa3_trava_roda_trava_chassi || 0) + (c.etapa4_trava_chassi_trava_pinos || 0);
-        // Subida = etapa 5-6
-        fases['Subida'] += (c.etapa5_trava_pinos_sensor0_inativo || 0);
-        // Descarga = etapa 6
-        fases['Descarga'] += (c.etapa6_sensor0_ativo_trava_pinos_inativo || 0);
-        // Destravamento = etapas 7-10
-        fases['Destravamento'] += (c.etapa7_trava_pinos_inativo_trava_chassi_inativo || 0) + (c.etapa8_trava_chassi_inativo_trava_roda_inativo || 0) + (c.etapa9_trava_roda_inativo_portao_aberto || 0);
+        sensores['Sensor 0°'] += (c.sensor0 || 0);
+        sensores['Sensor 40°'] += (c.sensor40 || 0);
+        sensores['Trava Roda'] += (c.trava_roda || 0);
+        sensores['Trava Chassi'] += (c.trava_chassi || 0);
+        sensores['Trava Pino E'] += (c.trava_pino_e || 0);
+        sensores['Trava Pino D'] += (c.trava_pino_d || 0);
       });
 
-      const labels = Object.keys(fases);
-      const values = Object.values(fases).map(v => Math.round(v / count));
+      const labels = Object.keys(sensores);
+      const values = Object.values(sensores).map(v => Math.round(v / count));
 
       chartPizza = new Chart(ctx, {
         type: 'doughnut',
@@ -1221,7 +1392,7 @@
           labels,
           datasets: [{
             data: values,
-            backgroundColor: ['#3b82f6', '#f59e0b', '#ef4444', '#10b981'],
+            backgroundColor: ['#dc2626', '#ef4444', '#b91c1c', '#f87171', '#991b1b', '#fca5a5'],
             borderWidth: 0
           }]
         },
@@ -1280,33 +1451,29 @@
     function updateIndicadores(data) {
       if (!data || data.length === 0) return;
 
-      // Calcular medias das etapas
-      const etapasNomes = ['Port.Fecha', 'Sen0°Inat', 'Tr.Roda', 'Tr.Chassi', 'Tr.Pinos', 'Sen0°Ativ', 'Solt.Roda', 'Solt.Chas', 'Solt.Pino', 'Port.Abre'];
-      const etapasMedia = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+      // Calcular medias dos 6 sensores
+      const sensorNomes = ['Sensor 0°', 'Sensor 40°', 'Tr.Roda', 'Tr.Chassi', 'Tr.Pino E', 'Tr.Pino D'];
+      const sensorMedia = [0, 0, 0, 0, 0, 0];
       const count = data.length;
 
       data.forEach(c => {
-        etapasMedia[0] += c.etapa1_portao_aberto_fechado || 0;
-        etapasMedia[1] += c.etapa2_portao_fechado_trava_roda || 0;
-        etapasMedia[2] += c.etapa3_trava_roda_trava_chassi || 0;
-        etapasMedia[3] += c.etapa4_trava_chassi_trava_pinos || 0;
-        etapasMedia[4] += c.etapa5_trava_pinos_sensor0_inativo || 0;
-        etapasMedia[5] += c.etapa6_sensor0_ativo_trava_pinos_inativo || 0;
-        etapasMedia[6] += c.etapa7_trava_pinos_inativo_trava_chassi_inativo || 0;
-        etapasMedia[7] += c.etapa8_trava_chassi_inativo_trava_roda_inativo || 0;
-        etapasMedia[8] += c.etapa9_trava_roda_inativo_portao_aberto || 0;
-        etapasMedia[9] += 0; // etapa 10 se houver
+        sensorMedia[0] += c.sensor0 || 0;
+        sensorMedia[1] += c.sensor40 || 0;
+        sensorMedia[2] += c.trava_roda || 0;
+        sensorMedia[3] += c.trava_chassi || 0;
+        sensorMedia[4] += c.trava_pino_e || 0;
+        sensorMedia[5] += c.trava_pino_d || 0;
       });
 
-      const medias = etapasMedia.map(v => Math.round(v / count));
+      const medias = sensorMedia.map(v => Math.round(v / count));
       const maxTempo = Math.max(...medias);
       const minTempo = Math.min(...medias.filter(v => v > 0)) || 0;
 
       const maxIdx = medias.indexOf(maxTempo);
       const minIdx = medias.indexOf(minTempo);
 
-      document.getElementById('etapaMaisRapida').textContent = `${etapasNomes[minIdx]} (${minTempo}s)`;
-      document.getElementById('etapaMaisLenta').textContent = `${etapasNomes[maxIdx]} (${maxTempo}s)`;
+      document.getElementById('etapaMaisRapida').textContent = `${sensorNomes[minIdx]} (${minTempo}s)`;
+      document.getElementById('etapaMaisLenta').textContent = `${sensorNomes[maxIdx]} (${maxTempo}s)`;
       document.getElementById('barraRapida').style.width = (minTempo / maxTempo * 100) + '%';
 
       // Desvio padrao
@@ -1414,67 +1581,57 @@
       });
     }
 
-    // Update Timeline das 10 Etapas
+    // Update Timeline dos 6 Sensores
     function updateTimelineEtapas(lastCycle) {
       const timeline = document.getElementById('timelineEtapas');
       if (!timeline || !lastCycle) return;
 
-      // 10 etapas conforme firmware
-      const etapas = [
-        { nome: '1.Port.Fecha', tempo: lastCycle.etapa1_portao_aberto_fechado || 0 },
-        { nome: '2.Sen0°Inat', tempo: lastCycle.etapa2_portao_fechado_trava_roda || 0 },
-        { nome: '3.Tr.Roda', tempo: lastCycle.etapa3_trava_roda_trava_chassi || 0 },
-        { nome: '4.Tr.Chassi', tempo: lastCycle.etapa4_trava_chassi_trava_pinos || 0 },
-        { nome: '5.Tr.Pinos', tempo: lastCycle.etapa5_trava_pinos_sensor0_inativo || 0 },
-        { nome: '6.Sen0°Ativ', tempo: lastCycle.etapa6_sensor0_ativo_trava_pinos_inativo || 0 },
-        { nome: '7.Solt.Roda', tempo: lastCycle.etapa7_trava_pinos_inativo_trava_chassi_inativo || 0 },
-        { nome: '8.Solt.Chas', tempo: lastCycle.etapa8_trava_chassi_inativo_trava_roda_inativo || 0 },
-        { nome: '9.Solt.Pino', tempo: lastCycle.etapa9_trava_roda_inativo_portao_aberto || 0 },
-        { nome: '10.Port.Abre', tempo: 0 } // etapa 10 adicional
+      // 6 sensores independentes
+      const sensores = [
+        { nome: 'Sensor 0°', tempo: lastCycle.sensor0 || 0 },
+        { nome: 'Sensor 40°', tempo: lastCycle.sensor40 || 0 },
+        { nome: 'Trava Roda', tempo: lastCycle.trava_roda || 0 },
+        { nome: 'Trava Chassi', tempo: lastCycle.trava_chassi || 0 },
+        { nome: 'Trava Pino E', tempo: lastCycle.trava_pino_e || 0 },
+        { nome: 'Trava Pino D', tempo: lastCycle.trava_pino_d || 0 }
       ];
 
-      const maxTempo = Math.max(...etapas.map(e => e.tempo), 1);
+      const maxTempo = Math.max(...sensores.map(e => e.tempo), 1);
 
-      timeline.innerHTML = etapas.map((e, i) => {
+      timeline.innerHTML = sensores.map((e) => {
         const pct = (e.tempo / maxTempo) * 100;
-        const bg = i === 5 ? 'bg-pili-red' : pct > 70 ? 'bg-red-400' : pct > 40 ? 'bg-yellow-400' : 'bg-green-400';
-        // Etapa 6 é onde conta o ciclo
-        const special = i === 5 ? 'ring-2 ring-white ring-offset-2 ring-offset-gray-100' : '';
+        const opacity = Math.max(0.4, pct / 100);
         return `
-          <div class="${bg} ${special} rounded p-1.5 text-center transition-all">
-            <div class="text-[10px] font-bold text-white">${e.tempo}s</div>
-            <div class="text-[6px] text-white/80">${e.nome}</div>
+          <div class="bg-pili-red rounded p-2 text-center transition-all" style="opacity:${opacity}">
+            <div class="text-xs font-bold text-white">${e.tempo}s</div>
+            <div class="text-[8px] text-white/80">${e.nome}</div>
           </div>
         `;
       }).join('');
     }
 
-    // Update Etapas Chart (bar) - 10 etapas
+    // Update Sensores Chart (bar) - 6 sensores
     function updateEtapasChart(data) {
       const ctx = document.getElementById('chartEtapas');
       if (!ctx) return;
 
       if (chartEtapas) chartEtapas.destroy();
 
-      // Calcular media das 10 etapas
-      const etapasMedia = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+      // Calcular media dos 6 sensores
+      const sensorMedia = [0, 0, 0, 0, 0, 0];
       const count = data.length;
 
       data.forEach(c => {
-        etapasMedia[0] += c.etapa1_portao_aberto_fechado || 0;
-        etapasMedia[1] += c.etapa2_portao_fechado_trava_roda || 0;
-        etapasMedia[2] += c.etapa3_trava_roda_trava_chassi || 0;
-        etapasMedia[3] += c.etapa4_trava_chassi_trava_pinos || 0;
-        etapasMedia[4] += c.etapa5_trava_pinos_sensor0_inativo || 0;
-        etapasMedia[5] += c.etapa6_sensor0_ativo_trava_pinos_inativo || 0;
-        etapasMedia[6] += c.etapa7_trava_pinos_inativo_trava_chassi_inativo || 0;
-        etapasMedia[7] += c.etapa8_trava_chassi_inativo_trava_roda_inativo || 0;
-        etapasMedia[8] += c.etapa9_trava_roda_inativo_portao_aberto || 0;
-        etapasMedia[9] += 0; // etapa 10
+        sensorMedia[0] += c.sensor0 || 0;
+        sensorMedia[1] += c.sensor40 || 0;
+        sensorMedia[2] += c.trava_roda || 0;
+        sensorMedia[3] += c.trava_chassi || 0;
+        sensorMedia[4] += c.trava_pino_e || 0;
+        sensorMedia[5] += c.trava_pino_d || 0;
       });
 
-      const values = etapasMedia.map(v => Math.round(v / count) || 0);
-      const labels = ['1.PortFecha', '2.Sen0°In', '3.TrRoda', '4.TrChas', '5.TrPinos', '6.Sen0°At', '7.SoltRod', '8.SoltCha', '9.SoltPin', '10.PortAb'];
+      const values = sensorMedia.map(v => Math.round(v / count) || 0);
+      const labels = ['Sensor 0°', 'Sensor 40°', 'Tr.Roda', 'Tr.Chassi', 'Tr.Pino E', 'Tr.Pino D'];
 
       chartEtapas = new Chart(ctx, {
         type: 'bar',
@@ -1483,30 +1640,8 @@
           datasets: [{
             label: 'Tempo (s)',
             data: values,
-            backgroundColor: [
-              'rgba(59, 130, 246, 0.8)',   // 1. Portao fecha - azul
-              'rgba(16, 185, 129, 0.8)',   // 2. Sen 0° inativo - verde
-              'rgba(16, 185, 129, 0.8)',   // 3. Trava roda - verde
-              'rgba(16, 185, 129, 0.8)',   // 4. Trava chassi - verde
-              'rgba(16, 185, 129, 0.8)',   // 5. Trava pinos - verde
-              'rgba(220, 38, 38, 0.9)',    // 6. Sen 0° ativo - VERMELHO (conta ciclo)
-              'rgba(239, 68, 68, 0.7)',    // 7. Solta roda - vermelho claro
-              'rgba(239, 68, 68, 0.7)',    // 8. Solta chassi - vermelho claro
-              'rgba(239, 68, 68, 0.7)',    // 9. Solta pinos - vermelho claro
-              'rgba(59, 130, 246, 0.8)'    // 10. Portao abre - azul
-            ],
-            borderColor: [
-              'rgba(59, 130, 246, 1)',
-              'rgba(16, 185, 129, 1)',
-              'rgba(16, 185, 129, 1)',
-              'rgba(16, 185, 129, 1)',
-              'rgba(16, 185, 129, 1)',
-              'rgba(220, 38, 38, 1)',
-              'rgba(239, 68, 68, 1)',
-              'rgba(239, 68, 68, 1)',
-              'rgba(239, 68, 68, 1)',
-              'rgba(59, 130, 246, 1)'
-            ],
+            backgroundColor: 'rgba(220, 38, 38, 0.8)',
+            borderColor: 'rgba(220, 38, 38, 1)',
             borderWidth: 2,
             borderRadius: 4
           }]
@@ -1522,7 +1657,7 @@
       });
     }
 
-    // Update Cycles Table - 10 etapas
+    // Update Cycles Table - 6 sensores
     function updateCyclesTable(data) {
       const tbody = document.getElementById('cyclesTable');
       if (!tbody) return;
@@ -1536,20 +1671,16 @@
         const produtividade = c.eficiencia || ((TEMPO_PADRAO_CICLO / c.tempo_total) * 100);
         const prodClass = produtividade >= 100 ? 'text-green-600 bg-green-50' : produtividade >= 80 ? 'text-yellow-600 bg-yellow-50' : 'text-red-600 bg-red-50';
 
-        // Encontrar etapa mais lenta (10 etapas)
-        const etapas = [
-          { nome: 'Port.Fecha', tempo: c.etapa1_portao_aberto_fechado || 0 },
-          { nome: 'Sen0°Inativo', tempo: c.etapa2_portao_fechado_trava_roda || 0 },
-          { nome: 'Trava Roda', tempo: c.etapa3_trava_roda_trava_chassi || 0 },
-          { nome: 'Trava Chassi', tempo: c.etapa4_trava_chassi_trava_pinos || 0 },
-          { nome: 'Trava Pinos', tempo: c.etapa5_trava_pinos_sensor0_inativo || 0 },
-          { nome: 'Sen0°Ativo ⬆', tempo: c.etapa6_sensor0_ativo_trava_pinos_inativo || 0 },
-          { nome: 'Solta Roda', tempo: c.etapa7_trava_pinos_inativo_trava_chassi_inativo || 0 },
-          { nome: 'Solta Chassi', tempo: c.etapa8_trava_chassi_inativo_trava_roda_inativo || 0 },
-          { nome: 'Solta Pinos', tempo: c.etapa9_trava_roda_inativo_portao_aberto || 0 },
-          { nome: 'Port.Abre', tempo: 0 }
+        // Encontrar sensor mais lento (6 sensores)
+        const sensores = [
+          { nome: 'Sensor 0°', tempo: c.sensor0 || 0 },
+          { nome: 'Sensor 40°', tempo: c.sensor40 || 0 },
+          { nome: 'Trava Roda', tempo: c.trava_roda || 0 },
+          { nome: 'Trava Chassi', tempo: c.trava_chassi || 0 },
+          { nome: 'Trava Pino E', tempo: c.trava_pino_e || 0 },
+          { nome: 'Trava Pino D', tempo: c.trava_pino_d || 0 }
         ];
-        const maisLenta = etapas.reduce((a, b) => a.tempo > b.tempo ? a : b);
+        const maisLento = sensores.reduce((a, b) => a.tempo > b.tempo ? a : b);
 
         return `
           <tr class="hover:bg-gray-50 border-b">
@@ -1559,7 +1690,7 @@
             <td class="px-4 py-3 text-center">
               <span class="px-3 py-1 rounded-full text-sm font-bold ${prodClass}">${produtividade.toFixed(0)}%</span>
             </td>
-            <td class="px-4 py-3 text-center text-xs text-red-500 font-medium">${maisLenta.nome} (${maisLenta.tempo}s)</td>
+            <td class="px-4 py-3 text-center text-xs text-red-500 font-medium">${maisLento.nome} (${maisLento.tempo}s)</td>
           </tr>
         `;
       }).join('');

@@ -1009,10 +1009,11 @@ app.get('/api/latest-readings', authenticateToken, checkSubscription, async (req
     const query = `
       WITH latest AS (
         SELECT DISTINCT ON (device_id)
-          device_id, timestamp, sistema_ligado, sensor_0_graus, sensor_40_graus,
-          trava_roda, moega_cheia, fosso_cheio, subindo, descendo,
+          device_id, timestamp, sensor_0_graus, sensor_40_graus,
+          trava_roda, trava_chassi, trava_pino_e, trava_pino_d,
+          moega_fosso, portao_fechado,
           ciclos_hoje, ciclos_total, horas_operacao, minutos_operacao,
-          free_heap, uptime_seconds, wifi_connected
+          free_heap, uptime_seconds, wifi_connected, sistema_ativo
         FROM sensor_readings
         ORDER BY device_id, timestamp DESC
       )
@@ -1761,6 +1762,43 @@ function validateApiKey(req, res, next) {
   next();
 }
 
+// ============ LIVE STATUS (IN-MEMORY, TEMPO REAL) ============
+const liveDeviceStatus = new Map(); // serial_number -> { data, timestamp }
+
+// ESP32 envia status ao vivo a cada 10 segundos (sem gravar no banco)
+app.post('/api/live-status', validateApiKey, (req, res) => {
+  const { serial_number } = req.body;
+  if (!serial_number) return res.status(400).json({ error: 'serial_number obrigatório' });
+  liveDeviceStatus.set(serial_number, {
+    ...req.body,
+    timestamp: new Date().toISOString()
+  });
+  res.json({ success: true });
+});
+
+// Portal busca status ao vivo de todos os dispositivos
+app.get('/api/live-status', authenticateToken, (req, res) => {
+  const devices = {};
+  liveDeviceStatus.forEach((data, serial) => {
+    // Considerar offline se não atualizou há mais de 30 segundos
+    const age = Date.now() - new Date(data.timestamp).getTime();
+    if (age < 30000) {
+      devices[serial] = data;
+    }
+  });
+  res.json(devices);
+});
+
+// Limpar dispositivos inativos a cada 60 segundos
+setInterval(() => {
+  const now = Date.now();
+  liveDeviceStatus.forEach((data, serial) => {
+    if (now - new Date(data.timestamp).getTime() > 60000) {
+      liveDeviceStatus.delete(serial);
+    }
+  });
+}, 60000);
+
 // Receber leitura de sensores do ESP32 (auto-detecta e registra dispositivo)
 app.post('/api/sensor-reading', validateApiKey, async (req, res) => {
   try {
@@ -1768,7 +1806,8 @@ app.post('/api/sensor-reading', validateApiKey, async (req, res) => {
       serial_number, sensor_0_graus, sensor_40_graus, trava_roda, trava_chassi,
       trava_pino_e, trava_pino_d, moega_fosso, portao_fechado,
       ciclos_hoje, ciclos_total, horas_operacao, minutos_operacao,
-      free_heap, uptime_seconds, wifi_connected, firmware_version
+      free_heap, uptime_seconds, wifi_connected, firmware_version, sistema_ativo,
+      sensor_config
     } = req.body;
 
     // Buscar ou criar dispositivo (auto-detecção)
@@ -1804,13 +1843,14 @@ app.post('/api/sensor-reading', validateApiKey, async (req, res) => {
         device_id, sensor_0_graus, sensor_40_graus, trava_roda, trava_chassi,
         trava_pino_e, trava_pino_d, moega_fosso, portao_fechado,
         ciclos_hoje, ciclos_total, horas_operacao, minutos_operacao,
-        free_heap, uptime_seconds, wifi_connected
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
+        free_heap, uptime_seconds, wifi_connected, sistema_ativo, sensor_config
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
     `, [
       deviceId, sensor_0_graus, sensor_40_graus, trava_roda, trava_chassi,
       trava_pino_e, trava_pino_d, moega_fosso, portao_fechado,
       ciclos_hoje, ciclos_total, horas_operacao, minutos_operacao,
-      free_heap, uptime_seconds, wifi_connected || true
+      free_heap, uptime_seconds, wifi_connected || true, sistema_ativo || false,
+      sensor_config ? JSON.stringify(sensor_config) : null
     ]);
 
     // Atualizar ou criar sessão do dispositivo
@@ -1858,13 +1898,13 @@ app.post('/api/event', validateApiKey, async (req, res) => {
   }
 });
 
-// Receber dados de ciclo
+// Receber dados de ciclo (6 sensores independentes)
 app.post('/api/cycle-data', validateApiKey, async (req, res) => {
   try {
     const {
-      serial_number, ciclo_numero, tempo_total, tempo_portao_fechado,
-      tempo_sensor0_inativo, tempo_trava_roda, tempo_trava_chassi,
-      tempo_trava_pinos, tempo_sensor0_ativo, tempo_padrao, eficiencia
+      serial_number, ciclo_numero, tempo_total, sensor0, sensor40,
+      trava_roda, trava_chassi, trava_pino_e, trava_pino_d,
+      tempo_padrao, eficiencia
     } = req.body;
 
     const deviceResult = await pool.query(
@@ -1878,14 +1918,14 @@ app.post('/api/cycle-data', validateApiKey, async (req, res) => {
 
     await pool.query(`
       INSERT INTO cycle_data (
-        device_id, ciclo_numero, tempo_total, tempo_portao_fechado,
-        tempo_sensor0_inativo, tempo_trava_roda, tempo_trava_chassi,
-        tempo_trava_pinos, tempo_sensor0_ativo, tempo_padrao, eficiencia
+        device_id, ciclo_numero, tempo_total, sensor0, sensor40,
+        trava_roda, trava_chassi, trava_pino_e, trava_pino_d,
+        tempo_padrao, eficiencia
       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
     `, [
-      deviceResult.rows[0].id, ciclo_numero, tempo_total, tempo_portao_fechado,
-      tempo_sensor0_inativo, tempo_trava_roda, tempo_trava_chassi,
-      tempo_trava_pinos, tempo_sensor0_ativo, tempo_padrao, eficiencia
+      deviceResult.rows[0].id, ciclo_numero, tempo_total, sensor0,
+      sensor40, trava_roda, trava_chassi,
+      trava_pino_e, trava_pino_d, tempo_padrao, eficiencia
     ]);
 
     console.log(`📊 Ciclo #${ciclo_numero} registrado - ${tempo_total}s - Eficiência: ${eficiencia}%`);
@@ -1985,21 +2025,17 @@ app.get('/api/cycle-data/:serialNumber', authenticateToken, checkSubscription, a
 
     const deviceId = deviceResult.rows[0].id;
 
-    // Buscar últimos 50 ciclos com todas as etapas
-    // Nota: Colunas adaptadas para compatibilidade com tabela existente
+    // Buscar últimos 50 ciclos com duração por sensor
     const cyclesResult = await pool.query(`
       SELECT
         ciclo_numero,
         tempo_total,
-        COALESCE(tempo_portao_fechado, 0) as etapa1_portao_aberto_fechado,
-        COALESCE(tempo_trava_roda, 0) as etapa2_portao_fechado_trava_roda,
-        COALESCE(tempo_trava_chassi, 0) as etapa3_trava_roda_trava_chassi,
-        COALESCE(tempo_trava_pinos, 0) as etapa4_trava_chassi_trava_pinos,
-        COALESCE(tempo_sensor0_inativo, 0) as etapa5_trava_pinos_sensor0_inativo,
-        COALESCE(tempo_sensor0_ativo, 0) as etapa6_sensor0_ativo_trava_pinos_inativo,
-        0 as etapa7_trava_pinos_inativo_trava_chassi_inativo,
-        0 as etapa8_trava_chassi_inativo_trava_roda_inativo,
-        0 as etapa9_trava_roda_inativo_portao_aberto,
+        COALESCE(sensor0, 0) as sensor0,
+        COALESCE(sensor40, 0) as sensor40,
+        COALESCE(trava_roda, 0) as trava_roda,
+        COALESCE(trava_chassi, 0) as trava_chassi,
+        COALESCE(trava_pino_e, 0) as trava_pino_e,
+        COALESCE(trava_pino_d, 0) as trava_pino_d,
         eficiencia,
         created_at as timestamp
       FROM cycle_data
@@ -2042,8 +2078,8 @@ app.get('/api/productivity/:serialNumber', authenticateToken, checkSubscription,
 
     const cyclesResult = await pool.query(`
       SELECT
-        ciclo_numero, tempo_total, tempo_portao_fechado, tempo_sensor0_inativo,
-        tempo_trava_roda, tempo_trava_chassi, tempo_trava_pinos, tempo_sensor0_ativo,
+        ciclo_numero, tempo_total, sensor0, sensor40,
+        trava_roda, trava_chassi, trava_pino_e, trava_pino_d,
         tempo_padrao, eficiencia, created_at
       FROM cycle_data
       WHERE device_id = $1 AND created_at >= NOW() - INTERVAL '${days} days'

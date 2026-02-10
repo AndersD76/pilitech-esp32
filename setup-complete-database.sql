@@ -2,18 +2,18 @@
 -- PILI TECH - Configuração Completa do Banco
 -- ============================================
 
--- 0. Criar tabela de dados de ciclo (para análise de produtividade)
+-- 0. Criar tabela de dados de ciclo (duração ON por sensor)
 CREATE TABLE IF NOT EXISTS cycle_data (
   id SERIAL PRIMARY KEY,
   device_id INTEGER REFERENCES devices(id),
   ciclo_numero INTEGER,
   tempo_total INTEGER,
-  tempo_portao_fechado INTEGER,
-  tempo_sensor0_inativo INTEGER,
-  tempo_trava_roda INTEGER,
-  tempo_trava_chassi INTEGER,
-  tempo_trava_pinos INTEGER,
-  tempo_sensor0_ativo INTEGER,
+  sensor0 INTEGER,
+  sensor40 INTEGER,
+  trava_roda INTEGER,
+  trava_chassi INTEGER,
+  trava_pino_e INTEGER,
+  trava_pino_d INTEGER,
   tempo_padrao INTEGER DEFAULT 1200,
   eficiencia DECIMAL(5,2),
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP

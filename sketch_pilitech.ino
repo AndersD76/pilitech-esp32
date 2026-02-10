@@ -58,28 +58,31 @@ struct {
   unsigned long minutosOperacao;
 } stats = {0, 0, 0, 0, 0};
 
-// ====== TRACKING DE ETAPAS DO CICLO (10 ETAPAS) ======
-// Tempo de cada etapa em milissegundos (conforme solicitado)
-struct CycleStages {
-  unsigned long etapa1_portaoFechado;      // 1. portão ativo (fechado)
-  unsigned long etapa2_sensor0Inativo;     // 2. sensor 0° inativo
-  unsigned long etapa3_travaRoda;          // 3. trava roda ativo
-  unsigned long etapa4_travaChassi;        // 4. trava chassi ativo
-  unsigned long etapa5_travaPinos;         // 5. trava pino e/d ativo
-  unsigned long etapa6_sensor0Ativo;       // 6. sensor 0° ativo
-  unsigned long etapa7_travaRodaInativo;   // 7. trava roda inativo
-  unsigned long etapa8_travaChassiInativo; // 8. trava chassi inativo
-  unsigned long etapa9_travaPinosInativo;  // 9. trava pino e/d inativo
-  unsigned long etapa10_portaoAberto;      // 10. portão aberto
-  unsigned long cicloTotal;                // Tempo total do ciclo
-  int etapaAtual;                          // Etapa atual (1-10)
+// ====== TRACKING DE DURAÇÃO POR SENSOR ======
+// Tempo que cada sensor ficou ativo (ON→OFF) em milissegundos
+struct SensorDurations {
+  unsigned long sensor0;       // Sensor 0° tempo ativo ON (ms)
+  unsigned long sensor40;      // Sensor 40° tempo ativo (ms)
+  unsigned long travaRoda;     // Trava Roda tempo ativo (ms)
+  unsigned long travaChassi;   // Trava Chassi tempo ativo (ms)
+  unsigned long travaPinoE;    // Trava Pino E tempo ativo (ms)
+  unsigned long travaPinoD;    // Trava Pino D tempo ativo (ms)
+  unsigned long cicloTotal;    // Tempo total do ciclo (ms)
 };
 
-CycleStages currentCycle = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
-CycleStages lastCompleteCycle = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+SensorDurations currentDurations = {0, 0, 0, 0, 0, 0, 0};
+SensorDurations lastCompleteDurations = {0, 0, 0, 0, 0, 0, 0};
 
-// Timestamps de início de cada etapa
-unsigned long stageStartTime = 0;
+// Timestamps de início de ativação de cada sensor
+unsigned long sensor0_start = 0, sensor40_start = 0;
+unsigned long travaRoda_start = 0, travaChassi_start = 0;
+unsigned long travaPinoE_start = 0, travaPinoD_start = 0;
+
+// Flags: sensor está sendo cronometrado?
+bool sensor0_timing = false, sensor40_timing = false;
+bool travaRoda_timing = false, travaChassi_timing = false;
+bool travaPinoE_timing = false, travaPinoD_timing = false;
+
 unsigned long cycleStartTime = 0;
 
 // Flag para sistema iniciado (START do técnico)
@@ -87,6 +90,7 @@ bool sistemaIniciado = false;
 
 // Estados anteriores para detectar transições
 bool lastPortaoFechado = false;
+bool lastSensor40Graus = false;
 bool lastTravaRoda = false;
 bool lastTravaChassi = false;
 bool lastTravaPinoE = false;
@@ -102,6 +106,10 @@ bool cycleInProgress = false;
 // Estado 2: sensor ON, esperando OFF → CONTA CICLO
 int cycleCountState = 0;
 
+// Estado da plataforma: 0=PARADA, 1=SUBINDO, 2=DESCENDO, 3=CICLO COMPLETO
+int platformState = 0;
+bool allTravasWereOn = false;
+
 // Tempo padrão de ciclo (20 minutos em ms)
 const unsigned long CICLO_PADRAO_MS = 20 * 60 * 1000;
 
@@ -113,6 +121,10 @@ bool trava_pino_e = false;
 bool trava_pino_d = false;
 bool moega_fosso = false;
 bool portao_fechado = false;
+
+// Configuração de sensores habilitados (persiste em Preferences)
+// 0=Sensor0, 1=Sensor40, 2=TravaRoda, 3=TravaChassi, 4=TravaPinoE, 5=TravaPinoD, 6=MoegaFosso, 7=Portao
+bool sensorEnabled[8] = {true, true, true, true, true, true, true, true};
 
 // Estado anterior do sensor 0 graus para contagem de ciclos
 bool lastSensor0Graus = false;
@@ -158,7 +170,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;ba
 .card-title{font-size:13px;font-weight:700;color:#111827;margin-bottom:8px;display:flex;align-items:center;gap:6px}
 .card-title svg{width:16px;height:16px;stroke:#dc2626;fill:none}
 .sensor-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:5px}
-.sensor-item{background:#f9fafb;padding:6px;border-radius:5px;border:2px solid #e5e7eb;font-size:11px;font-weight:600;color:#374151;transition:all 0.3s}
+.sensor-item{background:#f9fafb;padding:8px;border-radius:5px;border:2px solid #e5e7eb;font-size:11px;font-weight:600;color:#374151;transition:all 0.3s;min-height:52px}
 .sensor-item.active{border-color:#10b981;background:#10b981;color:#fff;box-shadow:0 2px 6px rgba(16,185,129,0.3)}
 .sensor-item.active .sensor-label{color:rgba(255,255,255,0.8)}
 .sensor-item.alert{border-color:#ef4444;background:#ef4444;color:#fff;animation:blink 1s infinite;box-shadow:0 2px 8px rgba(239,68,68,0.4)}
@@ -166,6 +178,9 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;ba
 @keyframes blink{0%,100%{opacity:1}50%{opacity:0.7}}
 .sensor-label{font-size:9px;color:#6b7280;text-transform:uppercase;letter-spacing:0.3px}
 .sensor-value{font-size:12px;margin-top:1px}
+.sensor-dur{font-size:11px;margin-top:3px;color:#6b7280;font-weight:700;min-height:14px}
+.sensor-dur.timing{color:#f59e0b;font-size:12px}
+.sensor-dur.done{color:#10b981;font-size:12px}
 .stats-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
 .stat-card{background:#f9fafb;padding:8px;border-radius:6px;text-align:center}
 .stat-value{font-size:26px;font-weight:700;color:#dc2626;line-height:1}
@@ -253,35 +268,41 @@ Contato
 </div>
 <div class="content">
 <div class="panel active" style="grid-template-columns:3fr 2fr;grid-template-rows:1fr">
-<div class="card">
-<div class="card-title">
+<div class="card" style="display:flex;flex-direction:column;padding:8px 10px">
+<div class="card-title" style="margin-bottom:4px">
 <svg viewBox="0 0 24 24" stroke-width="2"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"/></svg>
 Sensores do Sistema
 </div>
-<div class="sensor-grid" style="grid-template-columns:repeat(4,1fr);grid-template-rows:repeat(2,1fr);gap:6px">
+<div class="sensor-grid" style="grid-template-columns:repeat(4,1fr);grid-template-rows:repeat(2,auto);gap:6px">
 <div class="sensor-item" id="si0">
 <div class="sensor-label">Sensor 0°</div>
 <div class="sensor-value" id="s0">-</div>
+<div class="sensor-dur" id="sd0"></div>
 </div>
 <div class="sensor-item" id="si1">
 <div class="sensor-label">Sensor 40°</div>
 <div class="sensor-value" id="s40">-</div>
+<div class="sensor-dur" id="sd1"></div>
 </div>
 <div class="sensor-item" id="si2">
 <div class="sensor-label">Trava Rodas</div>
 <div class="sensor-value" id="tr">-</div>
+<div class="sensor-dur" id="sd2"></div>
 </div>
 <div class="sensor-item" id="si3">
 <div class="sensor-label">Trava Chassi</div>
 <div class="sensor-value" id="tc">-</div>
+<div class="sensor-dur" id="sd3"></div>
 </div>
 <div class="sensor-item" id="si4">
 <div class="sensor-label">Trava Pino E</div>
 <div class="sensor-value" id="tpe">-</div>
+<div class="sensor-dur" id="sd4"></div>
 </div>
 <div class="sensor-item" id="si5">
 <div class="sensor-label">Trava Pino D</div>
 <div class="sensor-value" id="tpd">-</div>
+<div class="sensor-dur" id="sd5"></div>
 </div>
 <div class="sensor-item" id="si6">
 <div class="sensor-label">Moega/Fosso</div>
@@ -292,55 +313,54 @@ Sensores do Sistema
 <div class="sensor-value" id="portao">-</div>
 </div>
 </div>
-<div style="margin-top:8px;padding:8px;background:#f9fafb;border-radius:5px">
-<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px">
-<span style="font-size:10px;font-weight:700;color:#6b7280">TIMELINE 10 ETAPAS DO CICLO</span>
-<span style="font-size:10px;color:#6b7280">Etapa: <span id="etapaAtual">-</span> | <span id="cycleTimer">--:--</span></span>
+<div style="margin-top:6px;padding:6px 10px;background:#f9fafb;border-radius:5px">
+<div style="display:flex;align-items:center;justify-content:space-between">
+<span style="font-size:11px;font-weight:700;color:#6b7280" id="cycleLabel">CICLO PARADO</span>
+<span style="font-size:22px;font-weight:700;color:#6b7280;font-family:monospace" id="cycleTimer">--:--</span>
 </div>
-<div id="timeline" style="display:flex;gap:2px;height:28px">
-<div class="tl-item" id="tl1" title="1.Portao Fechado" style="flex:1;border-radius:4px;background:#e5e7eb;transition:all 0.3s;display:flex;align-items:center;justify-content:center;font-size:8px;font-weight:700;color:#fff"></div>
-<div class="tl-item" id="tl2" title="2.Sensor 0 Inativo" style="flex:1;border-radius:4px;background:#e5e7eb;transition:all 0.3s;display:flex;align-items:center;justify-content:center;font-size:8px;font-weight:700;color:#fff"></div>
-<div class="tl-item" id="tl3" title="3.Trava Roda" style="flex:1;border-radius:4px;background:#e5e7eb;transition:all 0.3s;display:flex;align-items:center;justify-content:center;font-size:8px;font-weight:700;color:#fff"></div>
-<div class="tl-item" id="tl4" title="4.Trava Chassi" style="flex:1;border-radius:4px;background:#e5e7eb;transition:all 0.3s;display:flex;align-items:center;justify-content:center;font-size:8px;font-weight:700;color:#fff"></div>
-<div class="tl-item" id="tl5" title="5.Trava Pinos" style="flex:1;border-radius:4px;background:#e5e7eb;transition:all 0.3s;display:flex;align-items:center;justify-content:center;font-size:8px;font-weight:700;color:#fff"></div>
-<div class="tl-item" id="tl6" title="6.Sensor 0 Ativo" style="flex:1;border-radius:4px;background:#e5e7eb;transition:all 0.3s;display:flex;align-items:center;justify-content:center;font-size:8px;font-weight:700;color:#fff"></div>
-<div class="tl-item" id="tl7" title="7.Roda Solta" style="flex:1;border-radius:4px;background:#e5e7eb;transition:all 0.3s;display:flex;align-items:center;justify-content:center;font-size:8px;font-weight:700;color:#fff"></div>
-<div class="tl-item" id="tl8" title="8.Chassi Solta" style="flex:1;border-radius:4px;background:#e5e7eb;transition:all 0.3s;display:flex;align-items:center;justify-content:center;font-size:8px;font-weight:700;color:#fff"></div>
-<div class="tl-item" id="tl9" title="9.Pinos Soltam" style="flex:1;border-radius:4px;background:#e5e7eb;transition:all 0.3s;display:flex;align-items:center;justify-content:center;font-size:8px;font-weight:700;color:#fff"></div>
-<div class="tl-item" id="tl10" title="10.Portao Abre" style="flex:1;border-radius:4px;background:#e5e7eb;transition:all 0.3s;display:flex;align-items:center;justify-content:center;font-size:8px;font-weight:700;color:#fff"></div>
-</div>
-<div style="display:flex;justify-content:space-between;margin-top:3px;font-size:7px;color:#9ca3af">
-<span>1</span><span>2</span><span>3</span><span>4</span><span>5</span><span>6</span><span>7</span><span>8</span><span>9</span><span>10</span>
+<div style="display:flex;align-items:center;justify-content:space-between;margin-top:4px;padding-top:4px;border-top:1px solid #e5e7eb">
+<span style="font-size:10px;font-weight:700;color:#6b7280" id="platLabel">PLATAFORMA: PARADA</span>
+<span style="font-size:16px;font-weight:700;color:#6b7280;font-family:monospace" id="platTimer">-</span>
 </div>
 </div>
+<div style="margin-top:6px;flex:1;display:flex;flex-direction:column">
+<div style="font-size:10px;font-weight:700;color:#6b7280;margin-bottom:4px;letter-spacing:0.5px">ÚLTIMO CICLO</div>
+<table id="lastCycleTable" style="width:100%;font-size:11px;border-collapse:collapse">
+<tr><td style="padding:3px 8px;color:#374151">Sensor 0°</td><td style="text-align:right;padding:3px 8px;font-weight:700" id="lc0">-</td><td style="padding:3px 8px;width:50%"><div style="background:#e5e7eb;height:10px;border-radius:5px;overflow:hidden"><div id="lb0" style="height:100%;background:#dc2626;width:0%;transition:width 0.5s"></div></div></td></tr>
+<tr style="background:#f9fafb"><td style="padding:3px 8px;color:#374151">Sensor 40°</td><td style="text-align:right;padding:3px 8px;font-weight:700" id="lc1">-</td><td style="padding:3px 8px"><div style="background:#e5e7eb;height:10px;border-radius:5px;overflow:hidden"><div id="lb1" style="height:100%;background:#dc2626;width:0%;transition:width 0.5s"></div></div></td></tr>
+<tr><td style="padding:3px 8px;color:#374151">Trava Roda</td><td style="text-align:right;padding:3px 8px;font-weight:700" id="lc2">-</td><td style="padding:3px 8px"><div style="background:#e5e7eb;height:10px;border-radius:5px;overflow:hidden"><div id="lb2" style="height:100%;background:#dc2626;width:0%;transition:width 0.5s"></div></div></td></tr>
+<tr style="background:#f9fafb"><td style="padding:3px 8px;color:#374151">Trava Chassi</td><td style="text-align:right;padding:3px 8px;font-weight:700" id="lc3">-</td><td style="padding:3px 8px"><div style="background:#e5e7eb;height:10px;border-radius:5px;overflow:hidden"><div id="lb3" style="height:100%;background:#dc2626;width:0%;transition:width 0.5s"></div></div></td></tr>
+<tr><td style="padding:3px 8px;color:#374151">Trava Pino E</td><td style="text-align:right;padding:3px 8px;font-weight:700" id="lc4">-</td><td style="padding:3px 8px"><div style="background:#e5e7eb;height:10px;border-radius:5px;overflow:hidden"><div id="lb4" style="height:100%;background:#dc2626;width:0%;transition:width 0.5s"></div></div></td></tr>
+<tr style="background:#f9fafb"><td style="padding:3px 8px;color:#374151">Trava Pino D</td><td style="text-align:right;padding:3px 8px;font-weight:700" id="lc5">-</td><td style="padding:3px 8px"><div style="background:#e5e7eb;height:10px;border-radius:5px;overflow:hidden"><div id="lb5" style="height:100%;background:#dc2626;width:0%;transition:width 0.5s"></div></div></td></tr>
+<tr style="border-top:2px solid #e5e7eb"><td style="padding:4px 8px;font-weight:700">TOTAL CICLO</td><td style="text-align:right;padding:4px 8px;font-weight:700;font-size:13px;color:#dc2626" id="lcTotal">-</td><td></td></tr>
+</table>
 </div>
-<div class="card" style="display:flex;flex-direction:column;justify-content:space-between">
-<div>
-<div class="card-title">
+</div>
+<div class="card" style="display:flex;flex-direction:column;padding:8px 10px">
+<div class="card-title" style="margin-bottom:6px">
 <svg viewBox="0 0 24 24" stroke-width="2"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>
 Produção e Horímetro
 </div>
-<div style="display:grid;grid-template-columns:1fr;gap:8px">
-<div class="stat-card" style="display:flex;align-items:center;justify-content:space-between;text-align:left;padding:10px 14px">
-<div class="stat-label" style="margin:0;font-size:11px">Ciclos Hoje</div>
-<div class="stat-value" id="ch" style="font-size:32px">0</div>
+<div style="flex:1;display:flex;flex-direction:column;gap:8px">
+<div class="stat-card" style="flex:1;display:flex;align-items:center;justify-content:space-between;text-align:left;padding:10px 14px">
+<div class="stat-label" style="margin:0;font-size:12px">Ciclos Hoje</div>
+<div class="stat-value" id="ch" style="font-size:36px">0</div>
 </div>
-<div class="stat-card" style="display:flex;align-items:center;justify-content:space-between;text-align:left;padding:10px 14px">
-<div class="stat-label" style="margin:0;font-size:11px">Ciclos Totais</div>
-<div class="stat-value" id="ct" style="font-size:32px">0</div>
+<div class="stat-card" style="flex:1;display:flex;align-items:center;justify-content:space-between;text-align:left;padding:10px 14px">
+<div class="stat-label" style="margin:0;font-size:12px">Ciclos Totais</div>
+<div class="stat-value" id="ct" style="font-size:36px">0</div>
 </div>
-<div class="stat-card" style="display:flex;align-items:center;justify-content:space-between;text-align:left;padding:10px 14px">
-<div class="stat-label" style="margin:0;font-size:11px">Horímetro</div>
-<div class="stat-value" style="font-size:32px"><span id="h">0</span>h <span id="m">0</span>m</div>
+<div class="stat-card" style="flex:1;display:flex;align-items:center;justify-content:space-between;text-align:left;padding:10px 14px">
+<div class="stat-label" style="margin:0;font-size:12px">Horímetro</div>
+<div class="stat-value" style="font-size:36px"><span id="h">0</span>h <span id="m">0</span>m</div>
 </div>
 </div>
-</div>
-<div style="padding:8px;background:#f9fafb;border-radius:5px">
+<div style="padding:8px 10px;background:#f9fafb;border-radius:5px;margin-top:8px">
 <div style="display:flex;justify-content:space-between;margin-bottom:4px;font-size:10px;font-weight:700;color:#6b7280">
 <span>MANUTENÇÃO</span>
 <span><span id="maintHrs">2000</span>h</span>
 </div>
-<div class="progress-bar" style="height:12px;margin:4px 0">
+<div class="progress-bar" style="height:12px;margin:0">
 <div id="maintBar" class="progress-fill" style="width:0%"></div>
 </div>
 </div>
@@ -370,7 +390,7 @@ Nova Manutenção
 </div>
 </div>
 </div>
-<div class="panel" style="grid-template-rows:150px 1fr">
+<div class="panel" style="grid-template-rows:auto 1fr">
 <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
 <div class="card">
 <div class="card-title">
@@ -391,6 +411,9 @@ Informações do Sistema
 <div class="card-title">
 <svg viewBox="0 0 24 24" stroke-width="2"><path d="M5 12.55a11 11 0 0114.08 0M1.42 9a16 16 0 0121.16 0M8.53 16.11a6 6 0 016.95 0M12 20h.01"/></svg>
 Configuração WiFi
+</div>
+<div id="wifiStatusBar" style="padding:6px 10px;border-radius:5px;background:#fef2f2;border:2px solid #fecaca;text-align:center;margin-bottom:6px">
+<span id="wifiStatusText" style="font-size:11px;font-weight:700;color:#991b1b">SEM CONEXAO</span>
 </div>
 <input type="text" id="wifiSSID" placeholder="Nome da Rede (SSID)" class="input" style="margin:2px 0">
 <input type="password" id="wifiPass" placeholder="Senha WiFi" class="input" style="margin:2px 0">
@@ -460,8 +483,8 @@ Perguntas Frequentes - PILI TECH
 <div class="faq-a">O ciclo é contado quando o sensor de 0° passa de ATIVO para INATIVO (plataforma começa a subir). O tempo padrão é 20 minutos.</div>
 </div>
 <div class="faq-item">
-<div class="faq-q">4. Quais são as 10 etapas do ciclo?</div>
-<div class="faq-a">1.Portão fecha 2.Sensor 0° inativo 3.Trava roda 4.Trava chassi 5.Trava pinos 6.Sensor 0° ativo 7.Solta roda 8.Solta chassi 9.Solta pinos 10.Portão abre</div>
+<div class="faq-q">4. Como funciona o tracking do ciclo?</div>
+<div class="faq-a">Portão fecha = início do ciclo. Cada sensor tem seu tempo ativo medido (ON→OFF). Portão abre = fim do ciclo. O dashboard mostra a duração de cada sensor e o tempo total.</div>
 </div>
 <div class="faq-item">
 <div class="faq-q">5. Para que serve o horímetro?</div>
@@ -704,6 +727,17 @@ if(!lastMoegaFosso){addLog('ALERTA: Moega/Fosso cheio!');lastMoegaFosso=true;}
 if(lastMoegaFosso){addLog('Moega/Fosso normalizado');lastMoegaFosso=false;}
 }
 si[7].classList.toggle('active',data.portao_fechado);
+if(data.sensorConfig){
+var sIds=['si0','si1','si2','si3','si4','si5','si6','si7'];
+for(var i=0;i<8;i++){
+document.getElementById(sIds[i]).style.display=data.sensorConfig[i]?'':'none';
+}
+var cfgIds=['cfgS0','cfgS40','cfgTR','cfgTC','cfgTPE','cfgTPD','cfgMF','cfgPT'];
+for(var i=0;i<8;i++){
+var el=document.getElementById(cfgIds[i]);
+if(el)el.checked=data.sensorConfig[i];
+}
+}
 var hrs=data.horasOperacao||0;
 var pct=Math.min((hrs/2000)*100,100);
 document.getElementById('maintBar').style.width=pct+'%';
@@ -711,43 +745,54 @@ document.getElementById('maintHrs').textContent=Math.max(2000-hrs,0);
 updateTimeline();
 }
 function updateTimeline(){
-var etapaAtual=data.currentCycle?data.currentCycle.etapaAtual:0;
-document.getElementById('etapaAtual').textContent=data.cycleInProgress?etapaAtual+'/10':'-';
-for(var i=1;i<=10;i++){
-var tl=document.getElementById('tl'+i);
-if(data.cycleInProgress&&i<etapaAtual){
-var t=data.currentCycle['etapa'+i]||0;
-tl.style.background='#10b981';
-tl.textContent=t+'s';
-}else if(data.cycleInProgress&&i==etapaAtual){
-var se=data.currentCycle.stageElapsed||0;
-tl.style.background='#f59e0b';
-tl.textContent=se+'s';
-}else if(!data.cycleInProgress&&data.lastCycle&&data.lastCycle.total>0){
-var t=data.lastCycle['etapa'+i]||0;
-tl.style.background='#93c5fd';
-tl.textContent=t+'s';
-}else{
-tl.style.background='#e5e7eb';
-tl.textContent='';
-}
+var sKeys=['sensor0','sensor40','travaRoda','travaChassi','travaPinoE','travaPinoD'];
+var sOnKeys=['s0on','s40on','tRon','tCon','tPEon','tPDon'];
+var durEls=['sd0','sd1','sd2','sd3','sd4','sd5'];
+for(var i=0;i<6;i++){
+var el=document.getElementById(durEls[i]);
+if(!el)continue;
+var t=0,isOn=false;
+if(data.currentCycle){t=data.currentCycle[sKeys[i]]||0;isOn=data.currentCycle[sOnKeys[i]]||false;}
+if(isOn){el.textContent=t+'s';el.className='sensor-dur timing';}
+else if(t>0){el.textContent=t+'s';el.className='sensor-dur done';}
+else{el.textContent='';el.className='sensor-dur';}
 }
 var timer=document.getElementById('cycleTimer');
+var label=document.getElementById('cycleLabel');
 if(data.cycleInProgress&&data.currentCycle){
 var elapsed=data.currentCycle.elapsed||0;
 var min=Math.floor(elapsed/60);
 var sec=elapsed%60;
 timer.textContent=String(min).padStart(2,'0')+':'+String(sec).padStart(2,'0');
 timer.style.color='#10b981';
-}else if(data.lastCycle&&data.lastCycle.total>0){
-var total=data.lastCycle.total;
-var min=Math.floor(total/60);
-var sec=total%60;
-timer.textContent=String(min).padStart(2,'0')+':'+String(sec).padStart(2,'0');
-timer.style.color='#6b7280';
+label.textContent='CICLO EM ANDAMENTO';label.style.color='#10b981';
 }else{
-timer.textContent='--:--';
-timer.style.color='#6b7280';
+timer.textContent='--:--';timer.style.color='#6b7280';
+label.textContent='CICLO PARADO';label.style.color='#6b7280';
+}
+var platL=document.getElementById('platLabel');
+var platT=document.getElementById('platTimer');
+var ps=data.platformState||0;
+if(ps===1){platL.textContent='PLATAFORMA: SUBINDO';platL.style.color='#f59e0b';platT.textContent='';platT.style.color='#f59e0b';}
+else if(ps===2){platL.textContent='PLATAFORMA: DESCENDO';platL.style.color='#3b82f6';platT.textContent='';platT.style.color='#3b82f6';}
+else if(ps===3){platL.textContent='CICLO COMPLETO';platL.style.color='#10b981';platT.textContent='';platT.style.color='#10b981';}
+else{platL.textContent='PLATAFORMA: PARADA';platL.style.color='#6b7280';platT.textContent='';platT.style.color='#6b7280';}
+var lc=data.lastCycle;
+if(lc&&lc.total>0){
+var vals=[lc.sensor0||0,lc.sensor40||0,lc.travaRoda||0,lc.travaChassi||0,lc.travaPinoE||0,lc.travaPinoD||0];
+var mx=Math.max.apply(null,vals)||1;
+var ids=['lc0','lc1','lc2','lc3','lc4','lc5'];
+var bars=['lb0','lb1','lb2','lb3','lb4','lb5'];
+for(var i=0;i<6;i++){
+document.getElementById(ids[i]).textContent=vals[i]+'s';
+document.getElementById(bars[i]).style.width=Math.round((vals[i]/mx)*100)+'%';
+}
+var tt=lc.total;var mn=Math.floor(tt/60);var sc=tt%60;
+document.getElementById('lcTotal').textContent=String(mn).padStart(2,'0')+':'+String(sc).padStart(2,'0');
+if(!data.cycleInProgress){
+timer.textContent=String(mn).padStart(2,'0')+':'+String(sc).padStart(2,'0');
+timer.style.color='#6b7280';label.textContent='ULTIMO CICLO';label.style.color='#6b7280';
+}
 }
 updateSistemaStatus();
 }
@@ -764,12 +809,18 @@ status.style.background='#fef2f2';
 status.style.borderColor='#fecaca';
 status.innerHTML='<span style="font-size:12px;font-weight:700;color:#991b1b">SISTEMA NAO INICIADO</span>';
 }
+var wBar=document.getElementById('wifiStatusBar');
+var wTxt=document.getElementById('wifiStatusText');
 if(data.wifiConnected){
 techControls.style.display='block';
 noWifi.style.display='none';
+wBar.style.background='#d1fae5';wBar.style.borderColor='#6ee7b7';
+wTxt.style.color='#065f46';wTxt.textContent='WIFI CONECTADO';
 }else{
 techControls.style.display='none';
 noWifi.style.display='block';
+wBar.style.background='#fef2f2';wBar.style.borderColor='#fecaca';
+wTxt.style.color='#991b1b';wTxt.textContent='SEM CONEXAO';
 }
 }
 function openConfigModal(){
@@ -811,9 +862,27 @@ addLog('Reset total do sistema');
 }
 }
 function salvarConfig(){
+if(ws&&ws.readyState===1){
+var sensors=[
+document.getElementById('cfgS0').checked,
+document.getElementById('cfgS40').checked,
+document.getElementById('cfgTR').checked,
+document.getElementById('cfgTC').checked,
+document.getElementById('cfgTPE').checked,
+document.getElementById('cfgTPD').checked,
+document.getElementById('cfgMF').checked,
+document.getElementById('cfgPT').checked
+];
+ws.send(JSON.stringify({cmd:'SAVE_CONFIG',sensors:sensors}));
 addLog('Configurações salvas');
+var ids=['si0','si1','si2','si3','si4','si5','si6','si7'];
+for(var i=0;i<8;i++){
+document.getElementById(ids[i]).style.display=sensors[i]?'':'none';
+}
 closeConfigModal();
-alert('Configurações salvas!');
+}else{
+alert('Sem conexão WebSocket!');
+}
 }
 function resetCiclos(){
 if(confirm('Resetar contagem de ciclos de hoje?')){
@@ -935,6 +1004,10 @@ msg.style.display='block';
 msg.style.background='#dbeafe';
 msg.style.color='#1e40af';
 msg.textContent='Conectando a '+ssid+'...';
+var wBar=document.getElementById('wifiStatusBar');
+var wTxt=document.getElementById('wifiStatusText');
+wBar.style.background='#fef9c3';wBar.style.borderColor='#fde68a';
+wTxt.style.color='#92400e';wTxt.textContent='CONECTANDO...';
 addLog('Conectando WiFi: '+ssid);
 }else{
 msg.style.display='block';
@@ -1032,45 +1105,50 @@ String createJsonData() {
 
   // Dados do ciclo atual (em andamento ou último completo)
   doc["cycleInProgress"] = cycleInProgress;
+  doc["platformState"] = platformState;
 
   // Sistema iniciado
   doc["sistemaIniciado"] = sistemaIniciado;
 
-  // Tempos das 10 etapas do último ciclo completo (em segundos)
+  // Durações do último ciclo completo (em segundos)
   JsonObject lastCycle = doc.createNestedObject("lastCycle");
-  lastCycle["etapa1"] = lastCompleteCycle.etapa1_portaoFechado / 1000;
-  lastCycle["etapa2"] = lastCompleteCycle.etapa2_sensor0Inativo / 1000;
-  lastCycle["etapa3"] = lastCompleteCycle.etapa3_travaRoda / 1000;
-  lastCycle["etapa4"] = lastCompleteCycle.etapa4_travaChassi / 1000;
-  lastCycle["etapa5"] = lastCompleteCycle.etapa5_travaPinos / 1000;
-  lastCycle["etapa6"] = lastCompleteCycle.etapa6_sensor0Ativo / 1000;
-  lastCycle["etapa7"] = lastCompleteCycle.etapa7_travaRodaInativo / 1000;
-  lastCycle["etapa8"] = lastCompleteCycle.etapa8_travaChassiInativo / 1000;
-  lastCycle["etapa9"] = lastCompleteCycle.etapa9_travaPinosInativo / 1000;
-  lastCycle["etapa10"] = lastCompleteCycle.etapa10_portaoAberto / 1000;
-  lastCycle["total"] = lastCompleteCycle.cicloTotal / 1000;
+  lastCycle["sensor0"] = lastCompleteDurations.sensor0 / 1000;
+  lastCycle["sensor40"] = lastCompleteDurations.sensor40 / 1000;
+  lastCycle["travaRoda"] = lastCompleteDurations.travaRoda / 1000;
+  lastCycle["travaChassi"] = lastCompleteDurations.travaChassi / 1000;
+  lastCycle["travaPinoE"] = lastCompleteDurations.travaPinoE / 1000;
+  lastCycle["travaPinoD"] = lastCompleteDurations.travaPinoD / 1000;
+  lastCycle["total"] = lastCompleteDurations.cicloTotal / 1000;
 
-  // Tempos do ciclo atual em andamento (em segundos)
+  // Durações do ciclo atual em andamento (em segundos)
   if (cycleInProgress) {
     JsonObject currCycle = doc.createNestedObject("currentCycle");
     unsigned long now = millis();
     currCycle["elapsed"] = (now - cycleStartTime) / 1000;
-    currCycle["stageElapsed"] = (now - stageStartTime) / 1000;
-    currCycle["etapaAtual"] = currentCycle.etapaAtual;
-    currCycle["etapa1"] = currentCycle.etapa1_portaoFechado / 1000;
-    currCycle["etapa2"] = currentCycle.etapa2_sensor0Inativo / 1000;
-    currCycle["etapa3"] = currentCycle.etapa3_travaRoda / 1000;
-    currCycle["etapa4"] = currentCycle.etapa4_travaChassi / 1000;
-    currCycle["etapa5"] = currentCycle.etapa5_travaPinos / 1000;
-    currCycle["etapa6"] = currentCycle.etapa6_sensor0Ativo / 1000;
-    currCycle["etapa7"] = currentCycle.etapa7_travaRodaInativo / 1000;
-    currCycle["etapa8"] = currentCycle.etapa8_travaChassiInativo / 1000;
-    currCycle["etapa9"] = currentCycle.etapa9_travaPinosInativo / 1000;
-    currCycle["etapa10"] = currentCycle.etapa10_portaoAberto / 1000;
+    // Para sensores ativos agora, incluir tempo parcial
+    currCycle["sensor0"] = (currentDurations.sensor0 + (sensor0_timing ? now - sensor0_start : 0)) / 1000;
+    currCycle["sensor40"] = (currentDurations.sensor40 + (sensor40_timing ? now - sensor40_start : 0)) / 1000;
+    currCycle["travaRoda"] = (currentDurations.travaRoda + (travaRoda_timing ? now - travaRoda_start : 0)) / 1000;
+    currCycle["travaChassi"] = (currentDurations.travaChassi + (travaChassi_timing ? now - travaChassi_start : 0)) / 1000;
+    currCycle["travaPinoE"] = (currentDurations.travaPinoE + (travaPinoE_timing ? now - travaPinoE_start : 0)) / 1000;
+    currCycle["travaPinoD"] = (currentDurations.travaPinoD + (travaPinoD_timing ? now - travaPinoD_start : 0)) / 1000;
+    // Flags de qual sensor está ativo agora (para UI mostrar ao vivo)
+    currCycle["s0on"] = sensor0_timing;
+    currCycle["s40on"] = sensor40_timing;
+    currCycle["tRon"] = travaRoda_timing;
+    currCycle["tCon"] = travaChassi_timing;
+    currCycle["tPEon"] = travaPinoE_timing;
+    currCycle["tPDon"] = travaPinoD_timing;
   }
 
   // Tempo padrão de ciclo (em segundos)
   doc["cicloPadrao"] = CICLO_PADRAO_MS / 1000;
+
+  // Config de sensores habilitados
+  JsonArray sensorCfg = doc.createNestedArray("sensorConfig");
+  for (int i = 0; i < 8; i++) {
+    sensorCfg.add(sensorEnabled[i]);
+  }
 
   String jsonData;
   serializeJson(doc, jsonData);
@@ -1222,11 +1300,8 @@ void onWebSocketEvent(uint8_t num, WStype_t type, uint8_t *payload, size_t lengt
           preferences.putULong("horasOp", 0);
           preferences.end();
 
-          Serial.println("⚠️ RESET TOTAL: Todos os contadores zerados!");
-
-          if (WiFi.status() == WL_CONNECTED) {
-            enviarEvento("WARNING", "Reset total do sistema realizado", "reset", true);
-          }
+          Serial.println("RESET TOTAL: Todos os contadores zerados!");
+          enviarEvento("WARNING", "Reset total do sistema realizado", "reset", true);
         }
         else if (cmd == "SAVE_DATA") {
           preferences.begin("pilitech", false);
@@ -1264,11 +1339,8 @@ void onWebSocketEvent(uint8_t num, WStype_t type, uint8_t *payload, size_t lengt
           preferences.putULong("horasOp", 0);
           preferences.end();
 
-          Serial.println("⚠️ RESET HORÍMETRO: Zerado!");
-
-          if (WiFi.status() == WL_CONNECTED) {
-            enviarEvento("WARNING", "Reset do horímetro realizado pelo técnico", "reset_horimetro", true);
-          }
+          Serial.println("RESET HORIMETRO: Zerado!");
+          enviarEvento("WARNING", "Reset do horimetro realizado pelo tecnico", "reset_horimetro", true);
         }
         else if (cmd == "RESET_CICLOS_TOTAL") {
           stats.ciclosTotal = 0;
@@ -1277,29 +1349,36 @@ void onWebSocketEvent(uint8_t num, WStype_t type, uint8_t *payload, size_t lengt
           preferences.putULong("ciclosTotal", 0);
           preferences.end();
 
-          Serial.println("⚠️ RESET CICLOS TOTAIS: Zerado!");
-
-          if (WiFi.status() == WL_CONNECTED) {
-            enviarEvento("WARNING", "Reset dos ciclos totais realizado pelo técnico", "reset_ciclos_total", true);
-          }
+          Serial.println("RESET CICLOS TOTAIS: Zerado!");
+          enviarEvento("WARNING", "Reset dos ciclos totais realizado pelo tecnico", "reset_ciclos_total", true);
         }
         else if (cmd == "START_SISTEMA") {
           sistemaIniciado = true;
-          Serial.println("🚀 SISTEMA INICIADO pelo técnico!");
-
-          if (WiFi.status() == WL_CONNECTED) {
-            enviarEvento("INFO", "Sistema iniciado - Tombador entrou em operação", "start_sistema", true);
-          }
+          Serial.println("SISTEMA INICIADO pelo tecnico!");
+          enviarEvento("INFO", "Sistema iniciado - Tombador entrou em operacao", "start_sistema", true);
         }
         else if (cmd == "RESTART_IOT") {
-          Serial.println("🔄 REINICIANDO IoT...");
-
-          if (WiFi.status() == WL_CONNECTED) {
-            enviarEvento("WARNING", "IoT reiniciado pelo técnico", "restart_iot", true);
-          }
+          Serial.println("REINICIANDO IoT...");
+          enviarEvento("WARNING", "IoT reiniciado pelo tecnico", "restart_iot", true);
 
           delay(1000);
           ESP.restart();
+        }
+        else if (cmd == "SAVE_CONFIG") {
+          JsonArray sensors = doc["sensors"];
+          if (sensors) {
+            preferences.begin("pilitech", false);
+            for (int i = 0; i < 8 && i < (int)sensors.size(); i++) {
+              sensorEnabled[i] = sensors[i].as<bool>();
+              char key[12];
+              snprintf(key, sizeof(key), "sensorEn%d", i);
+              preferences.putBool(key, sensorEnabled[i]);
+            }
+            preferences.end();
+            Serial.printf("Config sensores salva: S0=%d S40=%d TR=%d TC=%d TPE=%d TPD=%d MF=%d PT=%d\n",
+              sensorEnabled[0], sensorEnabled[1], sensorEnabled[2], sensorEnabled[3],
+              sensorEnabled[4], sensorEnabled[5], sensorEnabled[6], sensorEnabled[7]);
+          }
         }
       }
       break;
@@ -1308,9 +1387,75 @@ void onWebSocketEvent(uint8_t num, WStype_t type, uint8_t *payload, size_t lengt
 }
 
 // Função para enviar dados para a API
+// Buffer universal: salva {endpoint, payload} no SPIFFS quando não consegue enviar
+// Live-status NUNCA é bufferizado (dados voláteis, sem valor histórico)
+void bufferAPICall(const char* endpoint, String jsonPayload) {
+  // Não bufferizar live-status
+  if (String(endpoint) == "/api/live-status") return;
+
+  // Verificar espaço SPIFFS
+  size_t totalBytes = SPIFFS.totalBytes();
+  size_t usedBytes = SPIFFS.usedBytes();
+  size_t freeBytes = totalBytes - usedBytes;
+
+  // Se menos de 10KB livre, remover snapshots antigos (sensor-reading) para dar espaço
+  if (freeBytes < 10240) {
+    Serial.println("SPIFFS quase cheio! Removendo snapshots antigos...");
+    for (int i = 0; i < MAX_BUFFER_SIZE; i++) {
+      String fn = String(BUFFER_DIR) + "/buf_" + String(i) + ".json";
+      if (SPIFFS.exists(fn)) {
+        File f = SPIFFS.open(fn, "r");
+        if (f) {
+          String content = f.readString();
+          f.close();
+          // Prioridade: manter cycle-data e event, sacrificar sensor-reading
+          if (content.indexOf("sensor-reading") > 0) {
+            SPIFFS.remove(fn);
+            Serial.printf("  Removido buf_%d (sensor-reading) para liberar espaco\n", i);
+            freeBytes = SPIFFS.totalBytes() - SPIFFS.usedBytes();
+            if (freeBytes >= 10240) break;
+          }
+        }
+      }
+    }
+  }
+
+  // Se ainda sem espaço, desistir
+  if (freeBytes < 2048) {
+    Serial.println("SPIFFS CHEIO! Impossivel bufferizar - dado perdido");
+    return;
+  }
+
+  // Encontrar próximo slot disponível
+  int slot = -1;
+  for (int i = 0; i < MAX_BUFFER_SIZE * 3; i++) {
+    String fn = String(BUFFER_DIR) + "/buf_" + String(i) + ".json";
+    if (!SPIFFS.exists(fn)) {
+      slot = i;
+      break;
+    }
+  }
+
+  if (slot == -1) {
+    Serial.println("Buffer slots esgotados!");
+    return;
+  }
+
+  // Salvar: primeira linha = endpoint, segunda linha = payload JSON
+  String fn = String(BUFFER_DIR) + "/buf_" + String(slot) + ".json";
+  File file = SPIFFS.open(fn, "w");
+  if (file) {
+    file.println(endpoint);
+    file.print(jsonPayload);
+    file.close();
+    Serial.printf("Buffer: salvo buf_%d [%s] (%d bytes)\n", slot, endpoint, jsonPayload.length());
+  }
+}
+
 bool sendToAPI(const char* endpoint, String jsonPayload) {
   if (WiFi.status() != WL_CONNECTED) {
-    Serial.println("WiFi não conectado - dados não enviados");
+    Serial.printf("WiFi offline - bufferizando [%s]\n", endpoint);
+    bufferAPICall(endpoint, jsonPayload);
     return false;
   }
 
@@ -1323,19 +1468,27 @@ bool sendToAPI(const char* endpoint, String jsonPayload) {
 
   if (httpCode > 0) {
     String response = http.getString();
-    Serial.printf("✓ API Response [%d]: %s\n", httpCode, response.c_str());
+    Serial.printf("API [%d]: %s\n", httpCode, response.c_str());
     http.end();
-    return (httpCode == 200);
+    if (httpCode == 200) {
+      return true;
+    } else {
+      // Server respondeu mas com erro - bufferizar para retry
+      bufferAPICall(endpoint, jsonPayload);
+      return false;
+    }
   } else {
-    Serial.printf("✗ API Error: %s\n", http.errorToString(httpCode).c_str());
+    Serial.printf("API Error: %s\n", http.errorToString(httpCode).c_str());
     http.end();
+    // Falha de rede - bufferizar
+    bufferAPICall(endpoint, jsonPayload);
     return false;
   }
 }
 
 // Enviar leitura completa de sensores
 bool enviarLeituraSensores() {
-  StaticJsonDocument<512> doc;
+  StaticJsonDocument<768> doc;
   doc["serial_number"] = SERIAL_NUMBER;
   doc["sensor_0_graus"] = sensor_0_graus;
   doc["sensor_40_graus"] = sensor_40_graus;
@@ -1349,9 +1502,16 @@ bool enviarLeituraSensores() {
   doc["ciclos_total"] = stats.ciclosTotal;
   doc["horas_operacao"] = stats.horasOperacao;
   doc["minutos_operacao"] = stats.minutosOperacao;
+  doc["sistema_ativo"] = sistemaIniciado;
   doc["free_heap"] = ESP.getFreeHeap();
   doc["uptime_seconds"] = uptimeSeconds;
   doc["wifi_connected"] = true;
+
+  // Config de sensores habilitados
+  JsonArray sensorCfg = doc.createNestedArray("sensor_config");
+  for (int i = 0; i < 8; i++) {
+    sensorCfg.add(sensorEnabled[i]);
+  }
 
   String payload;
   serializeJson(doc, payload);
@@ -1393,24 +1553,20 @@ bool enviarManutencao(const char* technician, const char* description) {
   return sendToAPI("/api/maintenance", payload);
 }
 
-// Enviar dados do ciclo completo com as 9 etapas para análise de produtividade
+// Enviar dados do ciclo completo (duração por sensor) para API
 bool enviarDadosCiclo() {
   StaticJsonDocument<1024> doc;
   doc["serial_number"] = SERIAL_NUMBER;
   doc["ciclo_numero"] = stats.ciclosTotal;
 
-  // Tempos das 10 etapas em segundos
-  doc["tempo_total"] = lastCompleteCycle.cicloTotal / 1000;
-  doc["etapa1_portao_fechado"] = lastCompleteCycle.etapa1_portaoFechado / 1000;
-  doc["etapa2_sensor0_inativo"] = lastCompleteCycle.etapa2_sensor0Inativo / 1000;
-  doc["etapa3_trava_roda"] = lastCompleteCycle.etapa3_travaRoda / 1000;
-  doc["etapa4_trava_chassi"] = lastCompleteCycle.etapa4_travaChassi / 1000;
-  doc["etapa5_trava_pinos"] = lastCompleteCycle.etapa5_travaPinos / 1000;
-  doc["etapa6_sensor0_ativo"] = lastCompleteCycle.etapa6_sensor0Ativo / 1000;
-  doc["etapa7_solta_roda"] = lastCompleteCycle.etapa7_travaRodaInativo / 1000;
-  doc["etapa8_solta_chassi"] = lastCompleteCycle.etapa8_travaChassiInativo / 1000;
-  doc["etapa9_solta_pinos"] = lastCompleteCycle.etapa9_travaPinosInativo / 1000;
-  doc["etapa10_portao_aberto"] = lastCompleteCycle.etapa10_portaoAberto / 1000;
+  // Duração ativa de cada sensor em segundos
+  doc["tempo_total"] = lastCompleteDurations.cicloTotal / 1000;
+  doc["sensor0"] = lastCompleteDurations.sensor0 / 1000;
+  doc["sensor40"] = lastCompleteDurations.sensor40 / 1000;
+  doc["trava_roda"] = lastCompleteDurations.travaRoda / 1000;
+  doc["trava_chassi"] = lastCompleteDurations.travaChassi / 1000;
+  doc["trava_pino_e"] = lastCompleteDurations.travaPinoE / 1000;
+  doc["trava_pino_d"] = lastCompleteDurations.travaPinoD / 1000;
 
   // Contagem de ciclos
   doc["ciclos_hoje"] = stats.ciclosHoje;
@@ -1418,16 +1574,16 @@ bool enviarDadosCiclo() {
 
   // Tempo padrão e eficiência
   doc["tempo_padrao"] = CICLO_PADRAO_MS / 1000;
-  float eficiencia = ((float)CICLO_PADRAO_MS / (float)lastCompleteCycle.cicloTotal) * 100.0;
-  if (eficiencia > 200.0) eficiencia = 200.0;  // Cap em 200%
+  float eficiencia = ((float)CICLO_PADRAO_MS / (float)lastCompleteDurations.cicloTotal) * 100.0;
+  if (eficiencia > 200.0) eficiencia = 200.0;
   doc["eficiencia"] = eficiencia;
 
   String payload;
   serializeJson(doc, payload);
 
-  Serial.println("📤 Enviando dados do ciclo (10 etapas) para análise de produtividade...");
-  Serial.printf("  Tempo total: %lu seg | Eficiência: %.1f%%\n",
-                lastCompleteCycle.cicloTotal / 1000, eficiencia);
+  Serial.println("Enviando dados do ciclo para API...");
+  Serial.printf("  Tempo total: %lu seg | Eficiencia: %.1f%%\n",
+                lastCompleteDurations.cicloTotal / 1000, eficiencia);
 
   return sendToAPI("/api/cycle-data", payload);
 }
@@ -1470,118 +1626,98 @@ bool autoRegistrarDispositivo() {
 // ====== BUFFER OFFLINE ======
 
 // Salvar snapshot atual no buffer SPIFFS
+// saveSnapshotToBuffer: Usa sendToAPI que agora auto-bufferiza
 void saveSnapshotToBuffer() {
-  // Criar documento JSON com leitura atual
-  StaticJsonDocument<512> doc;
-  doc["serial_number"] = SERIAL_NUMBER;
-  doc["timestamp"] = millis();
-  doc["sensor_0_graus"] = sensor_0_graus;
-  doc["sensor_40_graus"] = sensor_40_graus;
-  doc["trava_roda"] = trava_roda;
-  doc["trava_chassi"] = trava_chassi;
-  doc["trava_pino_e"] = trava_pino_e;
-  doc["trava_pino_d"] = trava_pino_d;
-  doc["moega_fosso"] = moega_fosso;
-  doc["portao_fechado"] = portao_fechado;
-  doc["ciclos_hoje"] = stats.ciclosHoje;
-  doc["ciclos_total"] = stats.ciclosTotal;
-  doc["horas_operacao"] = stats.horasOperacao;
-  doc["minutos_operacao"] = stats.minutosOperacao;
-  doc["free_heap"] = ESP.getFreeHeap();
-  doc["uptime_seconds"] = uptimeSeconds;
+  // sendToAPI vai detectar que está offline e auto-bufferizar
+  enviarLeituraSensores();
+}
 
-  // Encontrar próximo slot disponível (circular)
-  int slot = -1;
-  for (int i = 0; i < MAX_BUFFER_SIZE; i++) {
-    String filename = String(BUFFER_DIR) + "/snap_" + String(i) + ".json";
-    if (!SPIFFS.exists(filename)) {
-      slot = i;
+// Sincronizar buffer universal: lê endpoint + payload de cada arquivo
+int syncBufferedData() {
+  if (WiFi.status() != WL_CONNECTED) return 0;
+
+  int synced = 0;
+  int failed = 0;
+  int maxSlots = MAX_BUFFER_SIZE * 3;
+
+  Serial.println("\nSincronizando buffer...");
+
+  for (int i = 0; i < maxSlots; i++) {
+    String fn = String(BUFFER_DIR) + "/buf_" + String(i) + ".json";
+    if (!SPIFFS.exists(fn)) continue;
+
+    File file = SPIFFS.open(fn, "r");
+    if (!file) continue;
+
+    // Primeira linha = endpoint, resto = payload JSON
+    String endpoint = file.readStringUntil('\n');
+    endpoint.trim();
+    String payload = file.readString();
+    file.close();
+
+    if (endpoint.length() == 0 || payload.length() == 0) {
+      SPIFFS.remove(fn);
+      continue;
+    }
+
+    Serial.printf("  buf_%d [%s]...", i, endpoint.c_str());
+
+    // Enviar diretamente sem passar pelo auto-buffer (evitar loop)
+    String url = String(API_URL) + endpoint;
+    http.begin(url);
+    http.addHeader("Content-Type", "application/json");
+    http.addHeader("X-API-Key", API_KEY);
+    int httpCode = http.POST(payload);
+
+    if (httpCode == 200) {
+      SPIFFS.remove(fn);
+      Serial.println(" OK");
+      synced++;
+    } else {
+      Serial.printf(" FALHA [%d]\n", httpCode);
+      failed++;
+    }
+    http.end();
+    delay(200);
+
+    // Se perdeu WiFi durante sync, parar
+    if (WiFi.status() != WL_CONNECTED) {
+      Serial.println("WiFi perdido durante sync - pausando");
       break;
     }
   }
 
-  // Se buffer cheio, sobrescreve o mais antigo (slot 0)
-  if (slot == -1) {
-    slot = 0;
-    Serial.println("⚠ Buffer cheio! Sobrescrevendo snapshot mais antigo");
-  }
-
-  // Salvar no arquivo
-  String filename = String(BUFFER_DIR) + "/snap_" + String(slot) + ".json";
-  File file = SPIFFS.open(filename, "w");
-  if (file) {
-    serializeJson(doc, file);
-    file.close();
-    Serial.printf("💾 Snapshot salvo no buffer: slot %d\n", slot);
-  } else {
-    Serial.println("✗ Erro ao salvar snapshot!");
-  }
-}
-
-// Sincronizar todos os snapshots do buffer com a API
-int syncBufferedData() {
-  if (WiFi.status() != WL_CONNECTED) {
-    Serial.println("WiFi desconectado - sync cancelado");
-    return 0;
-  }
-
-  int synced = 0;
-  int failed = 0;
-
-  Serial.println("\n🔄 Iniciando sincronização de buffer...");
-
-  for (int i = 0; i < MAX_BUFFER_SIZE; i++) {
-    String filename = String(BUFFER_DIR) + "/snap_" + String(i) + ".json";
-
-    if (SPIFFS.exists(filename)) {
-      File file = SPIFFS.open(filename, "r");
-      if (file) {
-        String payload = file.readString();
-        file.close();
-
-        // Tentar enviar
-        Serial.printf("  Enviando snapshot %d...", i);
-        if (sendToAPI("/api/sensor-reading", payload)) {
-          // Sucesso - deletar arquivo
-          SPIFFS.remove(filename);
-          Serial.printf(" ✓ OK (removido)\n");
-          synced++;
-        } else {
-          Serial.printf(" ✗ FALHA\n");
-          failed++;
-          // Continua tentando os próximos (não quebra)
-        }
-
-        delay(200); // Delay entre requisições
-      }
-    }
-  }
-
-  Serial.printf("🔄 Sync completo: %d enviados, %d falharam\n", synced, failed);
+  Serial.printf("Sync: %d enviados, %d falharam\n", synced, failed);
   return synced;
 }
 
-// Contar snapshots pendentes no buffer
+// Contar itens pendentes no buffer
 int countBufferedSnapshots() {
   int count = 0;
-  for (int i = 0; i < MAX_BUFFER_SIZE; i++) {
-    String filename = String(BUFFER_DIR) + "/snap_" + String(i) + ".json";
-    if (SPIFFS.exists(filename)) {
-      count++;
-    }
+  int maxSlots = MAX_BUFFER_SIZE * 3;
+  for (int i = 0; i < maxSlots; i++) {
+    String fn = String(BUFFER_DIR) + "/buf_" + String(i) + ".json";
+    if (SPIFFS.exists(fn)) count++;
   }
   return count;
 }
 
-// Limpar todo o buffer (usar com cuidado!)
+// Info SPIFFS
+void printSPIFFSInfo() {
+  size_t total = SPIFFS.totalBytes();
+  size_t used = SPIFFS.usedBytes();
+  Serial.printf("SPIFFS: %d/%d bytes usado (%d%%) | Livre: %d bytes\n",
+    used, total, (int)(used * 100 / total), total - used);
+}
+
+// Limpar todo o buffer
 void clearBuffer() {
-  for (int i = 0; i < MAX_BUFFER_SIZE; i++) {
-    String filename = String(BUFFER_DIR) + "/snap_" + String(i) + ".json";
-    if (SPIFFS.exists(filename)) {
-      SPIFFS.remove(filename);
-    }
+  int maxSlots = MAX_BUFFER_SIZE * 3;
+  for (int i = 0; i < maxSlots; i++) {
+    String fn = String(BUFFER_DIR) + "/buf_" + String(i) + ".json";
+    if (SPIFFS.exists(fn)) SPIFFS.remove(fn);
   }
-  Serial.println("🗑️ Buffer limpo!");
+  Serial.println("Buffer limpo!");
 }
 
 void handleRoot() {
@@ -1643,9 +1779,18 @@ void setup() {
   stats.ciclosTotal = preferences.getULong("ciclosTotal", 0);
   stats.horasOperacao = preferences.getULong("horasOp", 0);
   lastMaintenanceDate = preferences.getString("lastMaint", "Não registrada");
+  // Carregar config de sensores habilitados
+  for (int i = 0; i < 8; i++) {
+    char key[12];
+    snprintf(key, sizeof(key), "sensorEn%d", i);
+    sensorEnabled[i] = preferences.getBool(key, true);
+  }
   preferences.end();
   Serial.printf("Dados carregados: %lu ciclos, %lu horas\n", stats.ciclosTotal, stats.horasOperacao);
   Serial.println("Última manutenção: " + lastMaintenanceDate);
+  Serial.printf("Sensores habilitados: S0=%d S40=%d TR=%d TC=%d TPE=%d TPD=%d MF=%d PT=%d\n",
+    sensorEnabled[0], sensorEnabled[1], sensorEnabled[2], sensorEnabled[3],
+    sensorEnabled[4], sensorEnabled[5], sensorEnabled[6], sensorEnabled[7]);
 
   Serial.println("Configurando Access Point...");
   WiFi.mode(WIFI_AP_STA);
@@ -1716,132 +1861,151 @@ void loop() {
     readSensors();
   }
 
-  // ====== DETECÇÃO DE CICLOS E TRACKING DAS 9 ETAPAS ======
-  // CICLO CORRETO: sensor 0° ATIVO → INATIVO (plataforma começa a subir)
-  // 9 ETAPAS:
-  // 1. portão aberto → portão fechado
-  // 2. portão fechado → trava roda ativo
-  // 3. trava roda ativo → trava chassi ativo
-  // 4. trava chassi ativo → trava pino d/e ativo
-  // 5. trava pino d/e ativo → sensor 0° inativo
-  // 6. sensor 0° ativo → trava pino d/e inativo
-  // 7. trava pino d/e inativo → trava chassi inativo
-  // 8. trava chassi inativo → trava roda inativo
-  // 9. trava roda inativo → portão aberto
+  // ====== DETECÇÃO DE CICLOS E TRACKING DE DURAÇÃO POR SENSOR ======
+  // Portão fecha = início. Cada sensor: tempo ativo (ON→OFF). Portão abre = fim.
 
-  bool travaPinosAtivo = trava_pino_e && trava_pino_d;
-  bool lastTravaPinosAtivo = lastTravaPinoE && lastTravaPinoD;
+  // ====== TRACKING DE DURAÇÃO POR SENSOR (SEMPRE ATIVO) ======
+  // Sensores contam tempo independente do portão.
+  // Portão fecha = início do ciclo (zera contadores). Portão abre = fim (totaliza).
 
-  // ====== TRACKING DAS 10 ETAPAS DO CICLO ======
-  // 1.Portão fechado 2.Sensor 0° inativo 3.Trava roda 4.Trava chassi 5.Trava pinos
-  // 6.Sensor 0° ativo 7.Solta roda 8.Solta chassi 9.Solta pinos 10.Portão abre
+  // --- Sensor 0°: ON→start, OFF→acumula (igual aos outros sensores) ---
+  if (sensor_0_graus && !lastSensor0Graus && !sensor0_timing) {
+    sensor0_start = currentMillis; sensor0_timing = true;
+  }
+  if (!sensor_0_graus && lastSensor0Graus && sensor0_timing) {
+    currentDurations.sensor0 += currentMillis - sensor0_start;
+    sensor0_timing = false;
+    Serial.printf("  Sensor 0: %lu s\n", currentDurations.sensor0 / 1000);
+  }
 
-  // === ETAPA 1: Portão fecha (INÍCIO DO CICLO) ===
-  if (portao_fechado && !lastPortaoFechado && !cycleInProgress) {
+  // --- Sensor 40°: ON→start, OFF→acumula ---
+  if (sensor_40_graus && !lastSensor40Graus && !sensor40_timing) {
+    sensor40_start = currentMillis; sensor40_timing = true;
+  }
+  if (!sensor_40_graus && lastSensor40Graus && sensor40_timing) {
+    currentDurations.sensor40 += currentMillis - sensor40_start;
+    sensor40_timing = false;
+    Serial.printf("  Sensor 40: %lu s\n", currentDurations.sensor40 / 1000);
+  }
+
+  // --- Trava Roda: ON→start, OFF→acumula ---
+  if (trava_roda && !lastTravaRoda && !travaRoda_timing) {
+    travaRoda_start = currentMillis; travaRoda_timing = true;
+  }
+  if (!trava_roda && lastTravaRoda && travaRoda_timing) {
+    currentDurations.travaRoda += currentMillis - travaRoda_start;
+    travaRoda_timing = false;
+    Serial.printf("  Trava Roda: %lu s\n", currentDurations.travaRoda / 1000);
+  }
+
+  // --- Trava Chassi: ON→start, OFF→acumula ---
+  if (trava_chassi && !lastTravaChassi && !travaChassi_timing) {
+    travaChassi_start = currentMillis; travaChassi_timing = true;
+  }
+  if (!trava_chassi && lastTravaChassi && travaChassi_timing) {
+    currentDurations.travaChassi += currentMillis - travaChassi_start;
+    travaChassi_timing = false;
+    Serial.printf("  Trava Chassi: %lu s\n", currentDurations.travaChassi / 1000);
+  }
+
+  // --- Trava Pino E: ON→start, OFF→acumula ---
+  if (trava_pino_e && !lastTravaPinoE && !travaPinoE_timing) {
+    travaPinoE_start = currentMillis; travaPinoE_timing = true;
+  }
+  if (!trava_pino_e && lastTravaPinoE && travaPinoE_timing) {
+    currentDurations.travaPinoE += currentMillis - travaPinoE_start;
+    travaPinoE_timing = false;
+    Serial.printf("  Trava Pino E: %lu s\n", currentDurations.travaPinoE / 1000);
+  }
+
+  // --- Trava Pino D: ON→start, OFF→acumula ---
+  if (trava_pino_d && !lastTravaPinoD && !travaPinoD_timing) {
+    travaPinoD_start = currentMillis; travaPinoD_timing = true;
+  }
+  if (!trava_pino_d && lastTravaPinoD && travaPinoD_timing) {
+    currentDurations.travaPinoD += currentMillis - travaPinoD_start;
+    travaPinoD_timing = false;
+    Serial.printf("  Trava Pino D: %lu s\n", currentDurations.travaPinoD / 1000);
+  }
+
+  // === INÍCIO DO CICLO ===
+  // COM portão: ciclo inicia quando portão fecha
+  // SEM portão: ciclo inicia quando sensor 0° liga (OFF→ON)
+  bool cycleStartCondition;
+  if (sensorEnabled[7]) {
+    cycleStartCondition = portao_fechado && !lastPortaoFechado;
+  } else {
+    cycleStartCondition = sensor_0_graus && !lastSensor0Graus;
+  }
+
+  if (cycleStartCondition && !cycleInProgress) {
     cycleInProgress = true;
     cycleStartTime = currentMillis;
-    stageStartTime = currentMillis;
-    currentCycle = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1};
-    Serial.println("🚀 CICLO INICIADO - Etapa 1 (Portão fechou)");
+    currentDurations = {0, 0, 0, 0, 0, 0, 0};
+    platformState = 0; // PARADA
+    allTravasWereOn = false;
+    // Sensores que já estavam ativos: reiniciar seus timers
+    if (sensor0_timing) sensor0_start = currentMillis;
+    if (sensor40_timing) sensor40_start = currentMillis;
+    if (travaRoda_timing) travaRoda_start = currentMillis;
+    if (travaChassi_timing) travaChassi_start = currentMillis;
+    if (travaPinoE_timing) travaPinoE_start = currentMillis;
+    if (travaPinoD_timing) travaPinoD_start = currentMillis;
+    Serial.printf("CICLO INICIADO (%s) - PLATAFORMA PARADA\n", sensorEnabled[7] ? "Portao fechou" : "Sensor 0 ligou");
   }
 
-  // === ETAPA 1→2: Sensor 0° fica inativo ===
-  if (cycleInProgress && currentCycle.etapaAtual == 1 && !sensor_0_graus && lastSensor0Graus) {
-    currentCycle.etapa1_portaoFechado = currentMillis - stageStartTime;
-    stageStartTime = currentMillis;
-    currentCycle.etapaAtual = 2;
-    Serial.printf("  Etapa 1 completa: %lu seg | Etapa 2 (Sensor 0° inativo)\n", currentCycle.etapa1_portaoFechado / 1000);
-  }
+  // === ESTADO DA PLATAFORMA ===
+  if (cycleInProgress) {
+    bool allTravasOn = trava_roda && trava_chassi && trava_pino_e && trava_pino_d;
+    bool allTravasOff = !trava_roda && !trava_chassi && !trava_pino_e && !trava_pino_d;
 
-  // === ETAPA 2→3: Trava roda ativa ===
-  if (cycleInProgress && currentCycle.etapaAtual == 2 && trava_roda && !lastTravaRoda) {
-    currentCycle.etapa2_sensor0Inativo = currentMillis - stageStartTime;
-    stageStartTime = currentMillis;
-    currentCycle.etapaAtual = 3;
-    Serial.printf("  Etapa 2 completa: %lu seg | Etapa 3 (Trava roda)\n", currentCycle.etapa2_sensor0Inativo / 1000);
-  }
-
-  // === ETAPA 3→4: Trava chassi ativa ===
-  if (cycleInProgress && currentCycle.etapaAtual == 3 && trava_chassi && !lastTravaChassi) {
-    currentCycle.etapa3_travaRoda = currentMillis - stageStartTime;
-    stageStartTime = currentMillis;
-    currentCycle.etapaAtual = 4;
-    Serial.printf("  Etapa 3 completa: %lu seg | Etapa 4 (Trava chassi)\n", currentCycle.etapa3_travaRoda / 1000);
-  }
-
-  // === ETAPA 4→5: Trava pinos ativa ===
-  if (cycleInProgress && currentCycle.etapaAtual == 4 && travaPinosAtivo && !lastTravaPinosAtivo) {
-    currentCycle.etapa4_travaChassi = currentMillis - stageStartTime;
-    stageStartTime = currentMillis;
-    currentCycle.etapaAtual = 5;
-    Serial.printf("  Etapa 4 completa: %lu seg | Etapa 5 (Trava pinos)\n", currentCycle.etapa4_travaChassi / 1000);
-  }
-
-  // === ETAPA 5→6: Sensor 0° fica ativo (plataforma desceu) ===
-  if (cycleInProgress && currentCycle.etapaAtual == 5 && sensor_0_graus && !lastSensor0Graus) {
-    currentCycle.etapa5_travaPinos = currentMillis - stageStartTime;
-    stageStartTime = currentMillis;
-    currentCycle.etapaAtual = 6;
-    Serial.printf("  Etapa 5 completa: %lu seg | Etapa 6 (Sensor 0° ativo)\n", currentCycle.etapa5_travaPinos / 1000);
-  }
-
-  // === ETAPA 6→7: Trava roda solta ===
-  if (cycleInProgress && currentCycle.etapaAtual == 6 && !trava_roda && lastTravaRoda) {
-    currentCycle.etapa6_sensor0Ativo = currentMillis - stageStartTime;
-    stageStartTime = currentMillis;
-    currentCycle.etapaAtual = 7;
-    Serial.printf("  Etapa 6 completa: %lu seg | Etapa 7 (Solta roda)\n", currentCycle.etapa6_sensor0Ativo / 1000);
-  }
-
-  // === ETAPA 7→8: Trava chassi solta ===
-  if (cycleInProgress && currentCycle.etapaAtual == 7 && !trava_chassi && lastTravaChassi) {
-    currentCycle.etapa7_travaRodaInativo = currentMillis - stageStartTime;
-    stageStartTime = currentMillis;
-    currentCycle.etapaAtual = 8;
-    Serial.printf("  Etapa 7 completa: %lu seg | Etapa 8 (Solta chassi)\n", currentCycle.etapa7_travaRodaInativo / 1000);
-  }
-
-  // === ETAPA 8→9: Trava pinos solta ===
-  if (cycleInProgress && currentCycle.etapaAtual == 8 && !travaPinosAtivo && lastTravaPinosAtivo) {
-    currentCycle.etapa8_travaChassiInativo = currentMillis - stageStartTime;
-    stageStartTime = currentMillis;
-    currentCycle.etapaAtual = 9;
-    Serial.printf("  Etapa 8 completa: %lu seg | Etapa 9 (Solta pinos)\n", currentCycle.etapa8_travaChassiInativo / 1000);
-  }
-
-  // === ETAPA 9→10: Portão abre (FIM DO CICLO) ===
-  if (cycleInProgress && currentCycle.etapaAtual == 9 && !portao_fechado && lastPortaoFechado) {
-    currentCycle.etapa9_travaPinosInativo = currentMillis - stageStartTime;
-    stageStartTime = currentMillis;
-    currentCycle.etapaAtual = 10;
-    Serial.printf("  Etapa 9 completa: %lu seg | Etapa 10 (Portão abre)\n", currentCycle.etapa9_travaPinosInativo / 1000);
-  }
-
-  // === ETAPA 10 COMPLETA: Ciclo finalizado ===
-  if (cycleInProgress && currentCycle.etapaAtual == 10) {
-    currentCycle.etapa10_portaoAberto = currentMillis - stageStartTime;
-    currentCycle.cicloTotal = currentMillis - cycleStartTime;
-    lastCompleteCycle = currentCycle;
-
-    Serial.printf("✓ CICLO COMPLETO! Tempo total: %lu segundos\n", currentCycle.cicloTotal / 1000);
-    Serial.println("  Tempos das 10 etapas:");
-    Serial.printf("    1. Portão fechado: %lu s\n", currentCycle.etapa1_portaoFechado / 1000);
-    Serial.printf("    2. Sensor 0° inativo: %lu s\n", currentCycle.etapa2_sensor0Inativo / 1000);
-    Serial.printf("    3. Trava roda: %lu s\n", currentCycle.etapa3_travaRoda / 1000);
-    Serial.printf("    4. Trava chassi: %lu s\n", currentCycle.etapa4_travaChassi / 1000);
-    Serial.printf("    5. Trava pinos: %lu s\n", currentCycle.etapa5_travaPinos / 1000);
-    Serial.printf("    6. Sensor 0° ativo: %lu s\n", currentCycle.etapa6_sensor0Ativo / 1000);
-    Serial.printf("    7. Solta roda: %lu s\n", currentCycle.etapa7_travaRodaInativo / 1000);
-    Serial.printf("    8. Solta chassi: %lu s\n", currentCycle.etapa8_travaChassiInativo / 1000);
-    Serial.printf("    9. Solta pinos: %lu s\n", currentCycle.etapa9_travaPinosInativo / 1000);
-    Serial.printf("   10. Portão aberto: %lu s\n", currentCycle.etapa10_portaoAberto / 1000);
-
-    if (WiFi.status() == WL_CONNECTED) {
-      char msg[128];
-      snprintf(msg, sizeof(msg), "Ciclo completo em %lu seg", currentCycle.cicloTotal / 1000);
-      enviarEvento("INFO", msg, "ciclo_completo", true);
-      enviarDadosCiclo();
+    // Todas travas ligadas → SUBINDO
+    if (allTravasOn && !allTravasWereOn) {
+      allTravasWereOn = true;
+      platformState = 1; // SUBINDO
+      Serial.println("  PLATAFORMA SUBINDO (todas travas ligadas)");
     }
+
+    // Todas travas desligadas (após terem ligado) → DESCENDO
+    if (allTravasWereOn && allTravasOff && platformState == 1) {
+      platformState = 2; // DESCENDO
+      Serial.println("  PLATAFORMA DESCENDO (todas travas desligadas)");
+    }
+  }
+
+  // === FIM DO CICLO ===
+  // COM portão: ciclo termina quando portão abre
+  // SEM portão: ciclo termina quando sensor 0° desliga (ON→OFF)
+  bool cycleEndCondition;
+  if (sensorEnabled[7]) {
+    cycleEndCondition = !portao_fechado && lastPortaoFechado;
+  } else {
+    cycleEndCondition = !sensor_0_graus && lastSensor0Graus;
+  }
+
+  if (cycleInProgress && cycleEndCondition) {
+    // Snapshot dos sensores ainda ativos (sem parar o timing)
+    if (sensor0_timing) currentDurations.sensor0 += currentMillis - sensor0_start;
+    if (sensor40_timing) currentDurations.sensor40 += currentMillis - sensor40_start;
+    if (travaRoda_timing) currentDurations.travaRoda += currentMillis - travaRoda_start;
+    if (travaChassi_timing) currentDurations.travaChassi += currentMillis - travaChassi_start;
+    if (travaPinoE_timing) currentDurations.travaPinoE += currentMillis - travaPinoE_start;
+    if (travaPinoD_timing) currentDurations.travaPinoD += currentMillis - travaPinoD_start;
+
+    currentDurations.cicloTotal = currentMillis - cycleStartTime;
+    lastCompleteDurations = currentDurations;
+
+    platformState = 3; // CICLO COMPLETO
+    Serial.printf("CICLO COMPLETO! Tempo total: %lu s\n", currentDurations.cicloTotal / 1000);
+    Serial.printf("  Sensor 0: %lu s | Sensor 40: %lu s\n", currentDurations.sensor0 / 1000, currentDurations.sensor40 / 1000);
+    Serial.printf("  Trava Roda: %lu s | Trava Chassi: %lu s\n", currentDurations.travaRoda / 1000, currentDurations.travaChassi / 1000);
+    Serial.printf("  Trava Pino E: %lu s | Trava Pino D: %lu s\n", currentDurations.travaPinoE / 1000, currentDurations.travaPinoD / 1000);
+
+    // Sempre envia (se offline, sendToAPI auto-bufferiza no SPIFFS)
+    char msg[128];
+    snprintf(msg, sizeof(msg), "Ciclo completo em %lu seg", currentDurations.cicloTotal / 1000);
+    enviarEvento("INFO", msg, "ciclo_completo", true);
+    enviarDadosCiclo();
 
     cycleInProgress = false;
   }
@@ -1880,6 +2044,7 @@ void loop() {
 
   // Atualizar estados anteriores
   lastSensor0Graus = sensor_0_graus;
+  lastSensor40Graus = sensor_40_graus;
   lastPortaoFechado = portao_fechado;
   lastTravaRoda = trava_roda;
   lastTravaChassi = trava_chassi;
@@ -1906,18 +2071,14 @@ void loop() {
   }
 
   // ====== DETECÇÃO E ENVIO AUTOMÁTICO DE ALERTAS ======
-  // Verifica mudanças nos sensores críticos e envia para NeonDB
-  if (WiFi.status() == WL_CONNECTED) {
-    // Alerta: Moega/Fosso ficou cheio
-    if (moega_fosso && !lastMoegaFosso) {
-      Serial.println("🚨 ALERTA: Moega/Fosso cheio detectado!");
-      enviarEvento("ALERT", "Moega/Fosso cheio! Necessário esvaziamento", "moega_fosso", true);
-    }
-    // Moega/Fosso normalizado
-    else if (!moega_fosso && lastMoegaFosso) {
-      Serial.println("✓ Moega/Fosso normalizado");
-      enviarEvento("INFO", "Moega/Fosso esvaziado", "moega_fosso", false);
-    }
+  // Sempre envia (se offline, auto-bufferiza no SPIFFS)
+  if (moega_fosso && !lastMoegaFosso) {
+    Serial.println("ALERTA: Moega/Fosso cheio detectado!");
+    enviarEvento("ALERT", "Moega/Fosso cheio! Necessario esvaziamento", "moega_fosso", true);
+  }
+  else if (!moega_fosso && lastMoegaFosso) {
+    Serial.println("Moega/Fosso normalizado");
+    enviarEvento("INFO", "Moega/Fosso esvaziado", "moega_fosso", false);
   }
 
   // Atualiza estados anteriores
@@ -1947,11 +2108,12 @@ void loop() {
   if (currentMillis - lastStatus >= 30000) {
     lastStatus = currentMillis;
     int buffered = countBufferedSnapshots();
-    Serial.printf("Up:%lus | Mem:%d | Clients:%d | Ciclos:%lu/%lu | Buffer:%d\n",
+    size_t spiffsFree = SPIFFS.totalBytes() - SPIFFS.usedBytes();
+    Serial.printf("Up:%lus | Mem:%d | WiFi:%s | Ciclos:%lu/%lu | Buffer:%d | SPIFFS:%dKB livre\n",
                   uptimeSeconds, ESP.getFreeHeap(),
-                  webSocket.connectedClients(),
+                  wifiConnected ? "ON" : "OFF",
                   stats.ciclosHoje, stats.ciclosTotal,
-                  buffered);
+                  buffered, spiffsFree / 1024);
   }
 
   // ====== AUTO-RECONEXÃO WiFi (a cada 30 segundos se desconectado) ======
@@ -1994,11 +2156,12 @@ void loop() {
     // Sincronizar buffer pendente
     int buffered = countBufferedSnapshots();
     if (buffered > 0) {
-      Serial.printf("📦 Encontrados %d snapshots no buffer. Sincronizando...\n", buffered);
+      Serial.printf("Buffer: %d itens pendentes. Sincronizando...\n", buffered);
+      printSPIFFSInfo();
       int synced = syncBufferedData();
-      Serial.printf("✓ Sincronização completa: %d/%d enviados\n", synced, buffered);
+      Serial.printf("Sync completo: %d/%d enviados\n", synced, buffered);
     } else {
-      Serial.println("✓ Nenhum snapshot pendente");
+      Serial.println("Buffer vazio - nada a sincronizar");
     }
   }
 
@@ -2009,13 +2172,82 @@ void loop() {
   static unsigned long lastBufferSave = 0;
   if (!wifiConnected && currentMillis - lastBufferSave >= BUFFER_INTERVAL) {
     lastBufferSave = currentMillis;
-    Serial.println("\n💾 WiFi offline - salvando snapshot no buffer...");
+    Serial.println("\nWiFi offline - salvando snapshot no buffer...");
     saveSnapshotToBuffer();
     int buffered = countBufferedSnapshots();
-    Serial.printf("📦 Total no buffer: %d/%d snapshots\n", buffered, MAX_BUFFER_SIZE);
+    printSPIFFSInfo();
+    Serial.printf("Buffer: %d itens pendentes\n", buffered);
   }
 
-  // ====== SINCRONIZAÇÃO ONLINE A CADA 5 MINUTOS ======
+  // ====== LIVE STATUS A CADA 10 SEGUNDOS (sem gravar no banco) ======
+  static unsigned long lastLiveStatus = 0;
+  if (wifiConnected && currentMillis - lastLiveStatus >= 10000) {
+    lastLiveStatus = currentMillis;
+
+    StaticJsonDocument<1536> liveDoc;
+    liveDoc["serial_number"] = SERIAL_NUMBER;
+    liveDoc["sensor_0_graus"] = sensor_0_graus;
+    liveDoc["sensor_40_graus"] = sensor_40_graus;
+    liveDoc["trava_roda"] = trava_roda;
+    liveDoc["trava_chassi"] = trava_chassi;
+    liveDoc["trava_pino_e"] = trava_pino_e;
+    liveDoc["trava_pino_d"] = trava_pino_d;
+    liveDoc["moega_fosso"] = moega_fosso;
+    liveDoc["portao_fechado"] = portao_fechado;
+    liveDoc["ciclos_hoje"] = stats.ciclosHoje;
+    liveDoc["ciclos_total"] = stats.ciclosTotal;
+    liveDoc["horas_operacao"] = stats.horasOperacao;
+    liveDoc["minutos_operacao"] = stats.minutosOperacao;
+    liveDoc["sistema_ativo"] = sistemaIniciado;
+    liveDoc["uptime_seconds"] = uptimeSeconds;
+
+    // Estado do ciclo e plataforma (espelho do IoT)
+    liveDoc["cycle_in_progress"] = cycleInProgress;
+    liveDoc["platform_state"] = platformState;
+
+    // Durações do ciclo atual (em segundos)
+    if (cycleInProgress) {
+      unsigned long now = millis();
+      JsonObject currCycle = liveDoc.createNestedObject("current_cycle");
+      currCycle["elapsed"] = (now - cycleStartTime) / 1000;
+      currCycle["sensor0"] = (currentDurations.sensor0 + (sensor0_timing ? now - sensor0_start : 0)) / 1000;
+      currCycle["sensor40"] = (currentDurations.sensor40 + (sensor40_timing ? now - sensor40_start : 0)) / 1000;
+      currCycle["trava_roda"] = (currentDurations.travaRoda + (travaRoda_timing ? now - travaRoda_start : 0)) / 1000;
+      currCycle["trava_chassi"] = (currentDurations.travaChassi + (travaChassi_timing ? now - travaChassi_start : 0)) / 1000;
+      currCycle["trava_pino_e"] = (currentDurations.travaPinoE + (travaPinoE_timing ? now - travaPinoE_start : 0)) / 1000;
+      currCycle["trava_pino_d"] = (currentDurations.travaPinoD + (travaPinoD_timing ? now - travaPinoD_start : 0)) / 1000;
+      currCycle["s0on"] = sensor0_timing;
+      currCycle["s40on"] = sensor40_timing;
+      currCycle["tr_on"] = travaRoda_timing;
+      currCycle["tc_on"] = travaChassi_timing;
+      currCycle["tpe_on"] = travaPinoE_timing;
+      currCycle["tpd_on"] = travaPinoD_timing;
+    }
+
+    // Último ciclo completo
+    if (lastCompleteDurations.cicloTotal > 0) {
+      JsonObject lastCycle = liveDoc.createNestedObject("last_cycle");
+      lastCycle["sensor0"] = lastCompleteDurations.sensor0 / 1000;
+      lastCycle["sensor40"] = lastCompleteDurations.sensor40 / 1000;
+      lastCycle["trava_roda"] = lastCompleteDurations.travaRoda / 1000;
+      lastCycle["trava_chassi"] = lastCompleteDurations.travaChassi / 1000;
+      lastCycle["trava_pino_e"] = lastCompleteDurations.travaPinoE / 1000;
+      lastCycle["trava_pino_d"] = lastCompleteDurations.travaPinoD / 1000;
+      lastCycle["tempo_total"] = lastCompleteDurations.cicloTotal / 1000;
+    }
+
+    // Config de sensores habilitados
+    JsonArray sensorCfg = liveDoc.createNestedArray("sensor_config");
+    for (int i = 0; i < 8; i++) {
+      sensorCfg.add(sensorEnabled[i]);
+    }
+
+    String livePayload;
+    serializeJson(liveDoc, livePayload);
+    sendToAPI("/api/live-status", livePayload);
+  }
+
+  // ====== SINCRONIZAÇÃO COMPLETA NO BANCO A CADA 5 MINUTOS ======
   if (wifiConnected && currentMillis - lastAPISync >= 300000) {
     lastAPISync = currentMillis;
     Serial.println("\n🌐 WiFi online - sincronizando dados ao vivo...");

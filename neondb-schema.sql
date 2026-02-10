@@ -10,19 +10,19 @@ CREATE TABLE IF NOT EXISTS devices (
     last_seen TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- Tabela de leituras de sensores
+-- Tabela de leituras de sensores (8 sensores booleanos)
 CREATE TABLE IF NOT EXISTS sensor_readings (
     id SERIAL PRIMARY KEY,
     device_id INTEGER REFERENCES devices(id),
     timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    sistema_ligado BOOLEAN,
     sensor_0_graus BOOLEAN,
     sensor_40_graus BOOLEAN,
     trava_roda BOOLEAN,
-    moega_cheia BOOLEAN,
-    fosso_cheio BOOLEAN,
-    subindo BOOLEAN,
-    descendo BOOLEAN,
+    trava_chassi BOOLEAN,
+    trava_pino_e BOOLEAN,
+    trava_pino_d BOOLEAN,
+    moega_fosso BOOLEAN,
+    portao_fechado BOOLEAN,
     ciclos_hoje INTEGER,
     ciclos_total INTEGER,
     horas_operacao INTEGER,

@@ -518,21 +518,25 @@
         charts.sensors = new Chart(sensorsCtx, {
           type: 'doughnut',
           data: {
-            labels: ['Sensor 0°', 'Sensor 40°', 'Moega', 'Fosso', 'Trava'],
+            labels: ['Sensor 0°', 'Sensor 40°', 'Tr.Roda', 'Tr.Chassi', 'Tr.Pino E', 'Tr.Pino D', 'Portao'],
             datasets: [{
               data: [
                 device.sensor_0_graus ? 1 : 0,
                 device.sensor_40_graus ? 1 : 0,
-                device.moega_cheia ? 1 : 0,
-                device.fosso_cheio ? 1 : 0,
-                device.trava_roda ? 1 : 0
+                device.trava_roda ? 1 : 0,
+                device.trava_chassi ? 1 : 0,
+                device.trava_pino_e ? 1 : 0,
+                device.trava_pino_d ? 1 : 0,
+                device.portao_fechado ? 1 : 0
               ],
               backgroundColor: [
                 device.sensor_0_graus ? '#10b981' : '#e5e7eb',
                 device.sensor_40_graus ? '#10b981' : '#e5e7eb',
-                device.moega_cheia ? '#ef4444' : '#e5e7eb',
-                device.fosso_cheio ? '#ef4444' : '#e5e7eb',
-                device.trava_roda ? '#10b981' : '#e5e7eb'
+                device.trava_roda ? '#10b981' : '#e5e7eb',
+                device.trava_chassi ? '#10b981' : '#e5e7eb',
+                device.trava_pino_e ? '#10b981' : '#e5e7eb',
+                device.trava_pino_d ? '#10b981' : '#e5e7eb',
+                device.portao_fechado ? '#ef4444' : '#e5e7eb'
               ]
             }]
           },
