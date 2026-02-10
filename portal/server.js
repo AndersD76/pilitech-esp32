@@ -1036,13 +1036,19 @@ app.get('/api/latest-readings', authenticateToken, checkSubscription, async (req
       latest_event AS (
         SELECT DISTINCT ON (device_id)
           device_id,
-          CASE WHEN message LIKE '%Sistema iniciado%' THEN true ELSE false END as started
+          CASE WHEN message LIKE '%Sistema iniciado%' THEN true ELSE false END as evt_started
         FROM event_logs
         WHERE message LIKE '%Sistema iniciado%' OR message LIKE '%Reset total%'
         ORDER BY device_id, timestamp DESC
       )
-      SELECT d.serial_number, d.name, d.last_seen, l.*,
-        COALESCE(le.started, l.sistema_ativo, false) as sistema_ativo,
+      SELECT d.serial_number, d.name, d.last_seen,
+        l.timestamp as reading_timestamp,
+        l.sensor_0_graus, l.sensor_40_graus,
+        l.trava_roda, l.trava_chassi, l.trava_pino_e, l.trava_pino_d,
+        l.moega_fosso, l.portao_fechado,
+        l.ciclos_hoje, l.ciclos_total, l.horas_operacao, l.minutos_operacao,
+        l.free_heap, l.uptime_seconds, l.wifi_connected,
+        COALESCE(le.evt_started, l.sistema_ativo, false) as sistema_ativo,
         un.nome as unidade_nome, e.razao_social as empresa_nome
       FROM devices d
       LEFT JOIN latest l ON l.device_id = d.id
@@ -1062,6 +1068,38 @@ app.get('/api/latest-readings', authenticateToken, checkSubscription, async (req
   } catch (err) {
     console.error('Erro ao buscar leituras:', err);
     res.status(500).json({ error: err.message });
+  }
+});
+
+// Obter alertas recentes
+app.get('/api/recent-alerts', authenticateToken, checkSubscription, async (req, res) => {
+  try {
+    let whereClause = '';
+    let params = [];
+
+    if (req.user.role === 'admin_empresa') {
+      whereClause = 'AND u.empresa_id = $1';
+      params = [req.user.empresa_id];
+    } else if (req.user.role !== 'super_admin' && req.user.role !== 'admin') {
+      whereClause = 'AND d.unidade_id = $1';
+      params = [req.user.unidade_id];
+    }
+
+    const result = await pool.query(`
+      SELECT el.*, d.serial_number, d.name as device_name
+      FROM event_logs el
+      JOIN devices d ON el.device_id = d.id
+      LEFT JOIN unidades u ON d.unidade_id = u.id
+      WHERE el.timestamp > CURRENT_TIMESTAMP - INTERVAL '7 days'
+      ${whereClause}
+      ORDER BY el.timestamp DESC
+      LIMIT 20
+    `, params);
+
+    res.json(result.rows);
+  } catch (err) {
+    console.error('Erro ao buscar alertas:', err);
+    res.json([]);
   }
 });
 

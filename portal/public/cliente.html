@@ -1295,6 +1295,7 @@
       if (!response) return;
 
       const readings = response.data || response || [];
+      if (!Array.isArray(readings)) return;
       devicesList = readings;
       const selector = document.getElementById('deviceSelector');
       selector.innerHTML = '<option value="">Selecione um dispositivo</option>';
