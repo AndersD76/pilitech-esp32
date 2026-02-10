@@ -187,6 +187,9 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;ba
 .stat-label{font-size:9px;color:#6b7280;margin-top:4px;text-transform:uppercase;letter-spacing:0.5px}
 .progress-bar{background:#e5e7eb;height:14px;border-radius:7px;overflow:hidden;margin:6px 0}
 .progress-fill{background:linear-gradient(90deg,#10b981,#f59e0b);height:100%;transition:width 0.5s}
+@keyframes barRun{0%{background-position:0 0}100%{background-position:30px 0}}
+.bar-active{background:repeating-linear-gradient(90deg,#10b981 0px,#059669 15px,#10b981 30px)!important;background-size:30px 100%;animation:barRun 0.6s linear infinite}
+.bar-done{background:#dc2626!important;animation:none}
 .btn{padding:8px 14px;border:none;border-radius:6px;font-size:12px;font-weight:700;cursor:pointer;transition:all 0.2s;display:flex;align-items:center;justify-content:center;gap:5px}
 .btn svg{width:14px;height:14px;stroke:currentColor;fill:none}
 .btn-primary{background:#dc2626;color:#fff}
@@ -808,8 +811,10 @@ var mx=Math.max.apply(null,vals)||1;
 var onKeys=['s0on','s40on','tRon','tCon','tPEon','tPDon'];
 for(var i=0;i<6;i++){
 document.getElementById(ids[i]).textContent=vals[i]+'s';
-document.getElementById(bars[i]).style.width=Math.round((vals[i]/mx)*100)+'%';
-document.getElementById(bars[i]).style.background=cc[onKeys[i]]?'#10b981':'#dc2626';
+var barEl=document.getElementById(bars[i]);
+barEl.style.width=Math.round((vals[i]/mx)*100)+'%';
+if(cc[onKeys[i]]){barEl.className='bar-active';barEl.style.background='';}
+else{barEl.className='bar-done';barEl.style.background='';}
 }
 if(data.cycleInProgress){
 var elapsed=cc.elapsed||0;
@@ -828,8 +833,9 @@ var vals2=[lc.sensor0||0,lc.sensor40||0,lc.travaRoda||0,lc.travaChassi||0,lc.tra
 var mx2=Math.max.apply(null,vals2)||1;
 for(var i=0;i<6;i++){
 document.getElementById(ids[i]).textContent=vals2[i]+'s';
-document.getElementById(bars[i]).style.width=Math.round((vals2[i]/mx2)*100)+'%';
-document.getElementById(bars[i]).style.background='#dc2626';
+var barEl2=document.getElementById(bars[i]);
+barEl2.style.width=Math.round((vals2[i]/mx2)*100)+'%';
+barEl2.className='bar-done';barEl2.style.background='';
 }
 var tt=lc.total;var mn=Math.floor(tt/60);var sc=tt%60;
 document.getElementById('lcTotal').textContent=String(mn).padStart(2,'0')+':'+String(sc).padStart(2,'0');
@@ -840,8 +846,9 @@ var vals3=[lc.sensor0||0,lc.sensor40||0,lc.travaRoda||0,lc.travaChassi||0,lc.tra
 var mx3=Math.max.apply(null,vals3)||1;
 for(var i=0;i<6;i++){
 document.getElementById(ids[i]).textContent=vals3[i]+'s';
-document.getElementById(bars[i]).style.width=Math.round((vals3[i]/mx3)*100)+'%';
-document.getElementById(bars[i]).style.background='#dc2626';
+var barEl3=document.getElementById(bars[i]);
+barEl3.style.width=Math.round((vals3[i]/mx3)*100)+'%';
+barEl3.className='bar-done';barEl3.style.background='';
 }
 var tt2=lc.total;var mn4=Math.floor(tt2/60);var sc4=tt2%60;
 document.getElementById('lcTotal').textContent=String(mn4).padStart(2,'0')+':'+String(sc4).padStart(2,'0');

@@ -496,6 +496,15 @@
     .offline-screen {
       animation: fadeToBlack 15s ease forwards;
     }
+    @keyframes barRun {
+      0% { background-position: 0 0; }
+      100% { background-position: 30px 0; }
+    }
+    .bar-running {
+      background: repeating-linear-gradient(90deg, #22c55e 0px, #16a34a 15px, #22c55e 30px) !important;
+      background-size: 30px 100%;
+      animation: barRun 0.6s linear infinite;
+    }
   </style>
 
   <script>
@@ -1135,7 +1144,7 @@
                 if (valEl) valEl.textContent = val + 's';
                 if (barEl) {
                   barEl.style.width = pct + '%';
-                  barEl.className = 'live-dur-bar h-full rounded-full transition-all ' + (isTiming ? 'bg-green-500 animate-pulse' : 'bg-red-600');
+                  barEl.className = 'live-dur-bar h-full rounded-full transition-all ' + (isTiming ? 'bar-running' : 'bg-red-600');
                 }
               });
               if (durTotal) {
