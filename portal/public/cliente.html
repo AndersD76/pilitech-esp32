@@ -1817,7 +1817,7 @@
       }
 
       tbody.innerHTML = data.slice(0, 20).map(c => {
-        const produtividade = c.eficiencia || ((TEMPO_PADRAO_CICLO / c.tempo_total) * 100);
+        const produtividade = parseFloat(c.eficiencia) || (c.tempo_total > 0 ? (TEMPO_PADRAO_CICLO / c.tempo_total) * 100 : 0);
         const prodClass = produtividade >= 100 ? 'text-green-600 bg-green-50' : produtividade >= 80 ? 'text-yellow-600 bg-yellow-50' : 'text-red-600 bg-red-50';
 
         // Encontrar sensor mais lento (6 sensores)

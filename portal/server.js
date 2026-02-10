@@ -1847,6 +1847,11 @@ app.post('/api/live-status', validateApiKey, (req, res) => {
   res.json({ success: true });
 });
 
+// Status da assinatura/trial (para checkout e outras paginas)
+app.get('/api/subscription-status', authenticateToken, checkSubscription, (req, res) => {
+  res.json(req.subscriptionStatus);
+});
+
 // Portal busca status ao vivo de todos os dispositivos
 app.get('/api/live-status', authenticateToken, (req, res) => {
   const devices = {};

@@ -502,6 +502,33 @@
       window.location.href = '/';
     }
 
+    // Verificar se ja esta no trial e ajustar mensagem
+    (async function checkTrialStatus() {
+      try {
+        const res = await fetch('/api/subscription-status', {
+          headers: { 'Authorization': 'Bearer ' + token }
+        });
+        if (res.ok) {
+          const data = await res.json();
+          const trialInfo = document.querySelector('.trial-info');
+          if (trialInfo && data.status === 'trial') {
+            const dias = data.trialDaysRemaining || data.daysRemaining || 0;
+            trialInfo.innerHTML = `
+              <h2>Assinar Plano Anual</h2>
+              <div class="trial-badge" style="background:linear-gradient(135deg,#f59e0b,#d97706)">TRIAL ATIVO - ${dias} dias restantes</div>
+              <p>Voce esta no periodo de avaliacao gratuita. Cadastre seu cartao para garantir a continuidade do servico apos o trial. <strong>Nao sera cobrado nada</strong> ate o fim do trial.</p>
+            `;
+          } else if (trialInfo && data.status === 'active') {
+            trialInfo.innerHTML = `
+              <h2>Assinatura Ativa</h2>
+              <div class="trial-badge" style="background:linear-gradient(135deg,#22c55e,#16a34a)">PLANO ATIVO</div>
+              <p>Sua assinatura esta ativa. Voce pode atualizar seus dados de pagamento abaixo.</p>
+            `;
+          }
+        }
+      } catch(e) { /* silencioso */ }
+    })();
+
     // Validar cupom
     async function validarCupom() {
       const code = document.getElementById('cupomCode').value.trim();
