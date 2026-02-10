@@ -1881,6 +1881,8 @@ app.post('/api/sensor-reading', validateApiKey, async (req, res) => {
       sensor_config
     } = req.body;
 
+    console.log(`📡 sensor-reading de ${serial_number}: s0=${sensor_0_graus} s40=${sensor_40_graus} tRoda=${trava_roda} tChassi=${trava_chassi} tPE=${trava_pino_e} tPD=${trava_pino_d} moega=${moega_fosso} portao=${portao_fechado} sAtivo=${sistema_ativo}`);
+
     // Buscar ou criar dispositivo (auto-detecção)
     let deviceResult = await pool.query(
       'SELECT id, unidade_id FROM devices WHERE serial_number = $1',
