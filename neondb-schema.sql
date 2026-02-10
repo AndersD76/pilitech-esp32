@@ -29,7 +29,9 @@ CREATE TABLE IF NOT EXISTS sensor_readings (
     minutos_operacao INTEGER,
     free_heap INTEGER,
     uptime_seconds INTEGER,
-    wifi_connected BOOLEAN DEFAULT false
+    wifi_connected BOOLEAN DEFAULT false,
+    sistema_ativo BOOLEAN DEFAULT false,
+    sensor_config JSONB
 );
 
 -- Tabela de eventos/logs

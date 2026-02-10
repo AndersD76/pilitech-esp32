@@ -21,7 +21,10 @@ ALTER TABLE sensor_readings ADD COLUMN IF NOT EXISTS portao_fechado BOOLEAN;
 -- 3. SENSOR_READINGS: Adicionar coluna sensor_config (JSONB para config de sensores habilitados)
 ALTER TABLE sensor_readings ADD COLUMN IF NOT EXISTS sensor_config JSONB;
 
--- 4. Verificar resultado
+-- 4. SENSOR_READINGS: Adicionar coluna sistema_ativo (CRITICA - sem ela o INSERT falha!)
+ALTER TABLE sensor_readings ADD COLUMN IF NOT EXISTS sistema_ativo BOOLEAN DEFAULT false;
+
+-- 5. Verificar resultado
 SELECT column_name, data_type FROM information_schema.columns
 WHERE table_name = 'cycle_data' ORDER BY ordinal_position;
 

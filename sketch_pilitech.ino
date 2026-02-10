@@ -447,6 +447,10 @@ START - Iniciar Sistema
 <button onclick="resetHorimetro()" class="btn" style="background:#ef4444;color:#fff;font-size:11px">Horímetro</button>
 <button onclick="restartIoT()" class="btn" style="background:#7f1d1d;color:#fff;font-size:11px">Reiniciar IoT</button>
 <button onclick="openConfigModal()" class="btn" style="grid-column:2/-1;background:#374151;color:#fff;font-size:11px">Configurar Sensores</button>
+<button onclick="sairTecnico()" class="btn" style="grid-column:1/-1;background:#1e40af;color:#fff;font-size:12px;margin-top:4px">
+<svg viewBox="0 0 24 24" stroke-width="2" style="width:16px;height:16px"><path d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/></svg>
+Salvar e Sair
+</button>
 </div>
 </div>
 </div>
@@ -909,6 +913,13 @@ addLog('Tecnico acessou controles do sistema');
 }else{
 document.getElementById('techError').style.display='block';
 }
+}
+function sairTecnico(){
+document.getElementById('techPanel').style.display='none';
+document.getElementById('techLogin').style.display='block';
+document.getElementById('techPass').value='';
+document.getElementById('techError').style.display='none';
+addLog('Tecnico saiu dos controles');
 }
 function startSistema(){
 if(confirm('Iniciar o sistema? O tombador entrara em operacao.')){

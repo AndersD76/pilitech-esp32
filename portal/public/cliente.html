@@ -973,6 +973,13 @@
           const card = document.querySelector(`[data-serial="${serial}"]`);
           if (!card) return;
 
+          // Se sistema foi ativado mas card ainda mostra AGUARDANDO ATIVACAO, re-renderizar
+          const activationEl = card.querySelector('.live-activation');
+          if (d.sistema_ativo === true && activationEl) {
+            refreshData();
+            return;
+          }
+
           // Atualizar sensores
           const sensors = card.querySelectorAll('.live-sensor');
           const vals = [d.sensor_0_graus, d.sensor_40_graus, d.trava_roda, d.trava_chassi, d.trava_pino_e, d.trava_pino_d, d.moega_fosso, d.portao_fechado];
