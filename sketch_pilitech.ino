@@ -445,8 +445,9 @@ START - Iniciar Sistema
 <button onclick="resetCiclosHoje()" class="btn" style="background:#f59e0b;color:#fff;font-size:11px">Ciclos Hoje</button>
 <button onclick="resetCiclosTotal()" class="btn" style="background:#f97316;color:#fff;font-size:11px">Ciclos Total</button>
 <button onclick="resetHorimetro()" class="btn" style="background:#ef4444;color:#fff;font-size:11px">Horímetro</button>
+<button onclick="resetTotal()" class="btn" style="background:#dc2626;color:#fff;font-size:11px">Reset Total</button>
 <button onclick="restartIoT()" class="btn" style="background:#7f1d1d;color:#fff;font-size:11px">Reiniciar IoT</button>
-<button onclick="openConfigModal()" class="btn" style="grid-column:2/-1;background:#374151;color:#fff;font-size:11px">Configurar Sensores</button>
+<button onclick="openConfigModal()" class="btn" style="background:#374151;color:#fff;font-size:11px">Configurar Sensores</button>
 <button onclick="sairTecnico()" class="btn" style="grid-column:1/-1;background:#1e40af;color:#fff;font-size:12px;margin-top:4px">
 <svg viewBox="0 0 24 24" stroke-width="2" style="width:16px;height:16px"><path d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/></svg>
 Salvar e Sair
