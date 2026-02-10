@@ -99,13 +99,6 @@ bool lastTravaPinoD = false;
 // Flag para indicar se ciclo está em andamento
 bool cycleInProgress = false;
 
-// Máquina de estados para contagem de ciclo
-// CICLO = sensor 0° DESLIGADO → LIGADO → DESLIGADO
-// Estado 0: esperando sensor OFF
-// Estado 1: sensor OFF, esperando ON
-// Estado 2: sensor ON, esperando OFF → CONTA CICLO
-int cycleCountState = 0;
-
 // Estado da plataforma: 0=PARADA, 1=SUBINDO, 2=DESCENDO, 3=CICLO COMPLETO
 int platformState = 0;
 bool allTravasWereOn = false;
@@ -2014,14 +2007,8 @@ void loop() {
   }
 
   // === INÍCIO DO CICLO ===
-  // COM portão: ciclo inicia quando portão fecha
-  // SEM portão: ciclo inicia quando sensor 0° DESATIVA (plataforma saiu do repouso)
-  bool cycleStartCondition;
-  if (sensorEnabled[7]) {
-    cycleStartCondition = portao_fechado && !lastPortaoFechado;
-  } else {
-    cycleStartCondition = !sensor_0_graus && lastSensor0Graus;
-  }
+  // SEMPRE por sensor 0°: ciclo inicia quando sensor 0° DESATIVA (plataforma saiu)
+  bool cycleStartCondition = !sensor_0_graus && lastSensor0Graus;
 
   if (cycleStartCondition && !cycleInProgress) {
     cycleInProgress = true;
@@ -2036,7 +2023,7 @@ void loop() {
     if (travaChassi_timing) travaChassi_start = currentMillis;
     if (travaPinoE_timing) travaPinoE_start = currentMillis;
     if (travaPinoD_timing) travaPinoD_start = currentMillis;
-    Serial.printf("CICLO INICIADO (%s) - PLATAFORMA PARADA\n", sensorEnabled[7] ? "Portao fechou" : "Sensor 0 inativou - plataforma saiu");
+    Serial.println("CICLO INICIADO (sensor 0° INATIVO - plataforma saiu)");
   }
 
   // === ESTADO DA PLATAFORMA ===
@@ -2059,14 +2046,8 @@ void loop() {
   }
 
   // === FIM DO CICLO ===
-  // COM portão: ciclo termina quando portão abre
-  // SEM portão: ciclo termina quando sensor 0° ATIVA (plataforma voltou ao repouso)
-  bool cycleEndCondition;
-  if (sensorEnabled[7]) {
-    cycleEndCondition = !portao_fechado && lastPortaoFechado;
-  } else {
-    cycleEndCondition = sensor_0_graus && !lastSensor0Graus;
-  }
+  // SEMPRE por sensor 0°: ciclo termina quando sensor 0° ATIVA (plataforma voltou)
+  bool cycleEndCondition = sensor_0_graus && !lastSensor0Graus;
 
   if (cycleInProgress && cycleEndCondition) {
     // Snapshot dos sensores ainda ativos (sem parar o timing)
@@ -2096,47 +2077,20 @@ void loop() {
   }
 
   // ====== CONTAGEM DE CICLOS (independente das etapas) ======
-  // COM portão: ABERTO → FECHADO → ABERTO = 1 ciclo (2 estados)
-  //   Estado 0: aguardando portão FECHAR
-  //   Estado 1: portão fechado, aguardando ABRIR → CONTA CICLO
-  // SEM portão: sensor 0° ATIVO → INATIVO = 1 ciclo (conta imediato na desativação)
-  if (sensorEnabled[7]) {
-    // COM portão: conta ciclo por portão (fecha → abre)
-    if (cycleCountState == 0 && portao_fechado && !lastPortaoFechado) {
-      cycleCountState = 1;
-      Serial.println("  Ciclo: portao FECHOU (aguardando abrir)");
-    }
-    else if (cycleCountState == 1 && !portao_fechado && lastPortaoFechado) {
-      // Portão abriu → CICLO COMPLETO
-      stats.ciclosHoje++;
-      stats.ciclosTotal++;
-      preferences.begin("pilitech", false);
-      preferences.putULong("ciclosTotal", stats.ciclosTotal);
-      preferences.end();
-      Serial.printf("✓ CICLO CONTADO (portao)! Hoje: %lu | Total: %lu\n", stats.ciclosHoje, stats.ciclosTotal);
-      if (WiFi.status() == WL_CONNECTED) {
-        char msg[128];
-        snprintf(msg, sizeof(msg), "Ciclo contado - Hoje: %lu | Total: %lu", stats.ciclosHoje, stats.ciclosTotal);
-        enviarEvento("INFO", msg, "ciclo_contado", true);
-      }
-      cycleCountState = 0;
-    }
-  } else {
-    // SEM portão: conta ciclo quando sensor 0° DESATIVA (plataforma saiu)
-    // Sensor 0° ATIVO = repouso. INATIVO = plataforma em movimento.
-    // Cada transição ATIVO → INATIVO = 1 ciclo contado imediatamente
-    if (!sensor_0_graus && lastSensor0Graus) {
-      stats.ciclosHoje++;
-      stats.ciclosTotal++;
-      preferences.begin("pilitech", false);
-      preferences.putULong("ciclosTotal", stats.ciclosTotal);
-      preferences.end();
-      Serial.printf("✓ CICLO CONTADO (sensor 0° INATIVO)! Hoje: %lu | Total: %lu\n", stats.ciclosHoje, stats.ciclosTotal);
-      if (WiFi.status() == WL_CONNECTED) {
-        char msg[128];
-        snprintf(msg, sizeof(msg), "Ciclo contado - Hoje: %lu | Total: %lu", stats.ciclosHoje, stats.ciclosTotal);
-        enviarEvento("INFO", msg, "ciclo_contado", true);
-      }
+  // SEMPRE baseado no sensor 0°: conta quando sensor 0° DESATIVA (plataforma saiu)
+  // Sensor 0° ATIVO = repouso. INATIVO = plataforma em movimento.
+  // Cada transição ATIVO → INATIVO = 1 ciclo contado imediatamente
+  if (!sensor_0_graus && lastSensor0Graus) {
+    stats.ciclosHoje++;
+    stats.ciclosTotal++;
+    preferences.begin("pilitech", false);
+    preferences.putULong("ciclosTotal", stats.ciclosTotal);
+    preferences.end();
+    Serial.printf("✓ CICLO CONTADO (sensor 0° INATIVO)! Hoje: %lu | Total: %lu\n", stats.ciclosHoje, stats.ciclosTotal);
+    if (WiFi.status() == WL_CONNECTED) {
+      char msg[128];
+      snprintf(msg, sizeof(msg), "Ciclo contado - Hoje: %lu | Total: %lu", stats.ciclosHoje, stats.ciclosTotal);
+      enviarEvento("INFO", msg, "ciclo_contado", true);
     }
   }
 
