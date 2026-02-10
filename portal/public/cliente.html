@@ -786,7 +786,7 @@
               </div>
             </div>
 
-            ${!isOnline ? `
+            ${!isOnline && !isIdle ? `
             <!-- EQUIPAMENTO OFFLINE -->
             <div class="offline-screen rounded-b-xl p-6 text-center" style="min-height: 280px;">
               <div class="flex flex-col items-center justify-center h-full py-8">
