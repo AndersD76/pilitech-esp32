@@ -489,6 +489,13 @@
       to { opacity: 1; transform: scale(1); }
     }
     .animate-fade-in { animation: fadeIn 0.3s ease-out; }
+    @keyframes fadeToBlack {
+      0%, 50% { background: #111827; }
+      100% { background: #000000; }
+    }
+    .offline-screen {
+      animation: fadeToBlack 15s ease forwards;
+    }
   </style>
 
   <script>
@@ -779,6 +786,29 @@
               </div>
             </div>
 
+            ${!isOnline ? `
+            <!-- EQUIPAMENTO OFFLINE -->
+            <div class="offline-screen rounded-b-xl p-6 text-center" style="min-height: 280px;">
+              <div class="flex flex-col items-center justify-center h-full py-8">
+                <div class="mb-6 opacity-30">
+                  <svg class="w-20 h-20 text-gray-400 mx-auto" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                    <path d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z"/>
+                  </svg>
+                </div>
+                <h3 class="text-xl font-bold text-gray-500 tracking-widest mb-2">PILI TECH</h3>
+                <div class="w-16 h-0.5 bg-gray-700 mx-auto mb-4"></div>
+                <h4 class="text-sm font-bold text-gray-500 tracking-wider mb-2">EQUIPAMENTO OFFLINE</h4>
+                <p class="text-xs text-gray-600">Sem energia ou sem conexao</p>
+                <p class="text-[10px] text-gray-700 mt-6">Ultimo sinal: ${lastSeen}</p>
+              </div>
+            </div>
+            <div class="p-4">
+              <div class="flex items-center justify-between">
+                <div>${subTag}</div>
+                <p class="text-xs text-gray-400">Visto: ${lastSeen}</p>
+              </div>
+            </div>
+            ` : `
             <div class="p-4">
               ${isOnline && !sistemaAtivo ? `
               <!-- Aguardando Ativação -->
@@ -888,6 +918,7 @@
                 <p class="text-xs text-gray-400">Visto: ${lastSeen}</p>
               </div>
             </div>
+            `}
           </div>
         `;
       }).join('');
