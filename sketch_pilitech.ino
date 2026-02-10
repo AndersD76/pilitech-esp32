@@ -2111,7 +2111,7 @@ void loop() {
     size_t spiffsFree = SPIFFS.totalBytes() - SPIFFS.usedBytes();
     Serial.printf("Up:%lus | Mem:%d | WiFi:%s | Ciclos:%lu/%lu | Buffer:%d | SPIFFS:%dKB livre\n",
                   uptimeSeconds, ESP.getFreeHeap(),
-                  wifiConnected ? "ON" : "OFF",
+                  (WiFi.status() == WL_CONNECTED) ? "ON" : "OFF",
                   stats.ciclosHoje, stats.ciclosTotal,
                   buffered, spiffsFree / 1024);
   }
