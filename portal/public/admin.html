@@ -884,14 +884,24 @@
         const expiresAt = new Date(d.subscription_info.expires_at);
         const expiresStr = expiresAt.toLocaleDateString('pt-BR');
         const isDeviceSub = d.subscription_info.type === 'device';
-        subscriptionTag = `
-          <span class="px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-700">
-            Assinado ate ${expiresStr} ${isDeviceSub ? '(IoT)' : '(Empresa)'}
-          </span>
-        `;
+        const isTrial = d.subscription_info.status === 'trial';
+        if (isTrial) {
+          const daysLeft = Math.ceil((expiresAt - new Date()) / (1000*60*60*24));
+          subscriptionTag = `
+            <span class="px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-700">
+              Trial: ${daysLeft} dias restantes
+            </span>
+          `;
+        } else {
+          subscriptionTag = `
+            <span class="px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-700">
+              Assinado ate ${expiresStr} ${isDeviceSub ? '(IoT)' : '(Empresa)'}
+            </span>
+          `;
+        }
       } else {
         subscriptionTag = `
-          <span class="px-2 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-700">
+          <span class="px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-700">
             Sem assinatura
           </span>
         `;
