@@ -1794,6 +1794,8 @@ void setup() {
 
   Serial.println("Configurando Access Point...");
   WiFi.mode(WIFI_AP_STA);
+  WiFi.disconnect(true);  // Limpar credenciais internas do IDF para evitar auto-conexão fantasma
+  delay(100);
   WiFi.softAP(AP_SSID, AP_PASSWORD);
 
   IPAddress IP = WiFi.softAPIP();

@@ -302,11 +302,20 @@ app.post('/api/empresas', authenticateToken, requireSuperAdmin, async (req, res)
     const result = await pool.query(`
       INSERT INTO empresas (cnpj, razao_social, nome_fantasia, email, telefone, endereco, cidade, estado, cep)
       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-      RETURNING id
+      RETURNING id, trial_ends_at
     `, [cnpj, razao_social, nome_fantasia || null, email || null, telefone || null,
         endereco || null, cidade || null, estado || null, cep || null]);
 
-    res.status(201).json({ success: true, id: result.rows[0].id, message: 'Empresa criada com sucesso (30 dias de trial)' });
+    const empresaId = result.rows[0].id;
+    const trialEndsAt = result.rows[0].trial_ends_at;
+
+    // Criar registro de subscription trial para consistencia
+    await pool.query(`
+      INSERT INTO subscriptions (empresa_id, plan_type, amount, status, expires_at)
+      VALUES ($1, 'anual', 2000.00, 'trial', $2)
+    `, [empresaId, trialEndsAt]);
+
+    res.status(201).json({ success: true, id: empresaId, message: 'Empresa criada com sucesso (30 dias de trial)' });
   } catch (err) {
     if (err.code === '23505') {
       return res.status(400).json({ error: 'CNPJ já cadastrado' });

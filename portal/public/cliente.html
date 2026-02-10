@@ -729,13 +729,16 @@
         const moega = sensorStatus(t.moega_fosso, 'Ativo', 'Inativo');
         const portao = sensorStatus(t.portao_fechado, 'Fechado', 'Aberto');
 
-        // Subscription tag
+        // Subscription tag - usar status global da empresa
         let subTag = '';
-        if (d.subscription_info && d.subscription_info.active) {
-          const expiresAt = new Date(d.subscription_info.expires_at);
+        if (subscriptionStatus && subscriptionStatus.status === 'active') {
+          const expiresAt = new Date(subscriptionStatus.expiresAt);
           subTag = `<span class="px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-700">Assinado ate ${expiresAt.toLocaleDateString('pt-BR')}</span>`;
+        } else if (subscriptionStatus && subscriptionStatus.status === 'trial') {
+          const daysLeft = subscriptionStatus.trialDaysRemaining || 0;
+          subTag = `<span class="px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-700">Trial: ${daysLeft} dias restantes</span>`;
         } else {
-          subTag = `<span class="px-2 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-700">Sem assinatura</span>`;
+          subTag = `<span class="px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-700">Assinatura expirada</span>`;
         }
 
         return `
@@ -928,8 +931,8 @@
     // Refresh all data
     async function refreshData() {
       document.getElementById('lastUpdate').textContent = 'Atualizando...';
+      await loadStats();
       await Promise.all([
-        loadStats(),
         loadDevices(),
         loadAlerts()
       ]);
