@@ -1015,9 +1015,9 @@ app.get('/api/latest-readings', authenticateToken, checkSubscription, async (req
     let params = [];
 
     if (req.user.role === 'admin_empresa') {
-      whereClause = 'WHERE u.empresa_id = $1';
+      whereClause = 'WHERE un.empresa_id = $1';
       params = [req.user.empresa_id];
-    } else if (req.user.role !== 'super_admin') {
+    } else if (req.user.role !== 'super_admin' && req.user.role !== 'admin') {
       whereClause = 'WHERE d.unidade_id = $1';
       params = [req.user.unidade_id];
     }
