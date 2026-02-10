@@ -16,7 +16,7 @@ const char* AP_PASSWORD = "00001504";
 const char* SERIAL_NUMBER = "00001504";
 
 // API Configuration - Railway + NeonDB
-const char* API_URL = "https://pilitech-portal-production.up.railway.app";
+const char* API_URL = "https://www.pilitech.com.br";
 const char* API_KEY = "pilitech_00002025_secret_key";
 
 // Buffer Configuration
@@ -214,6 +214,15 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;ba
 </style>
 </head>
 <body>
+<div id="offlineOverlay" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;z-index:9999;background:#111827;flex-direction:column;align-items:center;justify-content:center;transition:background 15s ease;">
+<div style="text-align:center">
+<svg style="width:80px;height:80px;opacity:0.3;margin-bottom:24px" viewBox="0 0 24 24" fill="none" stroke="#9ca3af" stroke-width="1.5"><path d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z"/></svg>
+<h2 style="color:#6b7280;font-size:24px;letter-spacing:4px;margin:0 0 12px">PILI TECH</h2>
+<div style="width:60px;height:2px;background:#374151;margin:0 auto 16px"></div>
+<h3 style="color:#6b7280;font-size:14px;letter-spacing:2px;margin:0 0 8px">EQUIPAMENTO OFFLINE</h3>
+<p style="color:#4b5563;font-size:12px;margin:0">Sem energia ou sem conexao</p>
+</div>
+</div>
 <div class="header">
 <div style="display:flex;align-items:center;gap:20px">
 <div class="logo">
@@ -647,6 +656,10 @@ ws.onopen=function(){
 document.getElementById('dot').classList.add('online');
 document.getElementById('status').textContent='Conectado';
 addLog('Sistema conectado');
+if(window._offlineTimer){clearTimeout(window._offlineTimer);window._offlineTimer=null;}
+var ov=document.getElementById('offlineOverlay');
+ov.style.display='none';
+ov.style.background='#111827';
 };
 ws.onerror=function(e){
 document.getElementById('status').textContent='Erro';
@@ -654,6 +667,13 @@ document.getElementById('status').textContent='Erro';
 ws.onclose=function(){
 document.getElementById('dot').classList.remove('online');
 document.getElementById('status').textContent='Reconectando...';
+if(!window._offlineTimer){
+window._offlineTimer=setTimeout(function(){
+var ov=document.getElementById('offlineOverlay');
+ov.style.display='flex';
+setTimeout(function(){ov.style.background='#000000';},100);
+},5000);
+}
 setTimeout(connectWS,2000);
 };
 ws.onmessage=function(e){
@@ -2042,35 +2062,58 @@ void loop() {
   }
 
   // ====== CONTAGEM DE CICLOS (independente das etapas) ======
-  // CICLO = sensor 0° DESLIGADO → LIGADO → DESLIGADO
-  // Estado 0: esperando sensor ir OFF
-  // Estado 1: sensor OFF, esperando ir ON
-  // Estado 2: sensor ON, esperando ir OFF → CONTA CICLO
-  if (cycleCountState == 0 && !sensor_0_graus && lastSensor0Graus) {
-    // Sensor 0° foi de ON para OFF → vai para estado 1
-    cycleCountState = 1;
-    Serial.println("  Ciclo: sensor 0° OFF (estado 1 - aguardando ON)");
-  }
-  else if (cycleCountState == 1 && sensor_0_graus && !lastSensor0Graus) {
-    // Sensor 0° foi de OFF para ON → vai para estado 2
-    cycleCountState = 2;
-    Serial.println("  Ciclo: sensor 0° ON (estado 2 - aguardando OFF)");
-  }
-  else if (cycleCountState == 2 && !sensor_0_graus && lastSensor0Graus) {
-    // Sensor 0° foi de ON para OFF novamente → CICLO COMPLETO
-    stats.ciclosHoje++;
-    stats.ciclosTotal++;
-    preferences.begin("pilitech", false);
-    preferences.putULong("ciclosTotal", stats.ciclosTotal);
-    preferences.end();
-    Serial.printf("✓ CICLO CONTADO! Hoje: %lu | Total: %lu\n", stats.ciclosHoje, stats.ciclosTotal);
-    if (WiFi.status() == WL_CONNECTED) {
-      char msg[128];
-      snprintf(msg, sizeof(msg), "Ciclo contado - Hoje: %lu | Total: %lu", stats.ciclosHoje, stats.ciclosTotal);
-      enviarEvento("INFO", msg, "ciclo_contado", true);
+  // COM portão: ABERTO → FECHADO → ABERTO = 1 ciclo
+  //   Estado 0: aguardando portão FECHAR
+  //   Estado 1: portão fechado, aguardando ABRIR → CONTA CICLO
+  // SEM portão: sensor 0° OFF → ON → OFF = 1 ciclo
+  //   Estado 0: esperando sensor ir OFF
+  //   Estado 1: sensor OFF, esperando ir ON
+  //   Estado 2: sensor ON, esperando ir OFF → CONTA CICLO
+  if (sensorEnabled[7]) {
+    // COM portão: conta ciclo por portão (fecha → abre)
+    if (cycleCountState == 0 && portao_fechado && !lastPortaoFechado) {
+      cycleCountState = 1;
+      Serial.println("  Ciclo: portao FECHOU (aguardando abrir)");
     }
-    // Volta para estado 1 (este OFF já é o início do próximo ciclo)
-    cycleCountState = 1;
+    else if (cycleCountState == 1 && !portao_fechado && lastPortaoFechado) {
+      // Portão abriu → CICLO COMPLETO
+      stats.ciclosHoje++;
+      stats.ciclosTotal++;
+      preferences.begin("pilitech", false);
+      preferences.putULong("ciclosTotal", stats.ciclosTotal);
+      preferences.end();
+      Serial.printf("✓ CICLO CONTADO (portao)! Hoje: %lu | Total: %lu\n", stats.ciclosHoje, stats.ciclosTotal);
+      if (WiFi.status() == WL_CONNECTED) {
+        char msg[128];
+        snprintf(msg, sizeof(msg), "Ciclo contado - Hoje: %lu | Total: %lu", stats.ciclosHoje, stats.ciclosTotal);
+        enviarEvento("INFO", msg, "ciclo_contado", true);
+      }
+      cycleCountState = 0;
+    }
+  } else {
+    // SEM portão: conta ciclo por sensor 0° (OFF → ON → OFF)
+    if (cycleCountState == 0 && !sensor_0_graus && lastSensor0Graus) {
+      cycleCountState = 1;
+      Serial.println("  Ciclo: sensor 0° OFF (estado 1 - aguardando ON)");
+    }
+    else if (cycleCountState == 1 && sensor_0_graus && !lastSensor0Graus) {
+      cycleCountState = 2;
+      Serial.println("  Ciclo: sensor 0° ON (estado 2 - aguardando OFF)");
+    }
+    else if (cycleCountState == 2 && !sensor_0_graus && lastSensor0Graus) {
+      stats.ciclosHoje++;
+      stats.ciclosTotal++;
+      preferences.begin("pilitech", false);
+      preferences.putULong("ciclosTotal", stats.ciclosTotal);
+      preferences.end();
+      Serial.printf("✓ CICLO CONTADO (sensor 0)! Hoje: %lu | Total: %lu\n", stats.ciclosHoje, stats.ciclosTotal);
+      if (WiFi.status() == WL_CONNECTED) {
+        char msg[128];
+        snprintf(msg, sizeof(msg), "Ciclo contado - Hoje: %lu | Total: %lu", stats.ciclosHoje, stats.ciclosTotal);
+        enviarEvento("INFO", msg, "ciclo_contado", true);
+      }
+      cycleCountState = 1;
+    }
   }
 
   // Atualizar estados anteriores
