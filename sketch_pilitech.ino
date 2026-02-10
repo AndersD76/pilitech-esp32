@@ -595,14 +595,14 @@ Registrar
 <div style="margin-bottom:16px">
 <label style="font-size:13px;font-weight:600;color:#374151">Sensores Monitorados</label>
 <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px">
-<label style="display:flex;align-items:center;gap:6px;font-size:12px"><input type="checkbox" id="cfgS0" checked> Sensor 0°</label>
-<label style="display:flex;align-items:center;gap:6px;font-size:12px"><input type="checkbox" id="cfgS40" checked> Sensor 40°</label>
-<label style="display:flex;align-items:center;gap:6px;font-size:12px"><input type="checkbox" id="cfgTR" checked> Trava Roda</label>
-<label style="display:flex;align-items:center;gap:6px;font-size:12px"><input type="checkbox" id="cfgTC" checked> Trava Chassi</label>
-<label style="display:flex;align-items:center;gap:6px;font-size:12px"><input type="checkbox" id="cfgTPE" checked> Trava Pino E</label>
-<label style="display:flex;align-items:center;gap:6px;font-size:12px"><input type="checkbox" id="cfgTPD" checked> Trava Pino D</label>
-<label style="display:flex;align-items:center;gap:6px;font-size:12px"><input type="checkbox" id="cfgMF" checked> Moega/Fosso</label>
-<label style="display:flex;align-items:center;gap:6px;font-size:12px"><input type="checkbox" id="cfgPT" checked> Portão</label>
+<label style="display:flex;align-items:center;gap:6px;font-size:12px"><input type="checkbox" id="cfgS0" checked onchange="configDirty=true"> Sensor 0°</label>
+<label style="display:flex;align-items:center;gap:6px;font-size:12px"><input type="checkbox" id="cfgS40" checked onchange="configDirty=true"> Sensor 40°</label>
+<label style="display:flex;align-items:center;gap:6px;font-size:12px"><input type="checkbox" id="cfgTR" checked onchange="configDirty=true"> Trava Roda</label>
+<label style="display:flex;align-items:center;gap:6px;font-size:12px"><input type="checkbox" id="cfgTC" checked onchange="configDirty=true"> Trava Chassi</label>
+<label style="display:flex;align-items:center;gap:6px;font-size:12px"><input type="checkbox" id="cfgTPE" checked onchange="configDirty=true"> Trava Pino E</label>
+<label style="display:flex;align-items:center;gap:6px;font-size:12px"><input type="checkbox" id="cfgTPD" checked onchange="configDirty=true"> Trava Pino D</label>
+<label style="display:flex;align-items:center;gap:6px;font-size:12px"><input type="checkbox" id="cfgMF" checked onchange="configDirty=true"> Moega/Fosso</label>
+<label style="display:flex;align-items:center;gap:6px;font-size:12px"><input type="checkbox" id="cfgPT" checked onchange="configDirty=true"> Portão</label>
 </div>
 </div>
 <div style="margin-bottom:16px;padding-top:16px;border-top:1px solid #e5e7eb">
@@ -624,6 +624,7 @@ console.log('PILI TECH v1.0');
 var CONFIG_PASS='pilitech2025';
 var ws=null,data={},logs=[],lastMaint=null;
 var lastMoegaFosso=false;
+var configDirty=false;
 try{logs=JSON.parse(localStorage.getItem('pilitech_logs')||'[]');}catch(e){logs=[];}
 function switchTab(n){
 var tabs=document.querySelectorAll('.tab');
@@ -732,10 +733,12 @@ var sIds=['si0','si1','si2','si3','si4','si5','si6','si7'];
 for(var i=0;i<8;i++){
 document.getElementById(sIds[i]).style.display=data.sensorConfig[i]?'':'none';
 }
+if(!configDirty){
 var cfgIds=['cfgS0','cfgS40','cfgTR','cfgTC','cfgTPE','cfgTPD','cfgMF','cfgPT'];
 for(var i=0;i<8;i++){
 var el=document.getElementById(cfgIds[i]);
 if(el)el.checked=data.sensorConfig[i];
+}
 }
 }
 var hrs=data.horasOperacao||0;
@@ -852,11 +855,14 @@ addLog('Ciclos de hoje resetados');
 }
 }
 function resetTotal(){
-if(confirm('ATENÇÃO: Isso vai zerar TODOS os contadores. Continuar?')){
+if(confirm('ATENÇÃO: Isso vai zerar TODOS os contadores e parar o sistema. Continuar?')){
 if(confirm('Tem certeza? Esta ação não pode ser desfeita!')){
 if(ws&&ws.readyState===1){
 ws.send(JSON.stringify({cmd:'RESET_TOTAL'}));
 addLog('Reset total do sistema');
+alert('Reset total realizado! Contadores zerados e sistema parado.');
+}else{
+alert('Erro: WebSocket não conectado. Aguarde a reconexão.');
 }
 }
 }
@@ -874,6 +880,7 @@ document.getElementById('cfgMF').checked,
 document.getElementById('cfgPT').checked
 ];
 ws.send(JSON.stringify({cmd:'SAVE_CONFIG',sensors:sensors}));
+configDirty=false;
 addLog('Configurações salvas');
 var ids=['si0','si1','si2','si3','si4','si5','si6','si7'];
 for(var i=0;i<8;i++){
@@ -1294,14 +1301,16 @@ void onWebSocketEvent(uint8_t num, WStype_t type, uint8_t *payload, size_t lengt
           stats.ciclosTotal = 0;
           stats.horasOperacao = 0;
           stats.minutosOperacao = 0;
+          sistemaIniciado = false;
 
           preferences.begin("pilitech", false);
           preferences.putULong("ciclosTotal", 0);
           preferences.putULong("horasOp", 0);
           preferences.end();
 
-          Serial.println("RESET TOTAL: Todos os contadores zerados!");
+          Serial.println("RESET TOTAL: Todos os contadores zerados + sistema parado!");
           enviarEvento("WARNING", "Reset total do sistema realizado", "reset", true);
+          webSocket.broadcastTXT(createJsonData());
         }
         else if (cmd == "SAVE_DATA") {
           preferences.begin("pilitech", false);
@@ -1356,6 +1365,12 @@ void onWebSocketEvent(uint8_t num, WStype_t type, uint8_t *payload, size_t lengt
           sistemaIniciado = true;
           Serial.println("SISTEMA INICIADO pelo tecnico!");
           enviarEvento("INFO", "Sistema iniciado - Tombador entrou em operacao", "start_sistema", true);
+          // Enviar dados imediatamente para o portal saber que o sistema ativou
+          if (WiFi.status() == WL_CONNECTED) {
+            Serial.println("📤 Enviando dados ao portal apos START...");
+            enviarLeituraSensores();
+          }
+          webSocket.broadcastTXT(createJsonData());
         }
         else if (cmd == "RESTART_IOT") {
           Serial.println("REINICIANDO IoT...");
