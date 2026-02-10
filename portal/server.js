@@ -1924,13 +1924,15 @@ app.post('/api/sensor-reading', validateApiKey, async (req, res) => {
       sensor_config ? JSON.stringify(sensor_config) : null
     ]);
 
-    // Atualizar ou criar sessão do dispositivo
-    await pool.query(`
-      INSERT INTO device_sessions (device_id, last_ping, ip_address, firmware_version)
-      VALUES ($1, NOW(), $2, $3)
-      ON CONFLICT (device_id) WHERE ended_at IS NULL
-      DO UPDATE SET last_ping = NOW()
-    `, [deviceId, req.ip, firmware_version || '1.0']);
+    // Atualizar ou criar sessão do dispositivo (não-crítico)
+    try {
+      await pool.query(`
+        UPDATE device_sessions SET last_ping = NOW()
+        WHERE device_id = $1 AND ended_at IS NULL
+      `, [deviceId]);
+    } catch (sessErr) {
+      // device_sessions pode não existir - ignorar
+    }
 
     res.json({
       success: true,
@@ -2033,12 +2035,12 @@ app.get('/api/device-stats/:serialNumber', authenticateToken, checkSubscription,
     // Ciclos por dia (últimos 7 dias)
     const ciclosDiariosResult = await pool.query(`
       SELECT
-        DATE(timestamp) as dia,
+        DATE(created_at) as dia,
         COUNT(*) as ciclos,
         AVG(tempo_total) as tempo_medio_ciclo
       FROM cycle_data
-      WHERE device_id = $1 AND timestamp > NOW() - INTERVAL '7 days'
-      GROUP BY DATE(timestamp)
+      WHERE device_id = $1 AND created_at > NOW() - INTERVAL '7 days'
+      GROUP BY DATE(created_at)
       ORDER BY dia ASC
     `, [deviceId]);
 
@@ -2046,14 +2048,14 @@ app.get('/api/device-stats/:serialNumber', authenticateToken, checkSubscription,
     const ciclosHojeResult = await pool.query(`
       SELECT COUNT(*) as total
       FROM cycle_data
-      WHERE device_id = $1 AND DATE(timestamp) = CURRENT_DATE
+      WHERE device_id = $1 AND DATE(created_at) = CURRENT_DATE
     `, [deviceId]);
 
     // Tempo médio geral
     const tempoMedioResult = await pool.query(`
       SELECT AVG(tempo_total) as tempo_medio
       FROM cycle_data
-      WHERE device_id = $1 AND timestamp > NOW() - INTERVAL '7 days'
+      WHERE device_id = $1 AND created_at > NOW() - INTERVAL '7 days'
     `, [deviceId]);
 
     // Produtividade média (tempo padrão 1200 segundos = 20 min)
