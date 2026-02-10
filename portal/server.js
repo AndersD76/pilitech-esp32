@@ -1032,11 +1032,21 @@ app.get('/api/latest-readings', authenticateToken, checkSubscription, async (req
           free_heap, uptime_seconds, wifi_connected, sistema_ativo
         FROM sensor_readings
         ORDER BY device_id, timestamp DESC
+      ),
+      latest_event AS (
+        SELECT DISTINCT ON (device_id)
+          device_id,
+          CASE WHEN message LIKE '%Sistema iniciado%' THEN true ELSE false END as started
+        FROM event_logs
+        WHERE message LIKE '%Sistema iniciado%' OR message LIKE '%Reset total%'
+        ORDER BY device_id, timestamp DESC
       )
       SELECT d.serial_number, d.name, d.last_seen, l.*,
+        COALESCE(le.started, l.sistema_ativo, false) as sistema_ativo,
         un.nome as unidade_nome, e.razao_social as empresa_nome
       FROM devices d
       LEFT JOIN latest l ON l.device_id = d.id
+      LEFT JOIN latest_event le ON le.device_id = d.id
       LEFT JOIN unidades un ON d.unidade_id = un.id
       LEFT JOIN empresas e ON un.empresa_id = e.id
       ${whereClause}
