@@ -874,7 +874,7 @@ app.get('/api/devices', authenticateToken, checkSubscription, async (req, res) =
         e.id as empresa_id, e.razao_social as empresa_nome,
         CASE
           WHEN d.last_seen > CURRENT_TIMESTAMP - INTERVAL '5 minutes' THEN 'online'
-          WHEN d.last_seen > CURRENT_TIMESTAMP - INTERVAL '1 hour' THEN 'idle'
+          WHEN d.last_seen > CURRENT_TIMESTAMP - INTERVAL '10 minutes' THEN 'idle'
           ELSE 'offline'
         END as status_conexao,
         (
