@@ -727,6 +727,13 @@
             ? { class: 'bg-green-100 text-green-700', text: activeLabel }
             : { class: 'bg-red-100 text-red-700', text: inactiveLabel };
         };
+        // Alerta invertido: branco normal, VERMELHO quando ativo (cheio/alerta)
+        const alertStatus = (val, alertLabel, normalLabel) => {
+          if (val === undefined || val === null) return { class: 'bg-gray-100 text-gray-400', text: '-' };
+          return val
+            ? { class: 'bg-red-100 text-red-700 font-bold', text: alertLabel }
+            : { class: 'bg-white text-gray-500 border-gray-200', text: normalLabel };
+        };
 
         const sistemaAtivo = t.sistema_ativo === true;
         const s0 = sensorStatus(t.sensor_0_graus);
@@ -735,7 +742,7 @@
         const tChassi = sensorStatus(t.trava_chassi);
         const tPinoE = sensorStatus(t.trava_pino_e);
         const tPinoD = sensorStatus(t.trava_pino_d);
-        const moega = sensorStatus(t.moega_fosso, 'Ativo', 'Inativo');
+        const moega = alertStatus(t.moega_fosso, 'CHEIO!', 'OK');
         const portao = sensorStatus(t.portao_fechado, 'Fechado', 'Aberto');
 
         // Subscription tag - usar status global OU fallback para subscription_info do device
@@ -814,7 +821,7 @@
                     <div class="text-[10px] text-gray-500 uppercase">Trava Pino D</div>
                     <div class="live-val text-sm font-bold">${tPinoD.text}</div>
                   </div>
-                  <div class="live-sensor text-center p-2 ${moega.class} rounded-lg border-2 ${moega.text === 'Ativo' ? 'border-green-300' : 'border-gray-200'}">
+                  <div class="live-sensor text-center p-2 ${moega.class} rounded-lg border-2 ${moega.text === 'CHEIO!' ? 'border-red-400' : 'border-gray-200'}">
                     <div class="text-[10px] text-gray-500 uppercase">Moega/Fosso</div>
                     <div class="live-val text-sm font-bold">${moega.text}</div>
                   </div>
@@ -983,8 +990,10 @@
           // Atualizar sensores
           const sensors = card.querySelectorAll('.live-sensor');
           const vals = [d.sensor_0_graus, d.sensor_40_graus, d.trava_roda, d.trava_chassi, d.trava_pino_e, d.trava_pino_d, d.moega_fosso, d.portao_fechado];
-          const labels = ['Ativo', 'Ativo', 'Ativo', 'Ativo', 'Ativo', 'Ativo', 'Ativo', 'Fechado'];
-          const labelsOff = ['Inativo', 'Inativo', 'Inativo', 'Inativo', 'Inativo', 'Inativo', 'Inativo', 'Aberto'];
+          const labels = ['Ativo', 'Ativo', 'Ativo', 'Ativo', 'Ativo', 'Ativo', 'CHEIO!', 'Fechado'];
+          const labelsOff = ['Inativo', 'Inativo', 'Inativo', 'Inativo', 'Inativo', 'Inativo', 'OK', 'Aberto'];
+          // Moega/Fosso (index 6) usa esquema de alerta invertido: branco=OK, vermelho=CHEIO
+          const isAlertSensor = [false, false, false, false, false, false, true, false];
           sensors.forEach((el, i) => {
             if (i < vals.length) {
               // Esconder sensores desabilitados
@@ -994,7 +1003,14 @@
               }
               el.style.display = '';
               const isOn = vals[i] === true;
-              el.className = 'live-sensor text-center p-2 rounded-lg border-2 ' + (isOn ? 'bg-green-100 text-green-700 border-green-300' : 'bg-red-100 text-red-700 border-gray-200');
+              let cls;
+              if (isAlertSensor[i]) {
+                // Alerta: branco normal, vermelho quando ativo
+                cls = isOn ? 'bg-red-100 text-red-700 border-red-400 font-bold' : 'bg-white text-gray-500 border-gray-200';
+              } else {
+                cls = isOn ? 'bg-green-100 text-green-700 border-green-300' : 'bg-red-100 text-red-700 border-gray-200';
+              }
+              el.className = 'live-sensor text-center p-2 rounded-lg border-2 ' + cls;
               el.querySelector('.live-val').textContent = isOn ? labels[i] : labelsOff[i];
             }
           });
