@@ -1946,14 +1946,16 @@ void loop() {
   // Sensores contam tempo independente do portão.
   // Portão fecha = início do ciclo (zera contadores). Portão abre = fim (totaliza).
 
-  // --- Sensor 0°: ON→start, OFF→acumula (igual aos outros sensores) ---
-  if (sensor_0_graus && !lastSensor0Graus && !sensor0_timing) {
+  // --- Sensor 0°: INVERTIDO - começa ON (repouso), conta tempo OFF (em movimento) ---
+  // OFF→start (plataforma saiu), ON→acumula (plataforma voltou)
+  if (!sensor_0_graus && lastSensor0Graus && !sensor0_timing) {
     sensor0_start = currentMillis; sensor0_timing = true;
+    Serial.println("  Sensor 0: OFF - iniciou contagem");
   }
-  if (!sensor_0_graus && lastSensor0Graus && sensor0_timing) {
+  if (sensor_0_graus && !lastSensor0Graus && sensor0_timing) {
     currentDurations.sensor0 += currentMillis - sensor0_start;
     sensor0_timing = false;
-    Serial.printf("  Sensor 0: %lu s\n", currentDurations.sensor0 / 1000);
+    Serial.printf("  Sensor 0: ON - parou contagem: %lu s\n", currentDurations.sensor0 / 1000);
   }
 
   // --- Sensor 40°: ON→start, OFF→acumula ---
@@ -2077,16 +2079,15 @@ void loop() {
   }
 
   // ====== CONTAGEM DE CICLOS (independente das etapas) ======
-  // SEMPRE baseado no sensor 0°: conta quando sensor 0° DESATIVA (plataforma saiu)
-  // Sensor 0° ATIVO = repouso. INATIVO = plataforma em movimento.
-  // Cada transição ATIVO → INATIVO = 1 ciclo contado imediatamente
-  if (!sensor_0_graus && lastSensor0Graus) {
+  // Sensor 0° começa ON (repouso). Ciclo = OFF (saiu) → ON (voltou) = 1 ciclo.
+  // Conta quando sensor 0° volta a ficar ON (plataforma retornou ao repouso).
+  if (sensor_0_graus && !lastSensor0Graus && cycleInProgress) {
     stats.ciclosHoje++;
     stats.ciclosTotal++;
     preferences.begin("pilitech", false);
     preferences.putULong("ciclosTotal", stats.ciclosTotal);
     preferences.end();
-    Serial.printf("✓ CICLO CONTADO (sensor 0° INATIVO)! Hoje: %lu | Total: %lu\n", stats.ciclosHoje, stats.ciclosTotal);
+    Serial.printf("✓ CICLO CONTADO (sensor 0° voltou ON)! Hoje: %lu | Total: %lu\n", stats.ciclosHoje, stats.ciclosTotal);
     if (WiFi.status() == WL_CONNECTED) {
       char msg[128];
       snprintf(msg, sizeof(msg), "Ciclo contado - Hoje: %lu | Total: %lu", stats.ciclosHoje, stats.ciclosTotal);
