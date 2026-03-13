@@ -1140,7 +1140,7 @@ app.get('/api/latest-readings', authenticateToken, checkSubscription, async (req
     let params = [];
 
     if (req.user.role === 'admin_empresa') {
-      whereClause = 'WHERE un.empresa_id = $1';
+      whereClause = 'WHERE (un.empresa_id = $1 OR d.empresa_id = $1)';
       params = [req.user.empresa_id];
     } else if (req.user.role !== 'super_admin' && req.user.role !== 'admin') {
       whereClause = 'WHERE d.unidade_id = $1';
@@ -1174,12 +1174,13 @@ app.get('/api/latest-readings', authenticateToken, checkSubscription, async (req
         l.ciclos_hoje, l.ciclos_total, l.horas_operacao, l.minutos_operacao,
         l.free_heap, l.uptime_seconds, l.wifi_connected,
         COALESCE(le.evt_started, l.sistema_ativo, false) as sistema_ativo,
-        un.nome as unidade_nome, e.razao_social as empresa_nome
+        un.nome as unidade_nome, COALESCE(e.razao_social, e2.razao_social) as empresa_nome
       FROM devices d
       LEFT JOIN latest l ON l.device_id = d.id
       LEFT JOIN latest_event le ON le.device_id = d.id
       LEFT JOIN unidades un ON d.unidade_id = un.id
       LEFT JOIN empresas e ON un.empresa_id = e.id
+      LEFT JOIN empresas e2 ON d.empresa_id = e2.id
       ${whereClause}
       ORDER BY d.serial_number
     `;
@@ -1203,7 +1204,7 @@ app.get('/api/recent-alerts', authenticateToken, checkSubscription, async (req, 
     let params = [];
 
     if (req.user.role === 'admin_empresa') {
-      whereClause = 'AND u.empresa_id = $1';
+      whereClause = 'AND (u.empresa_id = $1 OR d.empresa_id = $1)';
       params = [req.user.empresa_id];
     } else if (req.user.role !== 'super_admin' && req.user.role !== 'admin') {
       whereClause = 'AND d.unidade_id = $1';
@@ -1215,7 +1216,7 @@ app.get('/api/recent-alerts', authenticateToken, checkSubscription, async (req, 
       FROM event_logs el
       JOIN devices d ON el.device_id = d.id
       LEFT JOIN unidades u ON d.unidade_id = u.id
-      WHERE el.timestamp > CURRENT_TIMESTAMP - INTERVAL '7 days'
+      WHERE el.timestamp > CURRENT_TIMESTAMP - INTERVAL '90 days'
       ${whereClause}
       ORDER BY el.timestamp DESC
       LIMIT 20
@@ -1244,8 +1245,8 @@ app.get('/api/stats', authenticateToken, checkSubscription, async (req, res) => 
 
     if (req.user.role === 'admin_empresa') {
       deviceFilter = `
-        JOIN unidades u ON d.unidade_id = u.id
-        WHERE u.empresa_id = $1
+        LEFT JOIN unidades u ON d.unidade_id = u.id
+        WHERE (u.empresa_id = $1 OR d.empresa_id = $1)
       `;
       params = [req.user.empresa_id];
     } else if (req.user.role !== 'super_admin') {
@@ -2126,7 +2127,7 @@ app.post('/api/cycle-data', validateApiKey, async (req, res) => {
 
     await pool.query(`
       INSERT INTO cycle_data (
-        device_id, ciclo_numero, tempo_total, portao, moega,
+        device_id, ciclo_numero, tempo_total, sensor0, sensor40,
         trava_roda, trava_chassi, trava_pino_e, trava_pino_d,
         tempo_padrao, eficiencia
       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
@@ -2238,8 +2239,8 @@ app.get('/api/cycle-data/:serialNumber', authenticateToken, checkSubscription, a
       SELECT
         ciclo_numero,
         tempo_total,
-        COALESCE(portao, 0) as portao,
-        COALESCE(moega, 0) as moega,
+        COALESCE(sensor0, 0) as portao,
+        COALESCE(sensor40, 0) as moega,
         COALESCE(trava_roda, 0) as trava_roda,
         COALESCE(trava_chassi, 0) as trava_chassi,
         COALESCE(trava_pino_e, 0) as trava_pino_e,
@@ -2286,7 +2287,7 @@ app.get('/api/productivity/:serialNumber', authenticateToken, checkSubscription,
 
     const cyclesResult = await pool.query(`
       SELECT
-        ciclo_numero, tempo_total, portao, moega,
+        ciclo_numero, tempo_total, sensor0 as portao, sensor40 as moega,
         trava_roda, trava_chassi, trava_pino_e, trava_pino_d,
         tempo_padrao, eficiencia, created_at
       FROM cycle_data
