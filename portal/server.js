@@ -1240,51 +1240,53 @@ app.get('/api/stats', authenticateToken, checkSubscription, async (req, res) => 
       });
     }
 
-    let deviceFilter = '';
     let params = [];
+    let deviceWhere = '';
+    let deviceJoin = '';
 
     if (req.user.role === 'admin_empresa') {
-      deviceFilter = `
-        LEFT JOIN unidades u ON d.unidade_id = u.id
-        WHERE (u.empresa_id = $1 OR d.empresa_id = $1)
-      `;
+      deviceJoin = 'LEFT JOIN unidades u ON d.unidade_id = u.id';
+      deviceWhere = 'WHERE (u.empresa_id = $1 OR d.empresa_id = $1)';
       params = [req.user.empresa_id];
     } else if (req.user.role !== 'super_admin') {
-      deviceFilter = 'WHERE d.unidade_id = $1';
+      deviceWhere = 'WHERE d.unidade_id = $1';
       params = [req.user.unidade_id];
     }
 
     // Total de dispositivos
     const devicesResult = await pool.query(
-      `SELECT COUNT(*) as total FROM devices d ${deviceFilter}`,
+      `SELECT COUNT(*) as total FROM devices d ${deviceJoin} ${deviceWhere}`,
       params
     );
 
     // Dispositivos online
-    const onlineQuery = `
+    const onlineResult = await pool.query(`
       SELECT COUNT(DISTINCT d.id) as online
-      FROM devices d
-      ${deviceFilter ? deviceFilter : ''}
-      ${deviceFilter ? 'AND' : 'WHERE'} d.last_seen > CURRENT_TIMESTAMP - INTERVAL '10 minutes'
-    `;
-    const onlineResult = await pool.query(onlineQuery, params);
+      FROM devices d ${deviceJoin}
+      ${deviceWhere ? deviceWhere + ' AND' : 'WHERE'} d.last_seen > CURRENT_TIMESTAMP - INTERVAL '10 minutes'
+    `, params);
 
-    // Total de ciclos
+    // Total de ciclos e horimetro (filtrando por empresa)
     const ciclosResult = await pool.query(`
-      SELECT COALESCE(SUM(ciclos_total), 0) as total_ciclos
+      SELECT
+        COALESCE(SUM(latest.ciclos_total), 0) as total_ciclos,
+        COALESCE(SUM(latest.horas_operacao), 0) as total_horas
       FROM (
-        SELECT DISTINCT ON (device_id) ciclos_total
-        FROM sensor_readings
-        ORDER BY device_id, timestamp DESC
+        SELECT DISTINCT ON (sr.device_id) sr.ciclos_total, sr.horas_operacao
+        FROM sensor_readings sr
+        JOIN devices d ON sr.device_id = d.id
+        ${deviceJoin} ${deviceWhere}
+        ORDER BY sr.device_id, sr.timestamp DESC
       ) latest
-    `);
+    `, params);
 
     res.json({
       blocked: false,
       subscription: req.subscriptionStatus,
       totalDevices: parseInt(devicesResult.rows[0].total),
       onlineDevices: parseInt(onlineResult.rows[0].online),
-      totalCiclos: parseInt(ciclosResult.rows[0].total_ciclos)
+      totalCiclos: parseInt(ciclosResult.rows[0].total_ciclos),
+      totalHoras: parseInt(ciclosResult.rows[0].total_horas)
     });
   } catch (err) {
     console.error('Erro ao buscar stats:', err);
@@ -1315,7 +1317,7 @@ app.get('/api/telemetry/:serialNumber', authenticateToken, checkSubscription, as
 
     // Buscar device_id e verificar acesso
     const deviceResult = await pool.query(`
-      SELECT d.id, d.unidade_id, u.empresa_id
+      SELECT d.id, d.unidade_id, COALESCE(u.empresa_id, d.empresa_id) as empresa_id
       FROM devices d
       LEFT JOIN unidades u ON d.unidade_id = u.id
       WHERE d.serial_number = $1
@@ -2103,6 +2105,33 @@ app.post('/api/event', validateApiKey, async (req, res) => {
     res.json({ success: true, message: 'Evento registrado' });
   } catch (err) {
     console.error('Erro ao registrar evento:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Receber registro de manutenção do ESP32
+app.post('/api/maintenance', validateApiKey, async (req, res) => {
+  try {
+    const { serial_number, technician, description, horas_operacao } = req.body;
+
+    const deviceResult = await pool.query(
+      'SELECT id FROM devices WHERE serial_number = $1',
+      [serial_number]
+    );
+
+    if (deviceResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Dispositivo não encontrado' });
+    }
+
+    await pool.query(`
+      INSERT INTO maintenances (device_id, technician, description, horas_operacao)
+      VALUES ($1, $2, $3, $4)
+    `, [deviceResult.rows[0].id, technician || 'Técnico', description || 'Manutenção registrada', horas_operacao || 0]);
+
+    console.log(`🔧 Manutenção registrada para ${serial_number}: ${description}`);
+    res.json({ success: true, message: 'Manutenção registrada' });
+  } catch (err) {
+    console.error('Erro ao registrar manutenção:', err);
     res.status(500).json({ error: err.message });
   }
 });
