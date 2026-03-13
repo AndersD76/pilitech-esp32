@@ -1471,7 +1471,7 @@
 
     // Excluir empresa
     async function deleteEmpresa(id, nome) {
-      if (!confirm(`Tem certeza que deseja excluir a empresa "${nome}"?\n\nEsta acao nao pode ser desfeita!`)) return;
+      if (!confirm(`Tem certeza que deseja excluir a empresa "${nome}"?\n\nTODOS os dados serao removidos:\n- Unidades\n- Dispositivos e telemetria\n- Usuarios\n- Assinaturas\n\nEsta acao nao pode ser desfeita!`)) return;
 
       const result = await api('/api/empresas/' + id, { method: 'DELETE' });
 

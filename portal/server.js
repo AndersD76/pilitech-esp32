@@ -449,44 +449,55 @@ app.put('/api/empresas/:id', authenticateToken, async (req, res) => {
   }
 });
 
-// Excluir empresa (super admin)
+// Excluir empresa (super admin) - exclusao em cascata
 app.delete('/api/empresas/:id', authenticateToken, requireSuperAdmin, async (req, res) => {
   try {
     const { id } = req.params;
 
-    // Verificar se tem unidades vinculadas
-    const unidadesResult = await pool.query(
-      'SELECT COUNT(*) as total FROM unidades WHERE empresa_id = $1',
+    // Verificar se empresa existe
+    const empresaCheck = await pool.query('SELECT id FROM empresas WHERE id = $1', [id]);
+    if (empresaCheck.rows.length === 0) {
+      return res.status(404).json({ error: 'Empresa nao encontrada' });
+    }
+
+    // Buscar todos os dispositivos das unidades desta empresa
+    const devices = await pool.query(
+      'SELECT d.id FROM devices d INNER JOIN unidades u ON d.unidade_id = u.id WHERE u.empresa_id = $1',
       [id]
     );
 
-    if (parseInt(unidadesResult.rows[0].total) > 0) {
-      return res.status(400).json({
-        error: 'Nao e possivel excluir. Empresa possui unidades vinculadas. Exclua as unidades primeiro.'
-      });
+    // Excluir dados de telemetria de cada dispositivo
+    for (const device of devices.rows) {
+      await pool.query('DELETE FROM sensor_readings WHERE device_id = $1', [device.id]);
+      await pool.query('DELETE FROM event_logs WHERE device_id = $1', [device.id]);
+      await pool.query('DELETE FROM cycle_data WHERE device_id = $1', [device.id]);
+      await pool.query('DELETE FROM device_sessions WHERE device_id = $1', [device.id]);
+      await pool.query('DELETE FROM maintenances WHERE device_id = $1', [device.id]);
     }
 
-    // Verificar se tem usuarios vinculados
-    const usuariosResult = await pool.query(
-      'SELECT COUNT(*) as total FROM usuarios WHERE empresa_id = $1',
+    // Excluir dispositivos das unidades da empresa
+    await pool.query(
+      'DELETE FROM devices WHERE unidade_id IN (SELECT id FROM unidades WHERE empresa_id = $1)',
       [id]
     );
 
-    if (parseInt(usuariosResult.rows[0].total) > 0) {
-      return res.status(400).json({
-        error: 'Nao e possivel excluir. Empresa possui usuarios vinculados. Exclua os usuarios primeiro.'
-      });
-    }
+    // Excluir unidades da empresa
+    await pool.query('DELETE FROM unidades WHERE empresa_id = $1', [id]);
+
+    // Excluir vendedores CRM dos usuarios da empresa
+    await pool.query(
+      'DELETE FROM crm_vendedores WHERE usuario_id IN (SELECT id FROM usuarios WHERE empresa_id = $1)',
+      [id]
+    );
+
+    // Excluir usuarios da empresa
+    await pool.query('DELETE FROM usuarios WHERE empresa_id = $1', [id]);
 
     // Excluir assinaturas da empresa
     await pool.query('DELETE FROM subscriptions WHERE empresa_id = $1', [id]);
 
     // Excluir empresa
-    const result = await pool.query('DELETE FROM empresas WHERE id = $1 RETURNING id', [id]);
-
-    if (result.rows.length === 0) {
-      return res.status(404).json({ error: 'Empresa nao encontrada' });
-    }
+    await pool.query('DELETE FROM empresas WHERE id = $1', [id]);
 
     res.json({ success: true, message: 'Empresa excluida com sucesso' });
   } catch (err) {
@@ -2047,7 +2058,7 @@ app.post('/api/event', validateApiKey, async (req, res) => {
 app.post('/api/cycle-data', validateApiKey, async (req, res) => {
   try {
     const {
-      serial_number, ciclo_numero, tempo_total, sensor0, sensor40,
+      serial_number, ciclo_numero, tempo_total, portao, moega,
       trava_roda, trava_chassi, trava_pino_e, trava_pino_d,
       tempo_padrao, eficiencia
     } = req.body;
@@ -2063,13 +2074,13 @@ app.post('/api/cycle-data', validateApiKey, async (req, res) => {
 
     await pool.query(`
       INSERT INTO cycle_data (
-        device_id, ciclo_numero, tempo_total, sensor0, sensor40,
+        device_id, ciclo_numero, tempo_total, portao, moega,
         trava_roda, trava_chassi, trava_pino_e, trava_pino_d,
         tempo_padrao, eficiencia
       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
     `, [
-      deviceResult.rows[0].id, ciclo_numero, tempo_total, sensor0,
-      sensor40, trava_roda, trava_chassi,
+      deviceResult.rows[0].id, ciclo_numero, tempo_total, portao,
+      moega, trava_roda, trava_chassi,
       trava_pino_e, trava_pino_d, tempo_padrao, eficiencia
     ]);
 
@@ -2175,8 +2186,8 @@ app.get('/api/cycle-data/:serialNumber', authenticateToken, checkSubscription, a
       SELECT
         ciclo_numero,
         tempo_total,
-        COALESCE(sensor0, 0) as sensor0,
-        COALESCE(sensor40, 0) as sensor40,
+        COALESCE(portao, 0) as portao,
+        COALESCE(moega, 0) as moega,
         COALESCE(trava_roda, 0) as trava_roda,
         COALESCE(trava_chassi, 0) as trava_chassi,
         COALESCE(trava_pino_e, 0) as trava_pino_e,
@@ -2223,7 +2234,7 @@ app.get('/api/productivity/:serialNumber', authenticateToken, checkSubscription,
 
     const cyclesResult = await pool.query(`
       SELECT
-        ciclo_numero, tempo_total, sensor0, sensor40,
+        ciclo_numero, tempo_total, portao, moega,
         trava_roda, trava_chassi, trava_pino_e, trava_pino_d,
         tempo_padrao, eficiencia, created_at
       FROM cycle_data
