@@ -267,7 +267,7 @@ app.post('/api/login', async (req, res) => {
         e.razao_social as empresa_nome, e.cnpj as empresa_cnpj,
         e.trial_ends_at, e.subscription_active, e.subscription_expires_at,
         un.nome as unidade_nome
-      FROM usuarios u
+      FROM pilitech_usuarios u
       LEFT JOIN empresas e ON u.empresa_id = e.id
       LEFT JOIN unidades un ON u.unidade_id = un.id
       WHERE u.email = $1 AND u.active = true
@@ -299,7 +299,7 @@ app.post('/api/login', async (req, res) => {
     }
 
     // Atualizar último login
-    await pool.query('UPDATE usuarios SET last_login = CURRENT_TIMESTAMP WHERE id = $1', [user.id]);
+    await pool.query('UPDATE pilitech_usuarios SET last_login = CURRENT_TIMESTAMP WHERE id = $1', [user.id]);
 
     const token = jwt.sign(
       {
@@ -486,12 +486,12 @@ app.delete('/api/empresas/:id', authenticateToken, requireSuperAdmin, async (req
 
     // Excluir vendedores CRM dos usuarios da empresa
     await pool.query(
-      'DELETE FROM crm_vendedores WHERE usuario_id IN (SELECT id FROM usuarios WHERE empresa_id = $1)',
+      'DELETE FROM crm_vendedores WHERE usuario_id IN (SELECT id FROM pilitech_usuarios WHERE empresa_id = $1)',
       [id]
     );
 
     // Excluir usuarios da empresa
-    await pool.query('DELETE FROM usuarios WHERE empresa_id = $1', [id]);
+    await pool.query('DELETE FROM pilitech_usuarios WHERE empresa_id = $1', [id]);
 
     // Excluir assinaturas da empresa
     await pool.query('DELETE FROM subscriptions WHERE empresa_id = $1', [id]);
@@ -676,7 +676,7 @@ app.delete('/api/unidades/:id', authenticateToken, requireAdmin, async (req, res
 
     // Verificar se tem usuarios vinculados
     const usuariosResult = await pool.query(
-      'SELECT COUNT(*) as total FROM usuarios WHERE unidade_id = $1',
+      'SELECT COUNT(*) as total FROM pilitech_usuarios WHERE unidade_id = $1',
       [id]
     );
 
@@ -706,7 +706,7 @@ app.get('/api/usuarios', authenticateToken, async (req, res) => {
         u.empresa_id, u.unidade_id,
         e.razao_social as empresa_nome,
         un.nome as unidade_nome
-      FROM usuarios u
+      FROM pilitech_usuarios u
       LEFT JOIN empresas e ON u.empresa_id = e.id
       LEFT JOIN unidades un ON u.unidade_id = un.id
     `;
@@ -747,7 +747,7 @@ app.get('/api/usuarios/:id', authenticateToken, async (req, res) => {
       SELECT u.id, u.email, u.nome, u.telefone, u.role, u.active, u.empresa_id, u.unidade_id,
         e.razao_social as empresa_nome,
         un.nome as unidade_nome
-      FROM usuarios u
+      FROM pilitech_usuarios u
       LEFT JOIN empresas e ON u.empresa_id = e.id
       LEFT JOIN unidades un ON u.unidade_id = un.id
       WHERE u.id = $1
@@ -811,7 +811,7 @@ app.post('/api/usuarios', authenticateToken, async (req, res) => {
     const hashedPassword = await bcrypt.hash(password, 10);
 
     const result = await pool.query(`
-      INSERT INTO usuarios (email, password, nome, telefone, role, empresa_id, unidade_id)
+      INSERT INTO pilitech_usuarios (email, password, nome, telefone, role, empresa_id, unidade_id)
       VALUES ($1, $2, $3, $4, $5, $6, $7)
       RETURNING id
     `, [email.toLowerCase(), hashedPassword, nome, telefone || null, role, finalEmpresaId || null, finalUnidadeId || null]);
@@ -833,7 +833,7 @@ app.put('/api/usuarios/:id', authenticateToken, async (req, res) => {
     const { nome, email, telefone, role, active, password, empresa_id, unidade_id } = req.body;
 
     // Buscar usuário atual
-    const userResult = await pool.query('SELECT * FROM usuarios WHERE id = $1', [id]);
+    const userResult = await pool.query('SELECT * FROM pilitech_usuarios WHERE id = $1', [id]);
     if (userResult.rows.length === 0) {
       return res.status(404).json({ error: 'Usuário não encontrado' });
     }
@@ -857,12 +857,12 @@ app.put('/api/usuarios/:id', authenticateToken, async (req, res) => {
     if (password) {
       const hashedPassword = await bcrypt.hash(password, 10);
       await pool.query(`
-        UPDATE usuarios SET nome = $1, email = $2, telefone = $3, role = $4, active = $5, password = $6, empresa_id = $7, unidade_id = $8
+        UPDATE pilitech_usuarios SET nome = $1, email = $2, telefone = $3, role = $4, active = $5, password = $6, empresa_id = $7, unidade_id = $8
         WHERE id = $9
       `, [nome, email, telefone, role, active !== false, hashedPassword, finalEmpresaId, unidade_id || null, id]);
     } else {
       await pool.query(`
-        UPDATE usuarios SET nome = $1, email = $2, telefone = $3, role = $4, active = $5, empresa_id = $6, unidade_id = $7
+        UPDATE pilitech_usuarios SET nome = $1, email = $2, telefone = $3, role = $4, active = $5, empresa_id = $6, unidade_id = $7
         WHERE id = $8
       `, [nome, email, telefone, role, active !== false, finalEmpresaId, unidade_id || null, id]);
     }
@@ -879,7 +879,7 @@ app.delete('/api/usuarios/:id', authenticateToken, requireAdmin, async (req, res
   try {
     const { id } = req.params;
 
-    const userResult = await pool.query('SELECT * FROM usuarios WHERE id = $1', [id]);
+    const userResult = await pool.query('SELECT * FROM pilitech_usuarios WHERE id = $1', [id]);
     if (userResult.rows.length === 0) {
       return res.status(404).json({ error: 'Usuário não encontrado' });
     }
@@ -893,7 +893,7 @@ app.delete('/api/usuarios/:id', authenticateToken, requireAdmin, async (req, res
 
     // Remover registros relacionados antes de excluir o usuário
     await pool.query('DELETE FROM crm_vendedores WHERE usuario_id = $1', [id]);
-    await pool.query('DELETE FROM usuarios WHERE id = $1', [id]);
+    await pool.query('DELETE FROM pilitech_usuarios WHERE id = $1', [id]);
     res.json({ success: true, message: 'Usuário excluído com sucesso' });
   } catch (err) {
     console.error('Erro ao excluir usuário:', err);

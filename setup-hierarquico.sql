@@ -76,8 +76,8 @@ BEGIN
   END IF;
 END $$;
 
--- 4. Tabela de Usuários do Sistema
-CREATE TABLE IF NOT EXISTS usuarios (
+-- 4. Tabela de Usuários do Pili Tech (separada do Portal Pili)
+CREATE TABLE IF NOT EXISTS pilitech_usuarios (
   id SERIAL PRIMARY KEY,
   empresa_id INTEGER REFERENCES empresas(id) ON DELETE CASCADE,
   unidade_id INTEGER REFERENCES unidades(id) ON DELETE SET NULL,
@@ -90,12 +90,12 @@ CREATE TABLE IF NOT EXISTS usuarios (
   last_login TIMESTAMP,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   active BOOLEAN DEFAULT TRUE,
-  CONSTRAINT valid_role CHECK (role IN ('super_admin', 'admin_empresa', 'admin_unidade', 'operador'))
+  CONSTRAINT pilitech_valid_role CHECK (role IN ('super_admin', 'admin_empresa', 'admin_unidade', 'operador'))
 );
 
-CREATE INDEX IF NOT EXISTS idx_usuarios_empresa ON usuarios(empresa_id);
-CREATE INDEX IF NOT EXISTS idx_usuarios_unidade ON usuarios(unidade_id);
-CREATE INDEX IF NOT EXISTS idx_usuarios_email ON usuarios(email);
+CREATE INDEX IF NOT EXISTS idx_pilitech_usuarios_empresa ON pilitech_usuarios(empresa_id);
+CREATE INDEX IF NOT EXISTS idx_pilitech_usuarios_unidade ON pilitech_usuarios(unidade_id);
+CREATE INDEX IF NOT EXISTS idx_pilitech_usuarios_email ON pilitech_usuarios(email);
 
 -- 5. Tabela de Assinaturas/Pagamentos
 CREATE TABLE IF NOT EXISTS subscriptions (
@@ -147,7 +147,7 @@ CREATE INDEX IF NOT EXISTS idx_device_sessions_device ON device_sessions(device_
 CREATE INDEX IF NOT EXISTS idx_device_sessions_active ON device_sessions(device_id) WHERE ended_at IS NULL;
 
 -- 8. Inserir super admin padrão
-INSERT INTO usuarios (email, password, nome, role)
+INSERT INTO pilitech_usuarios (email, password, nome, role)
 VALUES ('admin@pilitech.com', '@2025@2026', 'Super Administrador', 'super_admin')
 ON CONFLICT (email) DO NOTHING;
 
@@ -165,7 +165,7 @@ DECLARE
 BEGIN
   -- Buscar dados do usuário
   SELECT role, empresa_id, unidade_id INTO v_user_role, v_user_empresa_id, v_user_unidade_id
-  FROM usuarios WHERE id = p_user_id;
+  FROM pilitech_usuarios WHERE id = p_user_id;
 
   -- Super admin tem acesso a tudo
   IF v_user_role = 'super_admin' THEN
@@ -244,7 +244,7 @@ SELECT
   (SELECT COUNT(*) FROM devices d
    JOIN unidades u ON d.unidade_id = u.id
    WHERE u.empresa_id = e.id) as total_devices,
-  (SELECT COUNT(*) FROM usuarios us WHERE us.empresa_id = e.id AND us.active = true) as total_usuarios
+  (SELECT COUNT(*) FROM pilitech_usuarios us WHERE us.empresa_id = e.id AND us.active = true) as total_usuarios
 FROM empresas e;
 
 -- 12. View para dispositivos com hierarquia completa
@@ -291,7 +291,7 @@ FROM empresas e WHERE e.cnpj = '00.000.000/0001-00'
 ON CONFLICT (empresa_id, codigo) DO NOTHING;
 
 -- Usuários de exemplo
-INSERT INTO usuarios (empresa_id, email, password, nome, role)
+INSERT INTO pilitech_usuarios (empresa_id, email, password, nome, role)
 SELECT e.id, 'admin@demo.com', 'demo123', 'Admin Demo', 'admin_empresa'
 FROM empresas e WHERE e.cnpj = '00.000.000/0001-00'
 ON CONFLICT (email) DO NOTHING;
