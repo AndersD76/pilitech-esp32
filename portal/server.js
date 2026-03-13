@@ -937,6 +937,45 @@ app.post('/api/devices', authenticateToken, requireSuperAdmin, async (req, res) 
   }
 });
 
+// Editar dispositivo (serial_number, name)
+app.put('/api/devices/:serialNumber', authenticateToken, requireSuperAdmin, async (req, res) => {
+  try {
+    const { serialNumber } = req.params;
+    const { serial_number, name } = req.body;
+
+    // Verificar se dispositivo existe
+    const existing = await pool.query('SELECT id FROM devices WHERE serial_number = $1', [serialNumber]);
+    if (existing.rows.length === 0) {
+      return res.status(404).json({ error: 'Dispositivo nao encontrado' });
+    }
+
+    // Se mudou serial_number, verificar se o novo ja existe
+    if (serial_number && serial_number !== serialNumber) {
+      const dup = await pool.query('SELECT id FROM devices WHERE serial_number = $1', [serial_number]);
+      if (dup.rows.length > 0) {
+        return res.status(400).json({ error: 'Ja existe um dispositivo com este numero de serie' });
+      }
+    }
+
+    const result = await pool.query(`
+      UPDATE devices SET
+        serial_number = COALESCE($1, serial_number),
+        name = COALESCE($2, name)
+      WHERE serial_number = $3
+      RETURNING id, serial_number, name
+    `, [serial_number || serialNumber, name, serialNumber]);
+
+    res.json({
+      success: true,
+      device: result.rows[0],
+      message: 'Dispositivo atualizado com sucesso'
+    });
+  } catch (err) {
+    console.error('Erro ao atualizar dispositivo:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // Listar dispositivos (filtrado por hierarquia + verificação de assinatura)
 app.get('/api/devices', authenticateToken, checkSubscription, async (req, res) => {
   try {
@@ -966,14 +1005,14 @@ app.get('/api/devices', authenticateToken, checkSubscription, async (req, res) =
         ) as subscription_info
       FROM devices d
       LEFT JOIN unidades u ON d.unidade_id = u.id
-      LEFT JOIN empresas e ON u.empresa_id = e.id
+      LEFT JOIN empresas e ON COALESCE(u.empresa_id, d.empresa_id) = e.id
     `;
     let params = [];
 
     if (req.user.role === 'super_admin') {
       // Super admin vê todos
     } else if (req.user.role === 'admin_empresa') {
-      query += ' WHERE u.empresa_id = $1';
+      query += ' WHERE (u.empresa_id = $1 OR d.empresa_id = $1)';
       params = [req.user.empresa_id];
     } else {
       query += ' WHERE d.unidade_id = $1';
@@ -993,26 +1032,39 @@ app.get('/api/devices', authenticateToken, checkSubscription, async (req, res) =
   }
 });
 
-// Vincular dispositivo a unidade
+// Vincular dispositivo a empresa/unidade
 app.post('/api/devices/:serialNumber/vincular', authenticateToken, requireAdmin, async (req, res) => {
   try {
     const { serialNumber } = req.params;
-    const { unidade_id } = req.body;
+    const { unidade_id, empresa_id } = req.body;
 
-    // Verificar se unidade pertence à empresa do admin
-    if (req.user.role === 'admin_empresa') {
-      const unidadeResult = await pool.query(
-        'SELECT empresa_id FROM unidades WHERE id = $1',
-        [unidade_id]
-      );
-      if (unidadeResult.rows.length === 0 || unidadeResult.rows[0].empresa_id !== req.user.empresa_id) {
-        return res.status(403).json({ error: 'Unidade não pertence à sua empresa' });
+    if (!empresa_id && !unidade_id) {
+      return res.status(400).json({ error: 'Selecione uma empresa' });
+    }
+
+    let finalEmpresaId = empresa_id;
+
+    // Se tem unidade, verificar se pertence à empresa do admin
+    if (unidade_id) {
+      if (req.user.role === 'admin_empresa') {
+        const unidadeResult = await pool.query(
+          'SELECT empresa_id FROM unidades WHERE id = $1',
+          [unidade_id]
+        );
+        if (unidadeResult.rows.length === 0 || unidadeResult.rows[0].empresa_id !== req.user.empresa_id) {
+          return res.status(403).json({ error: 'Unidade não pertence à sua empresa' });
+        }
+        finalEmpresaId = unidadeResult.rows[0].empresa_id;
+      } else {
+        // Super admin - pegar empresa_id da unidade
+        const unidadeResult = await pool.query('SELECT empresa_id FROM unidades WHERE id = $1', [unidade_id]);
+        if (unidadeResult.rows.length > 0) finalEmpresaId = unidadeResult.rows[0].empresa_id;
       }
     }
 
     await pool.query(
-      'UPDATE devices SET unidade_id = $1 WHERE serial_number = $2',
-      [unidade_id, serialNumber]
+      'UPDATE devices SET unidade_id = $1, empresa_id = $2 WHERE serial_number = $3',
+      [unidade_id || null, finalEmpresaId, serialNumber]
     );
 
     res.json({ success: true, message: 'Dispositivo vinculado' });
@@ -1058,7 +1110,7 @@ app.post('/api/devices/:serialNumber/desvincular', authenticateToken, requireAdm
     const { serialNumber } = req.params;
 
     await pool.query(
-      'UPDATE devices SET unidade_id = NULL WHERE serial_number = $1',
+      'UPDATE devices SET unidade_id = NULL, empresa_id = NULL WHERE serial_number = $1',
       [serialNumber]
     );
 
