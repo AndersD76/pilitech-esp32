@@ -338,8 +338,8 @@
         <h4 class="font-semibold text-gray-700 mb-4">Tempo ON por Sensor - Ultimo Ciclo</h4>
         <p class="text-xs text-gray-500 mb-4">Duracao ativa de cada sensor no ultimo ciclo registrado</p>
         <div class="grid grid-cols-6 gap-2 mb-2" id="timelineEtapas">
-          <div class="bg-gray-200 rounded p-2 text-center"><div class="text-xs font-bold text-gray-600">-</div><div class="text-[8px] text-gray-400">Sensor 0°</div></div>
-          <div class="bg-gray-200 rounded p-2 text-center"><div class="text-xs font-bold text-gray-600">-</div><div class="text-[8px] text-gray-400">Sensor 40°</div></div>
+          <div class="bg-gray-200 rounded p-2 text-center"><div class="text-xs font-bold text-gray-600">-</div><div class="text-[8px] text-gray-400">Portão</div></div>
+          <div class="bg-gray-200 rounded p-2 text-center"><div class="text-xs font-bold text-gray-600">-</div><div class="text-[8px] text-gray-400">Moega/Fosso</div></div>
           <div class="bg-gray-200 rounded p-2 text-center"><div class="text-xs font-bold text-gray-600">-</div><div class="text-[8px] text-gray-400">Trava Roda</div></div>
           <div class="bg-gray-200 rounded p-2 text-center"><div class="text-xs font-bold text-gray-600">-</div><div class="text-[8px] text-gray-400">Trava Chassi</div></div>
           <div class="bg-gray-200 rounded p-2 text-center"><div class="text-xs font-bold text-gray-600">-</div><div class="text-[8px] text-gray-400">Trava Pino E</div></div>
@@ -360,6 +360,82 @@
           <span class="px-3 py-1 bg-pili-red/10 text-pili-red rounded-full text-xs font-bold">6 SENSORES</span>
         </div>
         <canvas id="chartEtapas" height="150"></canvas>
+      </div>
+    </div>
+
+    <!-- ========== COMPARAÇÃO DE TOMBADORES ========== -->
+    <div class="bg-white rounded-xl shadow-sm p-6 mb-8" id="compareSection">
+      <div class="flex items-center justify-between mb-6">
+        <div>
+          <h3 class="text-xl font-bold text-gray-800">Comparar Tombadores</h3>
+          <p class="text-sm text-gray-500">Selecione 2 a 5 dispositivos para comparar lado a lado</p>
+        </div>
+        <div class="flex items-center gap-3">
+          <select id="comparePeriod" class="px-3 py-2 border rounded-lg text-sm">
+            <option value="7">Ultimos 7 dias</option>
+            <option value="14">Ultimos 14 dias</option>
+            <option value="30">Ultimos 30 dias</option>
+          </select>
+          <button onclick="runComparison()" class="flex items-center gap-2 px-5 py-2 bg-pili-red text-white hover:bg-pili-darkred rounded-lg text-sm font-bold transition-colors">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
+            </svg>
+            Comparar
+          </button>
+        </div>
+      </div>
+
+      <!-- Seletor de dispositivos com checkboxes -->
+      <div id="compareDeviceSelector" class="flex flex-wrap gap-3 mb-6 p-4 bg-gray-50 rounded-xl">
+        <p class="text-sm text-gray-400 w-full">Carregando dispositivos...</p>
+      </div>
+
+      <!-- Resultado da comparação (oculto até clicar Comparar) -->
+      <div id="compareResult" class="hidden">
+
+        <!-- KPIs lado a lado -->
+        <div id="compareKPIs" class="grid gap-4 mb-6"></div>
+
+        <!-- Gráficos de comparação -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+          <!-- Ciclos por Dia -->
+          <div class="bg-gradient-to-br from-gray-50 to-white border-2 border-gray-100 rounded-2xl p-5 shadow-sm">
+            <h4 class="font-bold text-gray-800 mb-1">Ciclos por Dia</h4>
+            <p class="text-xs text-gray-500 mb-4">Volume de producao comparado</p>
+            <canvas id="chartCompareCiclos" height="200"></canvas>
+          </div>
+
+          <!-- Radar - Tempo por Sensor -->
+          <div class="bg-gradient-to-br from-gray-50 to-white border-2 border-gray-100 rounded-2xl p-5 shadow-sm">
+            <h4 class="font-bold text-gray-800 mb-1">Perfil de Sensores</h4>
+            <p class="text-xs text-gray-500 mb-4">Tempo medio ON por sensor (segundos)</p>
+            <canvas id="chartCompareRadar" height="200"></canvas>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+          <!-- Barras - Produtividade -->
+          <div class="bg-gradient-to-br from-gray-50 to-white border-2 border-gray-100 rounded-2xl p-5 shadow-sm">
+            <h4 class="font-bold text-gray-800 mb-1">Produtividade & Eficiencia</h4>
+            <p class="text-xs text-gray-500 mb-4">Percentual vs meta de 20 minutos</p>
+            <canvas id="chartCompareProd" height="200"></canvas>
+          </div>
+
+          <!-- Barras - Tempo Médio -->
+          <div class="bg-gradient-to-br from-gray-50 to-white border-2 border-gray-100 rounded-2xl p-5 shadow-sm">
+            <h4 class="font-bold text-gray-800 mb-1">Tempo Medio por Ciclo</h4>
+            <p class="text-xs text-gray-500 mb-4">Melhor ciclo / Medio / Pior ciclo</p>
+            <canvas id="chartCompareTempo" height="200"></canvas>
+          </div>
+        </div>
+
+        <!-- Tabela Comparativa -->
+        <div class="overflow-x-auto">
+          <table class="w-full text-sm">
+            <thead id="compareTableHead" class="bg-gray-900 text-white"></thead>
+            <tbody id="compareTableBody" class="divide-y divide-gray-200"></tbody>
+          </table>
+        </div>
       </div>
     </div>
 
@@ -887,8 +963,8 @@
               <div class="live-durations mb-3">
                 <div class="live-dur-title text-[10px] font-bold text-gray-500 mb-1 tracking-wider">ULTIMO CICLO</div>
                 <div class="space-y-1">
-                  ${['Sensor 0°','Sensor 40°','Trava Roda','Trava Chassi','Trava Pino E','Trava Pino D'].map((name, i) => {
-                    const keys = ['sensor0','sensor40','trava_roda','trava_chassi','trava_pino_e','trava_pino_d'];
+                  ${['Portão','Moega/Fosso','Trava Roda','Trava Chassi','Trava Pino E','Trava Pino D'].map((name, i) => {
+                    const keys = ['portao','moega','trava_roda','trava_chassi','trava_pino_e','trava_pino_d'];
                     const val = t.last_cycle ? (t.last_cycle[keys[i]] || 0) : 0;
                     const total = t.last_cycle ? (t.last_cycle.tempo_total || 1) : 1;
                     const pct = Math.min(Math.round((val / total) * 100), 100);
@@ -1121,8 +1197,8 @@
           const durRows = card.querySelectorAll('.live-dur-row');
           const durTitle = card.querySelector('.live-dur-title');
           const durTotal = card.querySelector('.live-dur-total');
-          const sensorKeys = ['sensor0', 'sensor40', 'trava_roda', 'trava_chassi', 'trava_pino_e', 'trava_pino_d'];
-          const timingKeys = ['s0on', 's40on', 'tr_on', 'tc_on', 'tpe_on', 'tpd_on'];
+          const sensorKeys = ['portao', 'moega', 'trava_roda', 'trava_chassi', 'trava_pino_e', 'trava_pino_d'];
+          const timingKeys = ['pt_on', 'mg_on', 'tr_on', 'tc_on', 'tpe_on', 'tpd_on'];
 
           // Barras em tempo real (current_cycle agora é SEMPRE enviado)
           if (d.current_cycle) {
@@ -1515,8 +1591,8 @@
       // Calcular media de tempo ON por sensor
       const count = data.length || 1;
       const sensores = {
-        'Sensor 0°': 0,
-        'Sensor 40°': 0,
+        'Portão': 0,
+        'Moega/Fosso': 0,
         'Trava Roda': 0,
         'Trava Chassi': 0,
         'Trava Pino E': 0,
@@ -1524,8 +1600,8 @@
       };
 
       data.forEach(c => {
-        sensores['Sensor 0°'] += (c.sensor0 || 0);
-        sensores['Sensor 40°'] += (c.sensor40 || 0);
+        sensores['Portão'] += (c.portao || 0);
+        sensores['Moega/Fosso'] += (c.moega || 0);
         sensores['Trava Roda'] += (c.trava_roda || 0);
         sensores['Trava Chassi'] += (c.trava_chassi || 0);
         sensores['Trava Pino E'] += (c.trava_pino_e || 0);
@@ -1601,13 +1677,13 @@
       if (!data || data.length === 0) return;
 
       // Calcular medias dos 6 sensores
-      const sensorNomes = ['Sensor 0°', 'Sensor 40°', 'Tr.Roda', 'Tr.Chassi', 'Tr.Pino E', 'Tr.Pino D'];
+      const sensorNomes = ['Portão', 'Moega', 'Tr.Roda', 'Tr.Chassi', 'Tr.Pino E', 'Tr.Pino D'];
       const sensorMedia = [0, 0, 0, 0, 0, 0];
       const count = data.length;
 
       data.forEach(c => {
-        sensorMedia[0] += c.sensor0 || 0;
-        sensorMedia[1] += c.sensor40 || 0;
+        sensorMedia[0] += c.portao || 0;
+        sensorMedia[1] += c.moega || 0;
         sensorMedia[2] += c.trava_roda || 0;
         sensorMedia[3] += c.trava_chassi || 0;
         sensorMedia[4] += c.trava_pino_e || 0;
@@ -1737,8 +1813,8 @@
 
       // 6 sensores independentes
       const sensores = [
-        { nome: 'Sensor 0°', tempo: lastCycle.sensor0 || 0 },
-        { nome: 'Sensor 40°', tempo: lastCycle.sensor40 || 0 },
+        { nome: 'Portão', tempo: lastCycle.portao || 0 },
+        { nome: 'Moega/Fosso', tempo: lastCycle.moega || 0 },
         { nome: 'Trava Roda', tempo: lastCycle.trava_roda || 0 },
         { nome: 'Trava Chassi', tempo: lastCycle.trava_chassi || 0 },
         { nome: 'Trava Pino E', tempo: lastCycle.trava_pino_e || 0 },
@@ -1771,8 +1847,8 @@
       const count = data.length;
 
       data.forEach(c => {
-        sensorMedia[0] += c.sensor0 || 0;
-        sensorMedia[1] += c.sensor40 || 0;
+        sensorMedia[0] += c.portao || 0;
+        sensorMedia[1] += c.moega || 0;
         sensorMedia[2] += c.trava_roda || 0;
         sensorMedia[3] += c.trava_chassi || 0;
         sensorMedia[4] += c.trava_pino_e || 0;
@@ -1780,7 +1856,7 @@
       });
 
       const values = sensorMedia.map(v => Math.round(v / count) || 0);
-      const labels = ['Sensor 0°', 'Sensor 40°', 'Tr.Roda', 'Tr.Chassi', 'Tr.Pino E', 'Tr.Pino D'];
+      const labels = ['Portão', 'Moega', 'Tr.Roda', 'Tr.Chassi', 'Tr.Pino E', 'Tr.Pino D'];
 
       chartEtapas = new Chart(ctx, {
         type: 'bar',
@@ -1822,8 +1898,8 @@
 
         // Encontrar sensor mais lento (6 sensores)
         const sensores = [
-          { nome: 'Sensor 0°', tempo: c.sensor0 || 0 },
-          { nome: 'Sensor 40°', tempo: c.sensor40 || 0 },
+          { nome: 'Portão', tempo: c.portao || 0 },
+          { nome: 'Moega/Fosso', tempo: c.moega || 0 },
           { nome: 'Trava Roda', tempo: c.trava_roda || 0 },
           { nome: 'Trava Chassi', tempo: c.trava_chassi || 0 },
           { nome: 'Trava Pino E', tempo: c.trava_pino_e || 0 },
@@ -1847,6 +1923,342 @@
 
     // Initialize telemetry after main data loads
     setTimeout(populateDeviceSelector, 1000);
+
+    // ========== COMPARAÇÃO DE TOMBADORES ==========
+    const COMPARE_COLORS = ['#dc2626', '#2563eb', '#16a34a', '#d97706', '#7c3aed'];
+    const COMPARE_COLORS_BG = ['rgba(220,38,38,0.15)', 'rgba(37,99,235,0.15)', 'rgba(22,163,106,0.15)', 'rgba(217,119,6,0.15)', 'rgba(124,58,237,0.15)'];
+    let chartCompareCiclos, chartCompareRadar, chartCompareProd, chartCompareTempo;
+    let compareDevicesCache = [];
+
+    // Popular checkboxes de seleção
+    function populateCompareSelector(devices) {
+      compareDevicesCache = devices;
+      const container = document.getElementById('compareDeviceSelector');
+      if (!devices || devices.length === 0) {
+        container.innerHTML = '<p class="text-sm text-gray-400">Nenhum dispositivo encontrado</p>';
+        return;
+      }
+      container.innerHTML = devices.map((d, i) => `
+        <label class="flex items-center gap-2 px-4 py-2 bg-white border-2 rounded-lg cursor-pointer hover:border-pili-red transition-colors compare-label" data-serial="${d.serial_number}">
+          <input type="checkbox" class="compare-check w-4 h-4 accent-pili-red" value="${d.serial_number}" ${devices.length <= 3 ? 'checked' : (i < 3 ? 'checked' : '')}>
+          <span class="w-3 h-3 rounded-full" style="background:${COMPARE_COLORS[i % COMPARE_COLORS.length]}"></span>
+          <span class="text-sm font-medium text-gray-700">${d.name || d.serial_number}</span>
+          <span class="text-xs px-2 py-0.5 rounded-full ${d.status_conexao === 'online' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}">${d.status_conexao === 'online' ? 'ON' : 'OFF'}</span>
+        </label>
+      `).join('');
+
+      // Highlight selecionados
+      container.querySelectorAll('.compare-check').forEach(cb => {
+        cb.addEventListener('change', () => {
+          const label = cb.closest('.compare-label');
+          label.classList.toggle('border-pili-red', cb.checked);
+          label.classList.toggle('bg-red-50', cb.checked);
+        });
+        // Estado inicial
+        if (cb.checked) {
+          const label = cb.closest('.compare-label');
+          label.classList.add('border-pili-red', 'bg-red-50');
+        }
+      });
+    }
+
+    // Executar comparação
+    async function runComparison() {
+      const checks = document.querySelectorAll('.compare-check:checked');
+      const serials = Array.from(checks).map(c => c.value);
+
+      if (serials.length < 2) {
+        alert('Selecione pelo menos 2 dispositivos para comparar.');
+        return;
+      }
+      if (serials.length > 5) {
+        alert('Selecione no maximo 5 dispositivos.');
+        return;
+      }
+
+      const days = document.getElementById('comparePeriod').value;
+      const resultDiv = document.getElementById('compareResult');
+      resultDiv.classList.remove('hidden');
+
+      // Loading
+      document.getElementById('compareKPIs').innerHTML = '<div class="col-span-full text-center py-8 text-gray-400">Carregando comparacao...</div>';
+
+      try {
+        const data = await api(`/api/compare?devices=${serials.join(',')}&days=${days}`);
+        if (!data || data.blocked) {
+          document.getElementById('compareKPIs').innerHTML = '<div class="col-span-full text-center py-8 text-red-500">Assinatura necessaria para comparar</div>';
+          return;
+        }
+
+        renderCompareKPIs(data.devices);
+        renderCompareCiclosChart(data.devices);
+        renderCompareRadarChart(data.devices);
+        renderCompareProdChart(data.devices);
+        renderCompareTempoChart(data.devices);
+        renderCompareTable(data.devices);
+
+        // Scroll suave até resultado
+        resultDiv.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      } catch (err) {
+        console.error('Erro na comparacao:', err);
+        document.getElementById('compareKPIs').innerHTML = '<div class="col-span-full text-center py-8 text-red-500">Erro ao carregar dados</div>';
+      }
+    }
+
+    // KPIs lado a lado
+    function renderCompareKPIs(devices) {
+      const grid = document.getElementById('compareKPIs');
+      grid.style.gridTemplateColumns = `repeat(${devices.length}, 1fr)`;
+
+      grid.innerHTML = devices.map((d, i) => {
+        const color = COMPARE_COLORS[i];
+        const prod = parseFloat(d.produtividade);
+        const prodClass = prod >= 100 ? 'text-green-600' : prod >= 80 ? 'text-yellow-600' : 'text-red-600';
+        return `
+          <div class="border-2 rounded-2xl overflow-hidden" style="border-color:${color}">
+            <div class="p-3 text-white text-center" style="background:${color}">
+              <h4 class="font-bold text-sm truncate">${d.name}</h4>
+              <span class="text-xs opacity-80">${d.serial_number}</span>
+              <span class="ml-2 px-2 py-0.5 rounded-full text-[10px] font-bold ${d.status === 'online' ? 'bg-white/30' : 'bg-black/20'}">${d.status === 'online' ? 'ONLINE' : 'OFFLINE'}</span>
+            </div>
+            <div class="p-4 space-y-3">
+              <div class="flex justify-between items-center">
+                <span class="text-xs text-gray-500">Produtividade</span>
+                <span class="text-lg font-black ${prodClass}">${prod}%</span>
+              </div>
+              <div class="flex justify-between items-center">
+                <span class="text-xs text-gray-500">Ciclos Hoje</span>
+                <span class="text-lg font-bold text-gray-800">${d.ciclos_hoje}</span>
+              </div>
+              <div class="flex justify-between items-center">
+                <span class="text-xs text-gray-500">Ciclos no Periodo</span>
+                <span class="text-lg font-bold text-gray-800">${d.total_ciclos_periodo}</span>
+              </div>
+              <div class="flex justify-between items-center">
+                <span class="text-xs text-gray-500">Tempo Medio</span>
+                <span class="text-sm font-bold text-gray-700">${Math.round(d.tempo_medio / 60)}min ${d.tempo_medio % 60}s</span>
+              </div>
+              <div class="flex justify-between items-center">
+                <span class="text-xs text-gray-500">Eficiencia Media</span>
+                <span class="text-sm font-bold text-gray-700">${d.eficiencia_media}%</span>
+              </div>
+              <div class="flex justify-between items-center">
+                <span class="text-xs text-gray-500">Melhor Ciclo</span>
+                <span class="text-sm font-bold text-green-600">${formatTime(d.melhor_ciclo)}</span>
+              </div>
+              <div class="flex justify-between items-center">
+                <span class="text-xs text-gray-500">Pior Ciclo</span>
+                <span class="text-sm font-bold text-red-500">${formatTime(d.pior_ciclo)}</span>
+              </div>
+              <div class="flex justify-between items-center pt-2 border-t">
+                <span class="text-xs text-gray-500">Horimetro</span>
+                <span class="text-sm font-bold text-gray-700">${d.horas_operacao}h</span>
+              </div>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    // Gráfico - Ciclos por Dia (linhas sobrepostas)
+    function renderCompareCiclosChart(devices) {
+      const ctx = document.getElementById('chartCompareCiclos');
+      if (chartCompareCiclos) chartCompareCiclos.destroy();
+
+      // Unificar labels de datas
+      const allDates = new Set();
+      devices.forEach(d => d.ciclos_diarios.forEach(cd => allDates.add(cd.dia)));
+      const labels = Array.from(allDates).sort();
+      const labelsPtBR = labels.map(l => new Date(l).toLocaleDateString('pt-BR', { weekday: 'short', day: 'numeric' }));
+
+      const datasets = devices.map((d, i) => {
+        const dataMap = {};
+        d.ciclos_diarios.forEach(cd => { dataMap[cd.dia] = parseInt(cd.ciclos); });
+        return {
+          label: d.name,
+          data: labels.map(l => dataMap[l] || 0),
+          borderColor: COMPARE_COLORS[i],
+          backgroundColor: COMPARE_COLORS_BG[i],
+          fill: false,
+          tension: 0.3,
+          borderWidth: 3,
+          pointRadius: 4,
+          pointHoverRadius: 6
+        };
+      });
+
+      chartCompareCiclos = new Chart(ctx, {
+        type: 'line',
+        data: { labels: labelsPtBR, datasets },
+        options: {
+          responsive: true,
+          interaction: { mode: 'index', intersect: false },
+          plugins: { legend: { position: 'bottom', labels: { boxWidth: 12, padding: 15, font: { size: 11 } } } },
+          scales: { y: { beginAtZero: true, title: { display: true, text: 'Ciclos' } } }
+        }
+      });
+    }
+
+    // Radar - Tempo por Sensor
+    function renderCompareRadarChart(devices) {
+      const ctx = document.getElementById('chartCompareRadar');
+      if (chartCompareRadar) chartCompareRadar.destroy();
+
+      const labels = ['Portao', 'Moega', 'Tr.Roda', 'Tr.Chassi', 'Tr.Pino E', 'Tr.Pino D'];
+      const sensorKeys = ['portao', 'moega', 'trava_roda', 'trava_chassi', 'trava_pino_e', 'trava_pino_d'];
+
+      const datasets = devices.map((d, i) => ({
+        label: d.name,
+        data: sensorKeys.map(k => Math.round(parseFloat(d.sensores[k]) || 0)),
+        borderColor: COMPARE_COLORS[i],
+        backgroundColor: COMPARE_COLORS_BG[i],
+        borderWidth: 2,
+        pointRadius: 3
+      }));
+
+      chartCompareRadar = new Chart(ctx, {
+        type: 'radar',
+        data: { labels, datasets },
+        options: {
+          responsive: true,
+          plugins: { legend: { position: 'bottom', labels: { boxWidth: 12, padding: 15, font: { size: 11 } } } },
+          scales: { r: { beginAtZero: true, ticks: { stepSize: 20 } } }
+        }
+      });
+    }
+
+    // Barras - Produtividade & Eficiencia
+    function renderCompareProdChart(devices) {
+      const ctx = document.getElementById('chartCompareProd');
+      if (chartCompareProd) chartCompareProd.destroy();
+
+      chartCompareProd = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels: devices.map(d => d.name),
+          datasets: [
+            {
+              label: 'Produtividade %',
+              data: devices.map(d => parseFloat(d.produtividade)),
+              backgroundColor: devices.map((_, i) => COMPARE_COLORS[i]),
+              borderRadius: 4
+            },
+            {
+              label: 'Eficiencia %',
+              data: devices.map(d => parseFloat(d.eficiencia_media)),
+              backgroundColor: devices.map((_, i) => COMPARE_COLORS_BG[i]),
+              borderColor: devices.map((_, i) => COMPARE_COLORS[i]),
+              borderWidth: 2,
+              borderRadius: 4
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          plugins: {
+            legend: { position: 'bottom', labels: { boxWidth: 12, font: { size: 11 } } },
+            annotation: {
+              annotations: {
+                metaLine: { type: 'line', yMin: 100, yMax: 100, borderColor: '#000', borderWidth: 1, borderDash: [4, 4], label: { display: true, content: 'Meta 100%', position: 'end', font: { size: 10 } } }
+              }
+            }
+          },
+          scales: { y: { beginAtZero: true, title: { display: true, text: '%' } } }
+        }
+      });
+    }
+
+    // Barras agrupadas - Tempo (melhor/medio/pior)
+    function renderCompareTempoChart(devices) {
+      const ctx = document.getElementById('chartCompareTempo');
+      if (chartCompareTempo) chartCompareTempo.destroy();
+
+      chartCompareTempo = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels: devices.map(d => d.name),
+          datasets: [
+            {
+              label: 'Melhor Ciclo',
+              data: devices.map(d => Math.round(d.melhor_ciclo / 60)),
+              backgroundColor: '#22c55e',
+              borderRadius: 4
+            },
+            {
+              label: 'Tempo Medio',
+              data: devices.map(d => Math.round(d.tempo_medio / 60)),
+              backgroundColor: '#3b82f6',
+              borderRadius: 4
+            },
+            {
+              label: 'Pior Ciclo',
+              data: devices.map(d => Math.round(d.pior_ciclo / 60)),
+              backgroundColor: '#ef4444',
+              borderRadius: 4
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          plugins: {
+            legend: { position: 'bottom', labels: { boxWidth: 12, font: { size: 11 } } },
+            annotation: {
+              annotations: {
+                metaLine: { type: 'line', yMin: 20, yMax: 20, borderColor: '#000', borderWidth: 1, borderDash: [4, 4], label: { display: true, content: 'Meta 20min', position: 'end', font: { size: 10 } } }
+              }
+            }
+          },
+          scales: { y: { beginAtZero: true, title: { display: true, text: 'Minutos' } } }
+        }
+      });
+    }
+
+    // Tabela comparativa
+    function renderCompareTable(devices) {
+      const thead = document.getElementById('compareTableHead');
+      const tbody = document.getElementById('compareTableBody');
+
+      thead.innerHTML = '<tr><th class="px-4 py-3 text-left text-xs font-medium uppercase">Metrica</th>' +
+        devices.map((d, i) => `<th class="px-4 py-3 text-center text-xs font-medium uppercase" style="color:${COMPARE_COLORS[i]}">${d.name}</th>`).join('') +
+        '</tr>';
+
+      const metrics = [
+        { label: 'Status', key: d => `<span class="px-2 py-1 rounded-full text-xs font-bold ${d.status === 'online' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}">${d.status}</span>` },
+        { label: 'Produtividade', key: d => { const v = parseFloat(d.produtividade); return `<span class="font-bold ${v >= 100 ? 'text-green-600' : v >= 80 ? 'text-yellow-600' : 'text-red-600'}">${v}%</span>`; } },
+        { label: 'Ciclos Hoje', key: d => `<span class="font-bold">${d.ciclos_hoje}</span>` },
+        { label: 'Ciclos no Periodo', key: d => `<span class="font-bold">${d.total_ciclos_periodo}</span>` },
+        { label: 'Tempo Medio Ciclo', key: d => formatTime(d.tempo_medio) },
+        { label: 'Melhor Ciclo', key: d => `<span class="text-green-600 font-bold">${formatTime(d.melhor_ciclo)}</span>` },
+        { label: 'Pior Ciclo', key: d => `<span class="text-red-500 font-bold">${formatTime(d.pior_ciclo)}</span>` },
+        { label: 'Eficiencia Media', key: d => d.eficiencia_media + '%' },
+        { label: 'Horimetro', key: d => d.horas_operacao + 'h' },
+        { label: 'Sensor - Portao (med)', key: d => Math.round(parseFloat(d.sensores.portao) || 0) + 's' },
+        { label: 'Sensor - Moega (med)', key: d => Math.round(parseFloat(d.sensores.moega) || 0) + 's' },
+        { label: 'Sensor - Trava Roda (med)', key: d => Math.round(parseFloat(d.sensores.trava_roda) || 0) + 's' },
+        { label: 'Sensor - Trava Chassi (med)', key: d => Math.round(parseFloat(d.sensores.trava_chassi) || 0) + 's' },
+        { label: 'Sensor - Trava Pino E (med)', key: d => Math.round(parseFloat(d.sensores.trava_pino_e) || 0) + 's' },
+        { label: 'Sensor - Trava Pino D (med)', key: d => Math.round(parseFloat(d.sensores.trava_pino_d) || 0) + 's' }
+      ];
+
+      tbody.innerHTML = metrics.map((m, idx) => {
+        // Highlight melhor valor para métricas numéricas
+        return `<tr class="${idx % 2 === 0 ? 'bg-gray-50' : 'bg-white'} hover:bg-yellow-50 transition-colors">
+          <td class="px-4 py-2 text-xs font-medium text-gray-600">${m.label}</td>
+          ${devices.map(d => `<td class="px-4 py-2 text-center text-sm">${m.key(d)}</td>`).join('')}
+        </tr>`;
+      }).join('');
+    }
+
+    // Popular seletor de comparação na primeira carga
+    async function initCompareSelector() {
+      const devResponse = await api('/api/devices');
+      if (devResponse && devResponse.devices) {
+        populateCompareSelector(devResponse.devices);
+      }
+    }
+    // Carregar após 2s (depois do refreshData inicial)
+    setTimeout(initCompareSelector, 2000);
+
   </script>
 </body>
 </html>

@@ -4,8 +4,8 @@
 -- ============================================
 
 -- 1. CYCLE_DATA: Renomear colunas antigas para novos nomes de sensores
-ALTER TABLE cycle_data RENAME COLUMN tempo_portao_fechado TO sensor0;
-ALTER TABLE cycle_data RENAME COLUMN tempo_sensor0_inativo TO sensor40;
+ALTER TABLE cycle_data RENAME COLUMN tempo_portao_fechado TO portao;
+ALTER TABLE cycle_data RENAME COLUMN tempo_sensor0_inativo TO moega;
 ALTER TABLE cycle_data RENAME COLUMN tempo_trava_roda TO trava_roda;
 ALTER TABLE cycle_data RENAME COLUMN tempo_trava_chassi TO trava_chassi;
 ALTER TABLE cycle_data RENAME COLUMN tempo_trava_pinos TO trava_pino_e;
@@ -24,7 +24,12 @@ ALTER TABLE sensor_readings ADD COLUMN IF NOT EXISTS sensor_config JSONB;
 -- 4. SENSOR_READINGS: Adicionar coluna sistema_ativo (CRITICA - sem ela o INSERT falha!)
 ALTER TABLE sensor_readings ADD COLUMN IF NOT EXISTS sistema_ativo BOOLEAN DEFAULT false;
 
--- 5. Verificar resultado
+-- 5. CYCLE_DATA: Renomear sensor0/sensor40 para portao/moega (banco já migrado)
+-- Executar APENAS se as colunas atuais são sensor0/sensor40
+ALTER TABLE cycle_data RENAME COLUMN sensor0 TO portao;
+ALTER TABLE cycle_data RENAME COLUMN sensor40 TO moega;
+
+-- 6. Verificar resultado
 SELECT column_name, data_type FROM information_schema.columns
 WHERE table_name = 'cycle_data' ORDER BY ordinal_position;
 

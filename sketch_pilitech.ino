@@ -4,6 +4,7 @@
  ************************************************************/
 
 #include <WiFi.h>
+#include <Wire.h>
 #include <WebServer.h>
 #include <WebSocketsServer.h>
 #include <ArduinoJson.h>
@@ -11,9 +12,18 @@
 #include <Preferences.h>
 #include <HTTPClient.h>
 
+// TCA9554PWR - Expansor I2C para Digital Outputs (DO1-DO8)
+#define TCA9554_ADDR      0x20
+#define TCA9554_INPUT_REG  0x00
+#define TCA9554_OUTPUT_REG 0x01
+#define TCA9554_CONFIG_REG 0x03
+#define I2C_SDA_PIN       42
+#define I2C_SCL_PIN       41
+uint8_t doOutputState = 0x00;  // Estado atual das 8 saídas digitais
+
 const char* AP_SSID = "PILI-TECH";
-const char* AP_PASSWORD = "00001504";
-const char* SERIAL_NUMBER = "00001504";
+const char* AP_PASSWORD = "00001234";
+const char* SERIAL_NUMBER = "00001234";
 
 // API Configuration - Railway + NeonDB
 const char* API_URL = "https://www.pilitech.com.br";
@@ -61,8 +71,8 @@ struct {
 // ====== TRACKING DE DURAÇÃO POR SENSOR ======
 // Tempo que cada sensor ficou ativo (ON→OFF) em milissegundos
 struct SensorDurations {
-  unsigned long sensor0;       // Sensor 0° tempo ativo ON (ms)
-  unsigned long sensor40;      // Sensor 40° tempo ativo (ms)
+  unsigned long portao;        // Portão fechado tempo ativo (ms)
+  unsigned long moega;         // Moega/Fosso tempo ativo (ms)
   unsigned long travaRoda;     // Trava Roda tempo ativo (ms)
   unsigned long travaChassi;   // Trava Chassi tempo ativo (ms)
   unsigned long travaPinoE;    // Trava Pino E tempo ativo (ms)
@@ -74,12 +84,12 @@ SensorDurations currentDurations = {0, 0, 0, 0, 0, 0, 0};
 SensorDurations lastCompleteDurations = {0, 0, 0, 0, 0, 0, 0};
 
 // Timestamps de início de ativação de cada sensor
-unsigned long sensor0_start = 0, sensor40_start = 0;
+unsigned long portao_start = 0, moega_start = 0;
 unsigned long travaRoda_start = 0, travaChassi_start = 0;
 unsigned long travaPinoE_start = 0, travaPinoD_start = 0;
 
 // Flags: sensor está sendo cronometrado?
-bool sensor0_timing = false, sensor40_timing = false;
+bool portao_timing = false, moega_timing = false;
 bool travaRoda_timing = false, travaChassi_timing = false;
 bool travaPinoE_timing = false, travaPinoD_timing = false;
 
@@ -114,6 +124,13 @@ bool trava_pino_e = false;
 bool trava_pino_d = false;
 bool moega_fosso = false;
 bool portao_fechado = false;
+
+// ====== MODO SIMULAÇÃO ======
+// Quando ativo, sobrescreve leituras dos sensores com valores do tablet simulador
+bool simulationMode = false;
+bool simSensorValues[8] = {false, false, false, false, false, false, false, false};
+// [0]=sensor_0°, [1]=sensor_40°, [2]=trava_roda, [3]=trava_chassi
+// [4]=trava_pino_e, [5]=trava_pino_d, [6]=moega_fosso, [7]=portao_fechado
 
 // Configuração de sensores habilitados (persiste em Preferences)
 // 0=Sensor0, 1=Sensor40, 2=TravaRoda, 3=TravaChassi, 4=TravaPinoE, 5=TravaPinoD, 6=MoegaFosso, 7=Portao
@@ -223,7 +240,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;ba
 <div style="display:flex;align-items:center;gap:20px">
 <div class="logo">
 <svg viewBox="0 0 24 24" stroke-width="2"><path d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z"/></svg>
-<span>PILI TECH v1.0</span>
+<span>PILI TECH</span>
 </div>
 <div class="datetime">
 <span id="date">--/--/----</span>
@@ -282,12 +299,10 @@ Sensores do Sistema
 <div class="sensor-item" id="si0">
 <div class="sensor-label">Sensor 0°</div>
 <div class="sensor-value" id="s0">-</div>
-<div class="sensor-dur" id="sd0"></div>
 </div>
 <div class="sensor-item" id="si1">
 <div class="sensor-label">Sensor 40°</div>
 <div class="sensor-value" id="s40">-</div>
-<div class="sensor-dur" id="sd1"></div>
 </div>
 <div class="sensor-item" id="si2">
 <div class="sensor-label">Trava Rodas</div>
@@ -312,10 +327,12 @@ Sensores do Sistema
 <div class="sensor-item" id="si6">
 <div class="sensor-label">Moega/Fosso</div>
 <div class="sensor-value" id="mf">-</div>
+<div class="sensor-dur" id="sd1"></div>
 </div>
 <div class="sensor-item" id="si7">
 <div class="sensor-label">Portão</div>
 <div class="sensor-value" id="portao">-</div>
+<div class="sensor-dur" id="sd0"></div>
 </div>
 </div>
 <div style="margin-top:6px;padding:6px 10px;background:#f9fafb;border-radius:5px">
@@ -331,8 +348,8 @@ Sensores do Sistema
 <div style="margin-top:6px;flex:1;display:flex;flex-direction:column">
 <div style="font-size:10px;font-weight:700;color:#6b7280;margin-bottom:4px;letter-spacing:0.5px">ÚLTIMO CICLO</div>
 <table id="lastCycleTable" style="width:100%;font-size:11px;border-collapse:collapse">
-<tr><td style="padding:3px 8px;color:#374151">Sensor 0°</td><td style="text-align:right;padding:3px 8px;font-weight:700" id="lc0">-</td><td style="padding:3px 8px;width:50%"><div style="background:#e5e7eb;height:10px;border-radius:5px;overflow:hidden"><div id="lb0" style="height:100%;background:#dc2626;width:0%;transition:width 0.5s"></div></div></td></tr>
-<tr style="background:#f9fafb"><td style="padding:3px 8px;color:#374151">Sensor 40°</td><td style="text-align:right;padding:3px 8px;font-weight:700" id="lc1">-</td><td style="padding:3px 8px"><div style="background:#e5e7eb;height:10px;border-radius:5px;overflow:hidden"><div id="lb1" style="height:100%;background:#dc2626;width:0%;transition:width 0.5s"></div></div></td></tr>
+<tr><td style="padding:3px 8px;color:#374151">Portão</td><td style="text-align:right;padding:3px 8px;font-weight:700" id="lc0">-</td><td style="padding:3px 8px;width:50%"><div style="background:#e5e7eb;height:10px;border-radius:5px;overflow:hidden"><div id="lb0" style="height:100%;background:#dc2626;width:0%;transition:width 0.5s"></div></div></td></tr>
+<tr style="background:#f9fafb"><td style="padding:3px 8px;color:#374151">Moega/Fosso</td><td style="text-align:right;padding:3px 8px;font-weight:700" id="lc1">-</td><td style="padding:3px 8px"><div style="background:#e5e7eb;height:10px;border-radius:5px;overflow:hidden"><div id="lb1" style="height:100%;background:#dc2626;width:0%;transition:width 0.5s"></div></div></td></tr>
 <tr><td style="padding:3px 8px;color:#374151">Trava Roda</td><td style="text-align:right;padding:3px 8px;font-weight:700" id="lc2">-</td><td style="padding:3px 8px"><div style="background:#e5e7eb;height:10px;border-radius:5px;overflow:hidden"><div id="lb2" style="height:100%;background:#dc2626;width:0%;transition:width 0.5s"></div></div></td></tr>
 <tr style="background:#f9fafb"><td style="padding:3px 8px;color:#374151">Trava Chassi</td><td style="text-align:right;padding:3px 8px;font-weight:700" id="lc3">-</td><td style="padding:3px 8px"><div style="background:#e5e7eb;height:10px;border-radius:5px;overflow:hidden"><div id="lb3" style="height:100%;background:#dc2626;width:0%;transition:width 0.5s"></div></div></td></tr>
 <tr><td style="padding:3px 8px;color:#374151">Trava Pino E</td><td style="text-align:right;padding:3px 8px;font-weight:700" id="lc4">-</td><td style="padding:3px 8px"><div style="background:#e5e7eb;height:10px;border-radius:5px;overflow:hidden"><div id="lb4" style="height:100%;background:#dc2626;width:0%;transition:width 0.5s"></div></div></td></tr>
@@ -756,8 +773,8 @@ document.getElementById('maintHrs').textContent=Math.max(2000-hrs,0);
 updateTimeline();
 }
 function updateTimeline(){
-var sKeys=['sensor0','sensor40','travaRoda','travaChassi','travaPinoE','travaPinoD'];
-var sOnKeys=['s0on','s40on','tRon','tCon','tPEon','tPDon'];
+var sKeys=['portao','moega','travaRoda','travaChassi','travaPinoE','travaPinoD'];
+var sOnKeys=['pTon','mGon','tRon','tCon','tPEon','tPDon'];
 var durEls=['sd0','sd1','sd2','sd3','sd4','sd5'];
 for(var i=0;i<6;i++){
 var el=document.getElementById(durEls[i]);
@@ -796,12 +813,12 @@ var bars=['lb0','lb1','lb2','lb3','lb4','lb5'];
 var tableTitle=document.getElementById('lastCycleTable');
 var titleEl=tableTitle?tableTitle.previousElementSibling:null;
 if(cc){
-var vals=[cc.sensor0||0,cc.sensor40||0,cc.travaRoda||0,cc.travaChassi||0,cc.travaPinoE||0,cc.travaPinoD||0];
+var vals=[cc.portao||0,cc.moega||0,cc.travaRoda||0,cc.travaChassi||0,cc.travaPinoE||0,cc.travaPinoD||0];
 var anyActive=vals.some(function(v){return v>0;});
 if(anyActive||data.cycleInProgress){
 // Barras em tempo real com dados atuais
 var mx=Math.max.apply(null,vals)||1;
-var onKeys=['s0on','s40on','tRon','tCon','tPEon','tPDon'];
+var onKeys=['pTon','mGon','tRon','tCon','tPEon','tPDon'];
 for(var i=0;i<6;i++){
 document.getElementById(ids[i]).textContent=vals[i]+'s';
 var barEl=document.getElementById(bars[i]);
@@ -822,7 +839,7 @@ if(titleEl)titleEl.textContent='SENSORES AO VIVO';
 }
 }else if(lc&&lc.total>0){
 // Sem atividade atual, mostra ultimo ciclo
-var vals2=[lc.sensor0||0,lc.sensor40||0,lc.travaRoda||0,lc.travaChassi||0,lc.travaPinoE||0,lc.travaPinoD||0];
+var vals2=[lc.portao||0,lc.moega||0,lc.travaRoda||0,lc.travaChassi||0,lc.travaPinoE||0,lc.travaPinoD||0];
 var mx2=Math.max.apply(null,vals2)||1;
 for(var i=0;i<6;i++){
 document.getElementById(ids[i]).textContent=vals2[i]+'s';
@@ -835,7 +852,7 @@ document.getElementById('lcTotal').textContent=String(mn).padStart(2,'0')+':'+St
 if(titleEl)titleEl.textContent='ÚLTIMO CICLO';
 }
 }else if(lc&&lc.total>0){
-var vals3=[lc.sensor0||0,lc.sensor40||0,lc.travaRoda||0,lc.travaChassi||0,lc.travaPinoE||0,lc.travaPinoD||0];
+var vals3=[lc.portao||0,lc.moega||0,lc.travaRoda||0,lc.travaChassi||0,lc.travaPinoE||0,lc.travaPinoD||0];
 var mx3=Math.max.apply(null,vals3)||1;
 for(var i=0;i<6;i++){
 document.getElementById(ids[i]).textContent=vals3[i]+'s';
@@ -1089,6 +1106,285 @@ window.location.href='http://127.0.0.1:8080/'+encodeURIComponent(filename);
 </body>
 </html>)rawliteral";
 
+// ====== HTML DO PAINEL SIMULADOR (TX) ======
+const char simulator_html[] PROGMEM = R"rawliteral(<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=1024">
+<title>PILI TECH - TX</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;background:#dc2626;width:1024px;height:600px;overflow:hidden;display:flex;flex-direction:column;padding:8px;gap:6px}
+.topbar{display:flex;align-items:center;justify-content:space-between;height:30px;padding:0 6px}
+.logo{font-size:15px;font-weight:800;color:#fff;letter-spacing:2px;display:flex;align-items:center;gap:6px}
+.logo svg{width:18px;height:18px;stroke:#fff;fill:none}
+.right{display:flex;align-items:center;gap:10px}
+.sim-toggle{padding:3px 12px;border-radius:4px;font-size:10px;font-weight:700;cursor:pointer;border:2px solid #fff;background:transparent;color:#fff;letter-spacing:1px}
+.sim-toggle.on{background:#fff;color:#dc2626}
+.conn{font-size:9px;color:rgba(255,255,255,0.8);font-weight:600;display:flex;align-items:center;gap:4px}
+.dot{width:6px;height:6px;border-radius:50%;background:rgba(255,255,255,0.3)}
+.dot.online{background:#fff;animation:pulse 2s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.4}}
+.cards{flex:1;display:grid;grid-template-columns:2fr 3fr;gap:8px;min-height:0}
+.card{background:#fff;border-radius:16px;padding:16px;display:flex;flex-direction:column;justify-content:space-evenly}
+.group{text-align:center}
+.glabel{font-size:12px;font-weight:800;color:#dc2626;text-transform:uppercase;letter-spacing:1px;margin-top:4px}
+.g2{display:grid;grid-template-columns:repeat(2,120px);gap:10px;justify-content:center}
+.g4{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.sq{aspect-ratio:1;border:none;border-radius:14px;background:#dc2626;color:#fff;cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;transition:all 0.15s;font-size:9px;font-weight:700;text-transform:uppercase;position:relative;overflow:hidden}
+.sq:active{transform:scale(0.9);opacity:0.85}
+.sq.on{background:#16a34a}
+.sq.alert-on{background:#ea580c;animation:blink 1s infinite}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:0.6}}
+.sq svg{width:36px;height:36px;stroke:currentColor;fill:none;stroke-width:2}
+.sq .prog{position:absolute;bottom:0;left:0;height:4px;width:0%;background:rgba(255,255,255,0.5);transition:width 30s linear}
+.sq.holding{background:#7f1d1d;transform:scale(0.95)}
+.sq.holding .prog{width:100%}
+.warn{font-size:9px;color:#dc2626;font-weight:600;min-height:12px;text-align:center}
+.slabels{display:grid;gap:8px;margin-top:3px}
+.slabels.c4{grid-template-columns:repeat(4,1fr)}
+.slabels.c2{grid-template-columns:repeat(2,120px);justify-content:center}
+.slbl{font-size:9px;font-weight:700;color:#991b1b;text-transform:uppercase;text-align:center}
+</style>
+</head>
+<body>
+<div class="topbar">
+<div class="logo">
+<svg viewBox="0 0 24 24" stroke-width="2"><path d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z"/></svg>
+PILI TECH
+</div>
+<div class="right">
+<button class="sim-toggle" id="simBadge" onclick="toggleSim()">SIM: OFF</button>
+<div class="conn"><div class="dot" id="dot"></div><span id="status">---</span></div>
+</div>
+</div>
+<div class="cards">
+<div class="card">
+<div class="group">
+<div class="g2">
+<button class="sq" onclick="fecharPortao()"><svg viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 018 0v4"/></svg></button>
+<button class="sq" id="btnAbrir" onclick="abrirPortao()"><svg viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 018 0"/></svg></button>
+</div>
+<div class="slabels c2"><div class="slbl">Fechar</div><div class="slbl">Abrir</div></div>
+<div class="glabel">Port&atilde;o</div>
+<div class="warn" id="msgPortao"></div>
+</div>
+<div class="group">
+<div class="g2">
+<button class="sq" id="btnSubir" onmousedown="subirStart()" onmouseup="subirEnd()" onmouseleave="subirEnd()" ontouchstart="subirStart()" ontouchend="subirEnd()"><svg viewBox="0 0 24 24"><polyline points="6 15 12 9 18 15"/></svg><div class="prog"></div></button>
+<button class="sq" id="btnDescer" onmousedown="descerStart()" onmouseup="descerEnd()" onmouseleave="descerEnd()" ontouchstart="descerStart()" ontouchend="descerEnd()"><svg viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg><div class="prog"></div></button>
+</div>
+<div class="slabels c2"><div class="slbl">Subir</div><div class="slbl">Descer</div></div>
+<div class="glabel">Plataforma</div>
+<div style="display:flex;gap:4px;justify-content:center"><div class="warn" id="msgSubir"></div><div class="warn" id="msgDescer"></div></div>
+</div>
+<div class="group">
+<div class="g2">
+<button class="sq" id="aMoega" onclick="toggleMoega()"><svg viewBox="0 0 24 24"><path d="M12 9v2m0 4h.01M5.07 19H19a2 2 0 001.75-2.98L13.75 4a2 2 0 00-3.5 0L3.32 16.02A2 2 0 005.07 19z"/></svg></button>
+<button class="sq" id="aFosso" onclick="toggleFosso()"><svg viewBox="0 0 24 24"><path d="M12 9v2m0 4h.01M5.07 19H19a2 2 0 001.75-2.98L13.75 4a2 2 0 00-3.5 0L3.32 16.02A2 2 0 005.07 19z"/></svg></button>
+</div>
+<div class="slabels c2"><div class="slbl">Moega</div><div class="slbl">Fosso</div></div>
+<div class="glabel">Alertas</div>
+</div>
+</div>
+<div class="card">
+<div class="group">
+<div class="glabel" style="margin-top:0;margin-bottom:6px">Travar</div>
+<div class="g4">
+<button class="sq" id="tRodas" onclick="travar(2)"><svg viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 018 0v4"/></svg></button>
+<button class="sq" id="tChassi" onclick="travar(3)"><svg viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 018 0v4"/></svg></button>
+<button class="sq" id="tPinoE" onclick="travar(4)"><svg viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 018 0v4"/></svg></button>
+<button class="sq" id="tPinoD" onclick="travar(5)"><svg viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 018 0v4"/></svg></button>
+</div>
+<div class="slabels c4"><div class="slbl">Rodas</div><div class="slbl">Chassi</div><div class="slbl">Pino E</div><div class="slbl">Pino D</div></div>
+</div>
+<div class="group">
+<div class="glabel" style="margin-top:0;margin-bottom:6px">Destravar</div>
+<div class="g4">
+<button class="sq" onclick="destravar(2)"><svg viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 018 0"/></svg></button>
+<button class="sq" onclick="destravar(3)"><svg viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 018 0"/></svg></button>
+<button class="sq" onclick="destravar(4)"><svg viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 018 0"/></svg></button>
+<button class="sq" onclick="destravar(5)"><svg viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 018 0"/></svg></button>
+</div>
+<div class="slabels c4"><div class="slbl">Rodas</div><div class="slbl">Chassi</div><div class="slbl">Pino E</div><div class="slbl">Pino D</div></div>
+<div class="warn" id="msgDestravar"></div>
+</div>
+</div>
+</div>
+<script>
+var ws,connected=false,simOn=false;
+var sensors=[false,false,false,false,false,false,false,false];
+var holding=false,holdTimer=null,holdingDescer=false,holdTimerDescer=null;
+function connect(){
+ws=new WebSocket('ws://'+location.hostname+':81/');
+ws.onopen=function(){
+connected=true;
+document.getElementById('dot').className='dot online';
+document.getElementById('status').textContent='Conectado';
+};
+ws.onclose=function(){
+connected=false;
+document.getElementById('dot').className='dot';
+document.getElementById('status').textContent='Desconectado';
+setTimeout(connect,2000);
+};
+ws.onmessage=function(e){
+try{
+var d=JSON.parse(e.data);
+if(d.cmd)return;
+sensors[0]=!!d.sensor_0_graus;
+sensors[1]=!!d.sensor_40_graus;
+sensors[2]=!!d.trava_roda;
+sensors[3]=!!d.trava_chassi;
+sensors[4]=!!d.trava_pino_e;
+sensors[5]=!!d.trava_pino_d;
+sensors[6]=!!d.moega_fosso;
+sensors[7]=!!d.portao_fechado;
+if(typeof d.simulationMode!=='undefined'){
+simOn=d.simulationMode;
+var b=document.getElementById('simBadge');
+b.className='sim-toggle'+(simOn?' on':'');
+b.textContent='SIM: '+(simOn?'ON':'OFF');
+}
+updateUI();
+}catch(ex){}
+};
+}
+function updateUI(){
+var tIds=['tRodas','tChassi','tPinoE','tPinoD'];
+var tSens=[2,3,4,5];
+for(var j=0;j<4;j++){
+document.getElementById(tIds[j]).className='sq'+(sensors[tSens[j]]?' on':'');
+}
+document.getElementById('aMoega').className='sq'+(sensors[6]?' alert-on':'');
+document.getElementById('aFosso').className='sq'+(sensors[6]?' alert-on':'');
+var allTravas=sensors[2]&&sensors[3]&&sensors[4]&&sensors[5];
+var noTravas=!sensors[2]&&!sensors[3]&&!sensors[4]&&!sensors[5];
+var at0=sensors[0];
+var portao=sensors[7];
+var msgPortao=document.getElementById('msgPortao');
+if(!at0||!noTravas){
+var r=[];
+if(!at0)r.push('fora do 0\u00b0');
+if(!noTravas)r.push('travas ativas');
+msgPortao.textContent='\u26a0 '+r.join(' e ');
+}else{msgPortao.textContent='';}
+var msgSubir=document.getElementById('msgSubir');
+if(!allTravas||!portao){
+var r2=[];
+if(!allTravas)r2.push('travas');
+if(!portao)r2.push('port\u00e3o');
+msgSubir.textContent='\u26a0 '+r2.join(' e ');
+}else{msgSubir.textContent='';}
+var msgDescer=document.getElementById('msgDescer');
+if(sensors[0]){msgDescer.textContent='\u26a0 j\u00e1 em 0\u00b0';}
+else{msgDescer.textContent='';}
+var msgDest=document.getElementById('msgDestravar');
+if(!at0){msgDest.textContent='\u26a0 fora do 0\u00b0';}
+else{msgDest.textContent='';}
+}
+var actx=null;
+function beep(freq,dur,type){
+try{
+if(!actx)actx=new(window.AudioContext||window.webkitAudioContext)();
+var o=actx.createOscillator();
+var g=actx.createGain();
+o.type=type||'sine';
+o.frequency.value=freq;
+g.gain.value=0.15;
+o.connect(g);g.connect(actx.destination);
+o.start();
+g.gain.exponentialRampToValueAtTime(0.001,actx.currentTime+dur);
+o.stop(actx.currentTime+dur);
+}catch(e){}
+}
+function sndError(){beep(200,0.25,'square');}
+function sndOff(){beep(400,0.12,'sine');}
+function sndFechar(){beep(600,0.1,'sine');setTimeout(function(){beep(900,0.15,'sine');},120);}
+function sndAbrir(){beep(900,0.1,'sine');setTimeout(function(){beep(500,0.15,'sine');},120);}
+function sndSubir(){beep(400,0.6,'triangle');}
+function sndDescer(){beep(700,0.3,'triangle');setTimeout(function(){beep(350,0.4,'triangle');},100);}
+function sndMoega(){beep(800,0.12,'sawtooth');setTimeout(function(){beep(1100,0.15,'sawtooth');},140);}
+function sndFosso(){beep(500,0.15,'sawtooth');setTimeout(function(){beep(750,0.15,'sawtooth');},160);}
+function send(obj){
+if(ws&&ws.readyState===1)ws.send(JSON.stringify(obj));
+}
+function toggleSim(){
+if(!simOn)send({cmd:'SIM_ON'});
+else send({cmd:'SIM_OFF'});
+}
+function simSet(s,v){
+if(!simOn){sndError();alert('Ative SIM primeiro!');return;}
+send({cmd:'SIM_SET',sensor:s,value:v});
+}
+function travar(i){
+if(!simOn){sndError();alert('Ative SIM primeiro!');return;}
+simSet(i,true);
+}
+function destravar(i){
+if(!simOn){sndError();alert('Ative SIM primeiro!');return;}
+simSet(i,false);
+}
+function fecharPortao(){
+if(!simOn){sndError();alert('Ative SIM primeiro!');return;}
+sndFechar();
+send({cmd:'SIM_SET',sensor:7,value:true});
+}
+function abrirPortao(){
+if(!simOn){sndError();alert('Ative SIM primeiro!');return;}
+if(!sensors[0]||sensors[2]||sensors[3]||sensors[4]||sensors[5]){sndError();return;}
+sndAbrir();
+send({cmd:'SIM_SET',sensor:7,value:false});
+}
+function toggleMoega(){
+if(!simOn){sndError();alert('Ative SIM primeiro!');return;}
+if(!sensors[6])sndMoega();else sndOff();
+send({cmd:'SIM_SET',sensor:6,value:!sensors[6]});
+}
+function toggleFosso(){
+if(!simOn){sndError();alert('Ative SIM primeiro!');return;}
+if(!sensors[6])sndFosso();else sndOff();
+send({cmd:'SIM_SET',sensor:6,value:!sensors[6]});
+}
+function subirStart(){
+if(holding)return;
+var allT=sensors[2]&&sensors[3]&&sensors[4]&&sensors[5];
+if(!allT||!sensors[7]){sndError();return;}
+if(!simOn){sndError();alert('Ative SIM primeiro!');return;}
+holding=true;
+sndSubir();
+document.getElementById('btnSubir').classList.add('holding');
+simSet(0,false);
+holdTimer=setTimeout(function(){if(holding)simSet(1,true);},30000);
+}
+function subirEnd(){
+if(!holding)return;
+holding=false;
+if(holdTimer){clearTimeout(holdTimer);holdTimer=null;}
+document.getElementById('btnSubir').classList.remove('holding');
+}
+function descerStart(){
+if(holdingDescer)return;
+if(!simOn){sndError();alert('Ative SIM primeiro!');return;}
+if(sensors[0]){sndError();return;}
+holdingDescer=true;
+sndDescer();
+document.getElementById('btnDescer').classList.add('holding');
+simSet(1,false);
+holdTimerDescer=setTimeout(function(){if(holdingDescer)simSet(0,true);},30000);
+}
+function descerEnd(){
+if(!holdingDescer)return;
+holdingDescer=false;
+if(holdTimerDescer){clearTimeout(holdTimerDescer);holdTimerDescer=null;}
+document.getElementById('btnDescer').classList.remove('holding');
+}
+connect();
+</script>
+</body>
+</html>)rawliteral";
+
 void setupPins() {
   // Entradas opto-isoladas: a placa já puxa para HIGH e ativa em LOW
   pinMode(SENSOR_0_GRAUS,      INPUT_PULLUP);  // DI1 - GPIO4
@@ -1103,8 +1399,70 @@ void setupPins() {
   pinMode(LED_STATUS, OUTPUT);
 }
 
+// ====== CONTROLE DO TCA9554PWR (Digital Outputs DO1-DO8) ======
+void initTCA9554() {
+  Wire.begin(I2C_SDA_PIN, I2C_SCL_PIN);
+  delay(10);
+
+  // Configura todos os 8 pinos como OUTPUT (0 = output, 1 = input)
+  Wire.beginTransmission(TCA9554_ADDR);
+  Wire.write(TCA9554_CONFIG_REG);
+  Wire.write(0x00);  // Todos como saída
+  uint8_t err = Wire.endTransmission();
+
+  if (err == 0) {
+    Serial.println("✓ TCA9554 (DO1-DO8) inicializado - I2C OK");
+  } else {
+    Serial.printf("✗ TCA9554 erro I2C: %d (verifique SDA=%d SCL=%d)\n", err, I2C_SDA_PIN, I2C_SCL_PIN);
+  }
+
+  // Todas as saídas LOW
+  Wire.beginTransmission(TCA9554_ADDR);
+  Wire.write(TCA9554_OUTPUT_REG);
+  Wire.write(0x00);
+  Wire.endTransmission();
+  doOutputState = 0x00;
+}
+
+void writeDO(uint8_t state) {
+  Wire.beginTransmission(TCA9554_ADDR);
+  Wire.write(TCA9554_OUTPUT_REG);
+  Wire.write(state);
+  Wire.endTransmission();
+  doOutputState = state;
+}
+
+void setDOPin(int pin, bool value) {
+  if (pin < 0 || pin > 7) return;
+  if (value) doOutputState |= (1 << pin);
+  else       doOutputState &= ~(1 << pin);
+  writeDO(doOutputState);
+}
+
+void syncAllDO() {
+  // Sincroniza todas as 8 DOs com simSensorValues
+  uint8_t state = 0;
+  for (int i = 0; i < 8; i++) {
+    if (simSensorValues[i]) state |= (1 << i);
+  }
+  writeDO(state);
+}
+
 
 void readSensors() {
+  if (simulationMode) {
+    // Modo simulação: usa valores enviados pelo tablet simulador
+    sensor_0_graus  = simSensorValues[0];
+    sensor_40_graus = simSensorValues[1];
+    trava_roda      = simSensorValues[2];
+    trava_chassi    = simSensorValues[3];
+    trava_pino_e    = simSensorValues[4];
+    trava_pino_d    = simSensorValues[5];
+    moega_fosso     = simSensorValues[6];
+    portao_fechado  = simSensorValues[7];
+    return;
+  }
+
   // Entradas são ATIVAS-BAIXO: LOW = ativo, HIGH = inativo
   sensor_0_graus  = !digitalRead(SENSOR_0_GRAUS);
   sensor_40_graus = !digitalRead(SENSOR_40_GRAUS);
@@ -1166,10 +1524,13 @@ String createJsonData() {
   // Sistema iniciado
   doc["sistemaIniciado"] = sistemaIniciado;
 
+  // Modo simulação
+  doc["simulationMode"] = simulationMode;
+
   // Durações do último ciclo completo (em segundos)
   JsonObject lastCycle = doc.createNestedObject("lastCycle");
-  lastCycle["sensor0"] = lastCompleteDurations.sensor0 / 1000;
-  lastCycle["sensor40"] = lastCompleteDurations.sensor40 / 1000;
+  lastCycle["portao"] = lastCompleteDurations.portao / 1000;
+  lastCycle["moega"] = lastCompleteDurations.moega / 1000;
   lastCycle["travaRoda"] = lastCompleteDurations.travaRoda / 1000;
   lastCycle["travaChassi"] = lastCompleteDurations.travaChassi / 1000;
   lastCycle["travaPinoE"] = lastCompleteDurations.travaPinoE / 1000;
@@ -1181,15 +1542,15 @@ String createJsonData() {
   unsigned long now = millis();
   currCycle["elapsed"] = cycleInProgress ? (now - cycleStartTime) / 1000 : 0;
   // Tempo acumulado + tempo parcial dos sensores ativos agora
-  currCycle["sensor0"] = (currentDurations.sensor0 + (sensor0_timing ? now - sensor0_start : 0)) / 1000;
-  currCycle["sensor40"] = (currentDurations.sensor40 + (sensor40_timing ? now - sensor40_start : 0)) / 1000;
+  currCycle["portao"] = (currentDurations.portao + (portao_timing ? now - portao_start : 0)) / 1000;
+  currCycle["moega"] = (currentDurations.moega + (moega_timing ? now - moega_start : 0)) / 1000;
   currCycle["travaRoda"] = (currentDurations.travaRoda + (travaRoda_timing ? now - travaRoda_start : 0)) / 1000;
   currCycle["travaChassi"] = (currentDurations.travaChassi + (travaChassi_timing ? now - travaChassi_start : 0)) / 1000;
   currCycle["travaPinoE"] = (currentDurations.travaPinoE + (travaPinoE_timing ? now - travaPinoE_start : 0)) / 1000;
   currCycle["travaPinoD"] = (currentDurations.travaPinoD + (travaPinoD_timing ? now - travaPinoD_start : 0)) / 1000;
   // Flags de qual sensor está ativo agora (para UI mostrar ao vivo)
-  currCycle["s0on"] = sensor0_timing;
-  currCycle["s40on"] = sensor40_timing;
+  currCycle["pTon"] = portao_timing;
+  currCycle["mGon"] = moega_timing;
   currCycle["tRon"] = travaRoda_timing;
   currCycle["tCon"] = travaChassi_timing;
   currCycle["tPEon"] = travaPinoE_timing;
@@ -1456,6 +1817,55 @@ void onWebSocketEvent(uint8_t num, WStype_t type, uint8_t *payload, size_t lengt
               sensorEnabled[4], sensorEnabled[5], sensorEnabled[6], sensorEnabled[7]);
           }
         }
+        // ====== COMANDOS DE SIMULAÇÃO ======
+        else if (cmd == "SIM_ON") {
+          simulationMode = true;
+          // Plataforma sempre começa em 0° (sensor_0 ativo)
+          simSensorValues[0] = true;
+          simSensorValues[1] = sensor_40_graus;
+          simSensorValues[2] = trava_roda;
+          simSensorValues[3] = trava_chassi;
+          simSensorValues[4] = trava_pino_e;
+          simSensorValues[5] = trava_pino_d;
+          simSensorValues[6] = moega_fosso;
+          simSensorValues[7] = portao_fechado;
+          syncAllDO();  // Sincronizar saídas digitais com estado atual
+          Serial.printf("SIMULACAO ATIVADA! DO=0x%02X\n", doOutputState);
+          enviarEvento("INFO", "Modo simulacao ativado pelo tablet simulador", "simulation", true);
+          String simJson = createJsonData();
+          webSocket.broadcastTXT(simJson);
+        }
+        else if (cmd == "SIM_OFF") {
+          simulationMode = false;
+          // Desligar todas as saídas digitais
+          writeDO(0x00);
+          Serial.println("SIMULACAO DESATIVADA - DOs zeradas - voltando a ler hardware!");
+          enviarEvento("INFO", "Modo simulacao desativado", "simulation", false);
+          String simJson = createJsonData();
+          webSocket.broadcastTXT(simJson);
+        }
+        else if (cmd == "SIM_SET") {
+          int sensor = doc["sensor"].as<int>();
+          bool value = doc["value"].as<bool>();
+          if (sensor >= 0 && sensor < 8) {
+            simSensorValues[sensor] = value;
+            setDOPin(sensor, value);  // Aciona saída digital física DO
+            const char* names[] = {"0graus", "40graus", "travaRoda", "travaChassi", "travaPinoE", "travaPinoD", "moegaFosso", "portao"};
+            Serial.printf("SIM_SET: %s = %d (DO%d = %s)\n", names[sensor], value, sensor+1, value?"HIGH":"LOW");
+          }
+        }
+        else if (cmd == "SIM_SET_ALL") {
+          JsonArray values = doc["values"];
+          if (values) {
+            for (int i = 0; i < 8 && i < (int)values.size(); i++) {
+              simSensorValues[i] = values[i].as<bool>();
+            }
+            syncAllDO();  // Atualiza todas as saídas digitais físicas
+            Serial.printf("SIM_SET_ALL: [%d,%d,%d,%d,%d,%d,%d,%d] DO=0x%02X\n",
+              simSensorValues[0], simSensorValues[1], simSensorValues[2], simSensorValues[3],
+              simSensorValues[4], simSensorValues[5], simSensorValues[6], simSensorValues[7], doOutputState);
+          }
+        }
       }
       break;
     }
@@ -1637,8 +2047,8 @@ bool enviarDadosCiclo() {
 
   // Duração ativa de cada sensor em segundos
   doc["tempo_total"] = lastCompleteDurations.cicloTotal / 1000;
-  doc["sensor0"] = lastCompleteDurations.sensor0 / 1000;
-  doc["sensor40"] = lastCompleteDurations.sensor40 / 1000;
+  doc["portao"] = lastCompleteDurations.portao / 1000;
+  doc["moega"] = lastCompleteDurations.moega / 1000;
   doc["trava_roda"] = lastCompleteDurations.travaRoda / 1000;
   doc["trava_chassi"] = lastCompleteDurations.travaChassi / 1000;
   doc["trava_pino_e"] = lastCompleteDurations.travaPinoE / 1000;
@@ -1802,6 +2212,12 @@ void handleRoot() {
   Serial.println("HTML enviado!");
 }
 
+void handleSimulator() {
+  Serial.println("Enviando HTML Simulador...");
+  server.send_P(200, "text/html", simulator_html);
+  Serial.println("Simulador enviado!");
+}
+
 void setup() {
   Serial.begin(115200);
   delay(1000);
@@ -1824,6 +2240,9 @@ void setup() {
   Serial.printf("  GPIO10 (MOEGA/FOSSO): %d\n", digitalRead(SENSOR_MOEGA_FOSSO));
   Serial.printf("  GPIO11 (PORTAO): %d\n", digitalRead(SENSOR_PORTAO));
   Serial.println("✓ Se todos estão em 0, INPUT_PULLDOWN está funcionando\n");
+
+  // Inicializar TCA9554 (Digital Outputs DO1-DO8)
+  initTCA9554();
 
   // Inicializar SPIFFS
   if (!SPIFFS.begin(true)) {
@@ -1907,6 +2326,7 @@ void setup() {
   }
 
   server.on("/", handleRoot);
+  server.on("/simulator", handleSimulator);
   server.begin();
   Serial.println("✓ HTTP iniciado (porta 80)");
 
@@ -1946,26 +2366,26 @@ void loop() {
   // Sensores contam tempo independente do portão.
   // Portão fecha = início do ciclo (zera contadores). Portão abre = fim (totaliza).
 
-  // --- Sensor 0°: INVERTIDO - começa ON (repouso), conta tempo OFF (em movimento) ---
-  // OFF→start (plataforma saiu), ON→acumula (plataforma voltou)
-  if (!sensor_0_graus && lastSensor0Graus && !sensor0_timing) {
-    sensor0_start = currentMillis; sensor0_timing = true;
-    Serial.println("  Sensor 0: OFF - iniciou contagem");
+  // --- Portão Fechado: ON→start, OFF→acumula ---
+  if (portao_fechado && !lastPortaoFechado && !portao_timing) {
+    portao_start = currentMillis; portao_timing = true;
+    Serial.println("  Portao: fechou - iniciou contagem");
   }
-  if (sensor_0_graus && !lastSensor0Graus && sensor0_timing) {
-    currentDurations.sensor0 += currentMillis - sensor0_start;
-    sensor0_timing = false;
-    Serial.printf("  Sensor 0: ON - parou contagem: %lu s\n", currentDurations.sensor0 / 1000);
+  if (!portao_fechado && lastPortaoFechado && portao_timing) {
+    currentDurations.portao += currentMillis - portao_start;
+    portao_timing = false;
+    Serial.printf("  Portao: abriu - parou contagem: %lu s\n", currentDurations.portao / 1000);
   }
 
-  // --- Sensor 40°: ON→start, OFF→acumula ---
-  if (sensor_40_graus && !lastSensor40Graus && !sensor40_timing) {
-    sensor40_start = currentMillis; sensor40_timing = true;
+  // --- Moega/Fosso: ON→start, OFF→acumula ---
+  if (moega_fosso && !lastMoegaFosso && !moega_timing) {
+    moega_start = currentMillis; moega_timing = true;
+    Serial.println("  Moega/Fosso: ativou - iniciou contagem");
   }
-  if (!sensor_40_graus && lastSensor40Graus && sensor40_timing) {
-    currentDurations.sensor40 += currentMillis - sensor40_start;
-    sensor40_timing = false;
-    Serial.printf("  Sensor 40: %lu s\n", currentDurations.sensor40 / 1000);
+  if (!moega_fosso && lastMoegaFosso && moega_timing) {
+    currentDurations.moega += currentMillis - moega_start;
+    moega_timing = false;
+    Serial.printf("  Moega/Fosso: desativou - parou contagem: %lu s\n", currentDurations.moega / 1000);
   }
 
   // --- Trava Roda: ON→start, OFF→acumula ---
@@ -2019,8 +2439,8 @@ void loop() {
     platformState = 0; // PARADA
     allTravasWereOn = false;
     // Sensores que já estavam ativos: reiniciar seus timers
-    if (sensor0_timing) sensor0_start = currentMillis;
-    if (sensor40_timing) sensor40_start = currentMillis;
+    if (portao_timing) portao_start = currentMillis;
+    if (moega_timing) moega_start = currentMillis;
     if (travaRoda_timing) travaRoda_start = currentMillis;
     if (travaChassi_timing) travaChassi_start = currentMillis;
     if (travaPinoE_timing) travaPinoE_start = currentMillis;
@@ -2053,8 +2473,8 @@ void loop() {
 
   if (cycleInProgress && cycleEndCondition) {
     // Snapshot dos sensores ainda ativos (sem parar o timing)
-    if (sensor0_timing) currentDurations.sensor0 += currentMillis - sensor0_start;
-    if (sensor40_timing) currentDurations.sensor40 += currentMillis - sensor40_start;
+    if (portao_timing) currentDurations.portao += currentMillis - portao_start;
+    if (moega_timing) currentDurations.moega += currentMillis - moega_start;
     if (travaRoda_timing) currentDurations.travaRoda += currentMillis - travaRoda_start;
     if (travaChassi_timing) currentDurations.travaChassi += currentMillis - travaChassi_start;
     if (travaPinoE_timing) currentDurations.travaPinoE += currentMillis - travaPinoE_start;
@@ -2065,34 +2485,25 @@ void loop() {
 
     platformState = 3; // CICLO COMPLETO
     Serial.printf("CICLO COMPLETO! Tempo total: %lu s\n", currentDurations.cicloTotal / 1000);
-    Serial.printf("  Sensor 0: %lu s | Sensor 40: %lu s\n", currentDurations.sensor0 / 1000, currentDurations.sensor40 / 1000);
+    Serial.printf("  Portao: %lu s | Moega/Fosso: %lu s\n", currentDurations.portao / 1000, currentDurations.moega / 1000);
     Serial.printf("  Trava Roda: %lu s | Trava Chassi: %lu s\n", currentDurations.travaRoda / 1000, currentDurations.travaChassi / 1000);
     Serial.printf("  Trava Pino E: %lu s | Trava Pino D: %lu s\n", currentDurations.travaPinoE / 1000, currentDurations.travaPinoD / 1000);
 
-    // Sempre envia (se offline, sendToAPI auto-bufferiza no SPIFFS)
-    char msg[128];
-    snprintf(msg, sizeof(msg), "Ciclo completo em %lu seg", currentDurations.cicloTotal / 1000);
-    enviarEvento("INFO", msg, "ciclo_completo", true);
-    enviarDadosCiclo();
-
-    cycleInProgress = false;
-  }
-
-  // ====== CONTAGEM DE CICLOS (independente das etapas) ======
-  // Sensor 0° começa ON (repouso). Ciclo = OFF (saiu) → ON (voltou) = 1 ciclo.
-  // Conta quando sensor 0° volta a ficar ON (plataforma retornou ao repouso).
-  if (sensor_0_graus && !lastSensor0Graus && cycleInProgress) {
+    // Contagem de ciclos (dentro do bloco de fim para garantir cycleInProgress ainda é true)
     stats.ciclosHoje++;
     stats.ciclosTotal++;
     preferences.begin("pilitech", false);
     preferences.putULong("ciclosTotal", stats.ciclosTotal);
     preferences.end();
-    Serial.printf("✓ CICLO CONTADO (sensor 0° voltou ON)! Hoje: %lu | Total: %lu\n", stats.ciclosHoje, stats.ciclosTotal);
-    if (WiFi.status() == WL_CONNECTED) {
-      char msg[128];
-      snprintf(msg, sizeof(msg), "Ciclo contado - Hoje: %lu | Total: %lu", stats.ciclosHoje, stats.ciclosTotal);
-      enviarEvento("INFO", msg, "ciclo_contado", true);
-    }
+    Serial.printf("✓ CICLO CONTADO! Hoje: %lu | Total: %lu\n", stats.ciclosHoje, stats.ciclosTotal);
+
+    // Sempre envia (se offline, sendToAPI auto-bufferiza no SPIFFS)
+    char msg[128];
+    snprintf(msg, sizeof(msg), "Ciclo completo em %lu seg - Hoje: %lu | Total: %lu", currentDurations.cicloTotal / 1000, stats.ciclosHoje, stats.ciclosTotal);
+    enviarEvento("INFO", msg, "ciclo_completo", true);
+    enviarDadosCiclo();
+
+    cycleInProgress = false;
   }
 
   // Atualizar estados anteriores
@@ -2263,14 +2674,14 @@ void loop() {
       unsigned long now = millis();
       JsonObject currCycle = liveDoc.createNestedObject("current_cycle");
       currCycle["elapsed"] = cycleInProgress ? (now - cycleStartTime) / 1000 : 0;
-      currCycle["sensor0"] = (currentDurations.sensor0 + (sensor0_timing ? now - sensor0_start : 0)) / 1000;
-      currCycle["sensor40"] = (currentDurations.sensor40 + (sensor40_timing ? now - sensor40_start : 0)) / 1000;
+      currCycle["portao"] = (currentDurations.portao + (portao_timing ? now - portao_start : 0)) / 1000;
+      currCycle["moega"] = (currentDurations.moega + (moega_timing ? now - moega_start : 0)) / 1000;
       currCycle["trava_roda"] = (currentDurations.travaRoda + (travaRoda_timing ? now - travaRoda_start : 0)) / 1000;
       currCycle["trava_chassi"] = (currentDurations.travaChassi + (travaChassi_timing ? now - travaChassi_start : 0)) / 1000;
       currCycle["trava_pino_e"] = (currentDurations.travaPinoE + (travaPinoE_timing ? now - travaPinoE_start : 0)) / 1000;
       currCycle["trava_pino_d"] = (currentDurations.travaPinoD + (travaPinoD_timing ? now - travaPinoD_start : 0)) / 1000;
-      currCycle["s0on"] = sensor0_timing;
-      currCycle["s40on"] = sensor40_timing;
+      currCycle["pt_on"] = portao_timing;
+      currCycle["mg_on"] = moega_timing;
       currCycle["tr_on"] = travaRoda_timing;
       currCycle["tc_on"] = travaChassi_timing;
       currCycle["tpe_on"] = travaPinoE_timing;
@@ -2280,8 +2691,8 @@ void loop() {
     // Último ciclo completo
     if (lastCompleteDurations.cicloTotal > 0) {
       JsonObject lastCycle = liveDoc.createNestedObject("last_cycle");
-      lastCycle["sensor0"] = lastCompleteDurations.sensor0 / 1000;
-      lastCycle["sensor40"] = lastCompleteDurations.sensor40 / 1000;
+      lastCycle["portao"] = lastCompleteDurations.portao / 1000;
+      lastCycle["moega"] = lastCompleteDurations.moega / 1000;
       lastCycle["trava_roda"] = lastCompleteDurations.travaRoda / 1000;
       lastCycle["trava_chassi"] = lastCompleteDurations.travaChassi / 1000;
       lastCycle["trava_pino_e"] = lastCompleteDurations.travaPinoE / 1000;

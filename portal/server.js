@@ -2349,6 +2349,113 @@ app.get('/api/productivity/:serialNumber', authenticateToken, checkSubscription,
   }
 });
 
+// ============ COMPARAÇÃO DE DISPOSITIVOS ============
+
+// Comparar múltiplos dispositivos
+app.get('/api/compare', authenticateToken, checkSubscription, async (req, res) => {
+  try {
+    if (!req.subscriptionStatus.canViewTelemetry) {
+      return res.json({ blocked: true, message: req.subscriptionStatus.message });
+    }
+
+    const serials = (req.query.devices || '').split(',').filter(Boolean);
+    if (serials.length < 2 || serials.length > 5) {
+      return res.status(400).json({ error: 'Selecione entre 2 e 5 dispositivos' });
+    }
+
+    const days = parseInt(req.query.days) || 7;
+    const results = [];
+
+    for (const serial of serials) {
+      const devResult = await pool.query('SELECT id, name FROM devices WHERE serial_number = $1', [serial]);
+      if (devResult.rows.length === 0) continue;
+      const deviceId = devResult.rows[0].id;
+      const deviceName = devResult.rows[0].name || serial;
+
+      // KPIs gerais
+      const statsResult = await pool.query(`
+        SELECT
+          COUNT(*) as total_ciclos,
+          COALESCE(AVG(tempo_total), 0) as tempo_medio,
+          COALESCE(AVG(eficiencia::numeric), 0) as eficiencia_media,
+          COALESCE(MIN(tempo_total), 0) as melhor_ciclo,
+          COALESCE(MAX(tempo_total), 0) as pior_ciclo
+        FROM cycle_data
+        WHERE device_id = $1 AND created_at >= NOW() - INTERVAL '${days} days'
+      `, [deviceId]);
+
+      // Ciclos hoje
+      const hojeResult = await pool.query(`
+        SELECT COUNT(*) as ciclos_hoje
+        FROM cycle_data
+        WHERE device_id = $1 AND DATE(created_at) = CURRENT_DATE
+      `, [deviceId]);
+
+      // Ciclos por dia
+      const dailyResult = await pool.query(`
+        SELECT DATE(created_at) as dia, COUNT(*) as ciclos, AVG(tempo_total) as tempo_medio
+        FROM cycle_data
+        WHERE device_id = $1 AND created_at >= NOW() - INTERVAL '${days} days'
+        GROUP BY DATE(created_at) ORDER BY dia ASC
+      `, [deviceId]);
+
+      // Tempo médio por sensor
+      const sensorResult = await pool.query(`
+        SELECT
+          COALESCE(AVG(COALESCE(sensor0, 0)), 0) as portao,
+          COALESCE(AVG(COALESCE(sensor40, 0)), 0) as moega,
+          COALESCE(AVG(COALESCE(trava_roda, 0)), 0) as trava_roda,
+          COALESCE(AVG(COALESCE(trava_chassi, 0)), 0) as trava_chassi,
+          COALESCE(AVG(COALESCE(trava_pino_e, 0)), 0) as trava_pino_e,
+          COALESCE(AVG(COALESCE(trava_pino_d, 0)), 0) as trava_pino_d
+        FROM cycle_data
+        WHERE device_id = $1 AND created_at >= NOW() - INTERVAL '${days} days'
+      `, [deviceId]);
+
+      // Última leitura (online status)
+      const lastReading = await pool.query(`
+        SELECT ciclos_hoje, ciclos_total, horas_operacao, last_seen,
+          CASE WHEN last_seen > CURRENT_TIMESTAMP - INTERVAL '5 minutes' THEN 'online'
+               WHEN last_seen > CURRENT_TIMESTAMP - INTERVAL '10 minutes' THEN 'idle'
+               ELSE 'offline' END as status
+        FROM (
+          SELECT sr.ciclos_hoje, sr.ciclos_total, sr.horas_operacao, d.last_seen
+          FROM sensor_readings sr
+          JOIN devices d ON sr.device_id = d.id
+          WHERE d.serial_number = $1
+          ORDER BY sr.timestamp DESC LIMIT 1
+        ) sub
+      `, [serial]);
+
+      const stats = statsResult.rows[0];
+      const TEMPO_PADRAO = 1200;
+      const tempoMedio = parseFloat(stats.tempo_medio) || TEMPO_PADRAO;
+
+      results.push({
+        serial_number: serial,
+        name: deviceName,
+        status: lastReading.rows[0]?.status || 'offline',
+        ciclos_hoje: parseInt(hojeResult.rows[0].ciclos_hoje) || 0,
+        ciclos_total: parseInt(lastReading.rows[0]?.ciclos_total) || parseInt(stats.total_ciclos) || 0,
+        horas_operacao: parseInt(lastReading.rows[0]?.horas_operacao) || 0,
+        total_ciclos_periodo: parseInt(stats.total_ciclos) || 0,
+        tempo_medio: Math.round(tempoMedio),
+        eficiencia_media: parseFloat(stats.eficiencia_media).toFixed(1),
+        produtividade: ((TEMPO_PADRAO / tempoMedio) * 100).toFixed(1),
+        melhor_ciclo: parseInt(stats.melhor_ciclo) || 0,
+        pior_ciclo: parseInt(stats.pior_ciclo) || 0,
+        ciclos_diarios: dailyResult.rows,
+        sensores: sensorResult.rows[0] || {}
+      });
+    }
+
+    res.json({ devices: results, days });
+  } catch (err) {
+    console.error('Erro na comparação:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ============ FUNÇÕES AUXILIARES ============
 
 // Gerar código PIX EMV
