@@ -41,15 +41,15 @@
             <p class="text-xs text-gray-500">Portal do Cliente</p>
           </div>
         </div>
-        <div class="flex items-center gap-4">
+        <div class="flex items-center gap-2 sm:gap-4">
           <!-- Botão Assinar (visível quando não tem assinatura) -->
-          <a href="/checkout.html" id="btnAssinar" class="hidden flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-yellow-500 to-orange-500 text-white rounded-lg font-bold text-sm hover:from-yellow-600 hover:to-orange-600 shadow-lg animate-pulse">
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <a href="/checkout.html" id="btnAssinar" class="hidden items-center gap-1 sm:gap-2 px-2 sm:px-4 py-1.5 sm:py-2 bg-gradient-to-r from-yellow-500 to-orange-500 text-white rounded-lg font-bold text-xs sm:text-sm hover:from-yellow-600 hover:to-orange-600 shadow-lg animate-pulse">
+            <svg class="w-4 h-4 hidden sm:block" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"/>
             </svg>
-            Assinar Agora
+            Assinar
           </a>
-          <div class="text-right">
+          <div class="text-right hidden sm:block">
             <p class="text-sm font-medium text-gray-800" id="userName">Cliente</p>
             <p class="text-xs text-gray-500" id="lastUpdate">Atualizando...</p>
           </div>
@@ -76,13 +76,18 @@
   <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
 
     <!-- Welcome Section -->
-    <div class="bg-gradient-to-r from-pili-red to-pili-darkred rounded-2xl p-8 text-white mb-8">
-      <h2 class="text-2xl font-bold mb-2">Bem-vindo ao Portal PILI TECH</h2>
-      <p class="text-white/80">Acompanhe em tempo real o status dos seus equipamentos</p>
+    <div class="bg-gradient-to-r from-pili-red to-pili-darkred rounded-2xl p-4 sm:p-8 text-white mb-6 sm:mb-8">
+      <h2 class="text-lg sm:text-2xl font-bold mb-1 sm:mb-2">Bem-vindo ao Portal PILI TECH</h2>
+      <p class="text-white/80 text-sm sm:text-base">Acompanhe em tempo real o status dos seus equipamentos</p>
+      <!-- Mobile user info -->
+      <div class="flex items-center justify-between mt-3 sm:hidden">
+        <p class="text-sm text-white/80" id="userNameMobile">Cliente</p>
+        <p class="text-xs text-white/60" id="lastUpdateMobile">Atualizando...</p>
+      </div>
     </div>
 
     <!-- Stats Cards -->
-    <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+    <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-6 mb-6 sm:mb-8">
       <div class="bg-white rounded-xl shadow-sm p-6">
         <div class="flex items-center gap-4">
           <div class="w-14 h-14 bg-blue-100 rounded-xl flex items-center justify-center">
@@ -125,21 +130,22 @@
     </div>
 
     <!-- Devices Section -->
-    <div class="bg-white rounded-xl shadow-sm p-6 mb-8">
-      <div class="flex items-center justify-between mb-6">
-        <h3 class="text-xl font-bold text-gray-800">Meus Dispositivos</h3>
-        <div class="flex items-center gap-3">
-          <button onclick="toggleViewAll()" id="btnViewAll" class="flex items-center gap-2 px-4 py-2 bg-pili-red text-white hover:bg-pili-darkred rounded-lg text-sm font-medium">
+    <div class="bg-white rounded-xl shadow-sm p-4 sm:p-6 mb-6 sm:mb-8">
+      <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mb-4 sm:mb-6">
+        <h3 class="text-lg sm:text-xl font-bold text-gray-800">Meus Dispositivos</h3>
+        <div class="flex items-center gap-2 sm:gap-3 w-full sm:w-auto">
+          <button onclick="toggleViewAll()" id="btnViewAll" class="flex-1 sm:flex-none flex items-center justify-center gap-2 px-3 sm:px-4 py-2 bg-pili-red text-white hover:bg-pili-darkred rounded-lg text-xs sm:text-sm font-medium">
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"/>
             </svg>
-            Ver Todos na Tela
+            <span class="hidden sm:inline">Ver Todos na Tela</span>
+            <span class="sm:hidden">Ver Todos</span>
           </button>
-          <button onclick="refreshData()" class="flex items-center gap-2 px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg text-sm font-medium text-gray-600">
+          <button onclick="refreshData()" class="flex items-center justify-center gap-2 px-3 sm:px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg text-xs sm:text-sm font-medium text-gray-600">
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
             </svg>
-            Atualizar
+            <span class="hidden sm:inline">Atualizar</span>
           </button>
         </div>
       </div>
@@ -149,22 +155,22 @@
     </div>
 
     <!-- PAINEL TODOS OS IOTs (oculto por padrão) -->
-    <div id="allIoTsPanel" class="hidden bg-gray-900 rounded-xl shadow-2xl p-6 mb-8 relative">
-      <div class="flex items-center justify-between mb-6">
-        <div class="flex items-center gap-4">
-          <div class="w-12 h-12 bg-pili-red rounded-xl flex items-center justify-center">
-            <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <div id="allIoTsPanel" class="hidden bg-gray-900 rounded-xl shadow-2xl p-4 sm:p-6 mb-6 sm:mb-8 relative">
+      <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mb-4 sm:mb-6">
+        <div class="flex items-center gap-3 sm:gap-4">
+          <div class="w-10 h-10 sm:w-12 sm:h-12 bg-pili-red rounded-xl flex items-center justify-center flex-shrink-0">
+            <svg class="w-5 h-5 sm:w-6 sm:h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2z"/>
             </svg>
           </div>
           <div>
-            <h3 class="text-2xl font-bold text-white">MONITORAMENTO EM TEMPO REAL</h3>
-            <p class="text-gray-400" id="allIoTsSubtitle">Todos os dispositivos da empresa</p>
+            <h3 class="text-lg sm:text-2xl font-bold text-white">MONITORAMENTO EM TEMPO REAL</h3>
+            <p class="text-gray-400 text-xs sm:text-base" id="allIoTsSubtitle">Todos os dispositivos da empresa</p>
           </div>
         </div>
-        <div class="flex items-center gap-3">
-          <span class="text-gray-400 text-sm" id="allIoTsLastUpdate">Atualizando...</span>
-          <button onclick="toggleViewAll()" class="flex items-center gap-2 px-4 py-2 bg-white/10 text-white hover:bg-white/20 rounded-lg text-sm font-medium">
+        <div class="flex items-center gap-3 self-end sm:self-auto">
+          <span class="text-gray-400 text-xs sm:text-sm" id="allIoTsLastUpdate">Atualizando...</span>
+          <button onclick="toggleViewAll()" class="flex items-center gap-2 px-3 sm:px-4 py-2 bg-white/10 text-white hover:bg-white/20 rounded-lg text-xs sm:text-sm font-medium">
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
             </svg>
@@ -174,34 +180,34 @@
       </div>
 
       <!-- Grid de IoTs Compacto -->
-      <div id="allIoTsGrid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+      <div id="allIoTsGrid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4">
         <div class="text-center py-8 text-gray-500">Carregando...</div>
       </div>
     </div>
 
     <!-- Telemetria e Produtividade - DASHBOARD PROFISSIONAL -->
-    <div class="bg-white rounded-xl shadow-sm p-6 mb-8">
-      <div class="flex items-center justify-between mb-6">
+    <div class="bg-white rounded-xl shadow-sm p-4 sm:p-6 mb-6 sm:mb-8">
+      <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mb-4 sm:mb-6">
         <div>
-          <h3 class="text-xl font-bold text-gray-800">Dashboard de Produtividade</h3>
-          <p class="text-sm text-gray-500">Analise detalhada de desempenho e eficiencia</p>
+          <h3 class="text-lg sm:text-xl font-bold text-gray-800">Dashboard de Produtividade</h3>
+          <p class="text-xs sm:text-sm text-gray-500">Analise detalhada de desempenho e eficiencia</p>
         </div>
-        <select id="deviceSelector" onchange="loadTelemetry()" class="px-4 py-2 border-2 border-pili-red rounded-lg text-sm font-medium focus:ring-2 focus:ring-pili-red">
+        <select id="deviceSelector" onchange="loadTelemetry()" class="w-full sm:w-auto px-3 sm:px-4 py-2 border-2 border-pili-red rounded-lg text-sm font-medium focus:ring-2 focus:ring-pili-red">
           <option value="">Selecione um dispositivo</option>
         </select>
       </div>
 
       <!-- DASHBOARD PRINCIPAL - KPIs -->
-      <div class="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
+      <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4 mb-6">
         <!-- Gauge de Produtividade -->
-        <div class="col-span-2 md:col-span-1 bg-gradient-to-br from-gray-900 to-gray-800 rounded-2xl p-5 text-center shadow-lg">
-          <div class="relative w-28 h-28 mx-auto mb-2">
-            <svg viewBox="0 0 36 36" class="w-28 h-28 transform -rotate-90">
+        <div class="col-span-2 sm:col-span-1 bg-gradient-to-br from-gray-900 to-gray-800 rounded-2xl p-4 sm:p-5 text-center shadow-lg">
+          <div class="relative w-20 h-20 sm:w-28 sm:h-28 mx-auto mb-2">
+            <svg viewBox="0 0 36 36" class="w-20 h-20 sm:w-28 sm:h-28 transform -rotate-90">
               <path d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="#374151" stroke-width="3"/>
               <path id="gaugeProgress" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="#22c55e" stroke-width="3" stroke-dasharray="0, 100" stroke-linecap="round"/>
             </svg>
             <div class="absolute inset-0 flex items-center justify-center">
-              <span class="text-3xl font-black text-white" id="teleProdutividade">-</span>
+              <span class="text-xl sm:text-3xl font-black text-white" id="teleProdutividade">-</span>
             </div>
           </div>
           <div class="text-xs text-gray-400 font-medium uppercase tracking-wider">Produtividade</div>
@@ -214,7 +220,7 @@
             </svg>
             <span class="text-xs font-medium opacity-80">TEMPO MEDIO</span>
           </div>
-          <div class="text-3xl font-black" id="teleTempoCiclo">-</div>
+          <div class="text-xl sm:text-3xl font-black" id="teleTempoCiclo">-</div>
           <div class="text-xs opacity-70">por ciclo</div>
         </div>
 
@@ -225,7 +231,7 @@
             </svg>
             <span class="text-xs font-medium opacity-80">CICLOS HOJE</span>
           </div>
-          <div class="text-3xl font-black" id="teleCiclosHoje">-</div>
+          <div class="text-xl sm:text-3xl font-black" id="teleCiclosHoje">-</div>
           <div class="text-xs opacity-70" id="teleCiclosTendencia">carregando...</div>
         </div>
 
@@ -236,7 +242,7 @@
             </svg>
             <span class="text-xs font-medium opacity-80">CICLOS SEMANA</span>
           </div>
-          <div class="text-3xl font-black" id="teleCiclosSemana">-</div>
+          <div class="text-xl sm:text-3xl font-black" id="teleCiclosSemana">-</div>
           <div class="text-xs opacity-70">ultimos 7 dias</div>
         </div>
 
@@ -247,7 +253,7 @@
             </svg>
             <span class="text-xs font-medium opacity-80">EFICIENCIA</span>
           </div>
-          <div class="text-3xl font-black" id="teleEficiencia">-</div>
+          <div class="text-xl sm:text-3xl font-black" id="teleEficiencia">-</div>
           <div class="text-xs opacity-70">vs meta 20min</div>
         </div>
       </div>
@@ -280,7 +286,7 @@
       </div>
 
       <!-- GRAFICOS SECUNDARIOS -->
-      <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 mb-6">
         <!-- Grafico de Rosca - Distribuicao por Sensor -->
         <div class="bg-gradient-to-br from-gray-50 to-white border-2 border-gray-100 rounded-2xl p-5 shadow-sm">
           <h4 class="font-bold text-gray-800 mb-2">Tempo por Sensor</h4>
@@ -334,10 +340,10 @@
       </div>
 
       <!-- Timeline dos 6 Sensores -->
-      <div class="border rounded-lg p-4 mb-6">
-        <h4 class="font-semibold text-gray-700 mb-4">Tempo ON por Sensor - Ultimo Ciclo</h4>
-        <p class="text-xs text-gray-500 mb-4">Duracao ativa de cada sensor no ultimo ciclo registrado</p>
-        <div class="grid grid-cols-6 gap-2 mb-2" id="timelineEtapas">
+      <div class="border rounded-lg p-3 sm:p-4 mb-6">
+        <h4 class="font-semibold text-gray-700 mb-2 sm:mb-4 text-sm sm:text-base">Tempo ON por Sensor - Ultimo Ciclo</h4>
+        <p class="text-xs text-gray-500 mb-3 sm:mb-4">Duracao ativa de cada sensor no ultimo ciclo registrado</p>
+        <div class="grid grid-cols-3 sm:grid-cols-6 gap-2 mb-2" id="timelineEtapas">
           <div class="bg-gray-200 rounded p-2 text-center"><div class="text-xs font-bold text-gray-600">-</div><div class="text-[8px] text-gray-400">Portão</div></div>
           <div class="bg-gray-200 rounded p-2 text-center"><div class="text-xs font-bold text-gray-600">-</div><div class="text-[8px] text-gray-400">Moega/Fosso</div></div>
           <div class="bg-gray-200 rounded p-2 text-center"><div class="text-xs font-bold text-gray-600">-</div><div class="text-[8px] text-gray-400">Trava Roda</div></div>
@@ -364,19 +370,19 @@
     </div>
 
     <!-- ========== COMPARAÇÃO DE TOMBADORES ========== -->
-    <div class="bg-white rounded-xl shadow-sm p-6 mb-8" id="compareSection">
-      <div class="flex items-center justify-between mb-6">
+    <div class="bg-white rounded-xl shadow-sm p-4 sm:p-6 mb-6 sm:mb-8" id="compareSection">
+      <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mb-4 sm:mb-6">
         <div>
-          <h3 class="text-xl font-bold text-gray-800">Comparar Tombadores</h3>
-          <p class="text-sm text-gray-500">Selecione 2 a 5 dispositivos para comparar lado a lado</p>
+          <h3 class="text-lg sm:text-xl font-bold text-gray-800">Comparar Tombadores</h3>
+          <p class="text-xs sm:text-sm text-gray-500">Selecione 2 a 5 dispositivos para comparar lado a lado</p>
         </div>
-        <div class="flex items-center gap-3">
-          <select id="comparePeriod" class="px-3 py-2 border rounded-lg text-sm">
-            <option value="7">Ultimos 7 dias</option>
-            <option value="14">Ultimos 14 dias</option>
-            <option value="30">Ultimos 30 dias</option>
+        <div class="flex items-center gap-2 sm:gap-3 w-full sm:w-auto">
+          <select id="comparePeriod" class="flex-1 sm:flex-none px-3 py-2 border rounded-lg text-sm">
+            <option value="7">7 dias</option>
+            <option value="14">14 dias</option>
+            <option value="30">30 dias</option>
           </select>
-          <button onclick="runComparison()" class="flex items-center gap-2 px-5 py-2 bg-pili-red text-white hover:bg-pili-darkred rounded-lg text-sm font-bold transition-colors">
+          <button onclick="runComparison()" class="flex items-center gap-2 px-4 sm:px-5 py-2 bg-pili-red text-white hover:bg-pili-darkred rounded-lg text-sm font-bold transition-colors">
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
             </svg>
@@ -386,7 +392,7 @@
       </div>
 
       <!-- Seletor de dispositivos com checkboxes -->
-      <div id="compareDeviceSelector" class="flex flex-wrap gap-3 mb-6 p-4 bg-gray-50 rounded-xl">
+      <div id="compareDeviceSelector" class="flex flex-wrap gap-2 sm:gap-3 mb-4 sm:mb-6 p-3 sm:p-4 bg-gray-50 rounded-xl">
         <p class="text-sm text-gray-400 w-full">Carregando dispositivos...</p>
       </div>
 
@@ -394,7 +400,7 @@
       <div id="compareResult" class="hidden">
 
         <!-- KPIs lado a lado -->
-        <div id="compareKPIs" class="grid gap-4 mb-6"></div>
+        <div id="compareKPIs" class="grid gap-3 sm:gap-4 mb-6"></div>
 
         <!-- Gráficos de comparação -->
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
@@ -430,8 +436,8 @@
         </div>
 
         <!-- Tabela Comparativa -->
-        <div class="overflow-x-auto">
-          <table class="w-full text-sm">
+        <div class="overflow-x-auto -mx-4 sm:mx-0">
+          <table class="w-full text-xs sm:text-sm min-w-[500px]">
             <thead id="compareTableHead" class="bg-gray-900 text-white"></thead>
             <tbody id="compareTableBody" class="divide-y divide-gray-200"></tbody>
           </table>
@@ -440,10 +446,10 @@
     </div>
 
     <!-- Historico de Ciclos -->
-    <div class="bg-white rounded-xl shadow-sm p-6 mb-8">
-      <h3 class="text-xl font-bold text-gray-800 mb-6">Historico de Ciclos</h3>
-      <div class="overflow-x-auto">
-        <table class="w-full text-sm">
+    <div class="bg-white rounded-xl shadow-sm p-4 sm:p-6 mb-6 sm:mb-8">
+      <h3 class="text-lg sm:text-xl font-bold text-gray-800 mb-4 sm:mb-6">Historico de Ciclos</h3>
+      <div class="overflow-x-auto -mx-4 sm:mx-0">
+        <table class="w-full text-xs sm:text-sm min-w-[500px]">
           <thead class="bg-gray-50">
             <tr>
               <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Data/Hora</th>
@@ -461,8 +467,8 @@
     </div>
 
     <!-- Alertas Recentes -->
-    <div class="bg-white rounded-xl shadow-sm p-6">
-      <h3 class="text-xl font-bold text-gray-800 mb-6">Alertas Recentes</h3>
+    <div class="bg-white rounded-xl shadow-sm p-4 sm:p-6">
+      <h3 class="text-lg sm:text-xl font-bold text-gray-800 mb-4 sm:mb-6">Alertas Recentes</h3>
       <div id="alertsList" class="space-y-3">
         <div class="text-center py-8 text-gray-500">Carregando...</div>
       </div>
@@ -471,14 +477,14 @@
   </main>
 
   <!-- Footer -->
-  <footer class="bg-white border-t mt-8">
-    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-      <div class="flex flex-col md:flex-row items-center justify-between gap-4">
-        <p class="text-sm text-gray-500">PILI Equipamentos - Erechim/RS - Brasil</p>
-        <div class="flex items-center gap-6 text-sm text-gray-500">
+  <footer class="bg-white border-t mt-6 sm:mt-8">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6">
+      <div class="flex flex-col items-center gap-2 sm:gap-4 text-center">
+        <p class="text-xs sm:text-sm text-gray-500">PILI Equipamentos - Erechim/RS - Brasil</p>
+        <div class="flex flex-col sm:flex-row items-center gap-1 sm:gap-6 text-xs sm:text-sm text-gray-500">
           <span>Tel: (54) 3522-2828</span>
-          <span>Comercial: comercial1@pili.com.br</span>
-          <span>Tecnico: engenharia@pili.com.br</span>
+          <span>comercial1@pili.com.br</span>
+          <span>engenharia@pili.com.br</span>
         </div>
       </div>
     </div>
@@ -596,6 +602,8 @@
 
     // Set user name
     document.getElementById('userName').textContent = user.name || user.nome || 'Cliente';
+    const mobileUserName = document.getElementById('userNameMobile');
+    if (mobileUserName) mobileUserName.textContent = user.name || user.nome || 'Cliente';
 
     // Welcome modal functions
     function showWelcomeModal() {
@@ -1076,6 +1084,8 @@
         loadAlerts()
       ]);
       document.getElementById('lastUpdate').textContent = 'Atualizado: ' + new Date().toLocaleTimeString('pt-BR');
+      const mobileUpdate = document.getElementById('lastUpdateMobile');
+      if (mobileUpdate) mobileUpdate.textContent = new Date().toLocaleTimeString('pt-BR');
     }
 
     // Initial load
@@ -2008,7 +2018,10 @@
     // KPIs lado a lado
     function renderCompareKPIs(devices) {
       const grid = document.getElementById('compareKPIs');
-      grid.style.gridTemplateColumns = `repeat(${devices.length}, 1fr)`;
+      // Responsive: 1 col mobile, 2 tablet, N desktop
+      const cols = devices.length;
+      grid.style.gridTemplateColumns = '';
+      grid.className = `grid gap-3 sm:gap-4 mb-6 grid-cols-1 sm:grid-cols-2 lg:grid-cols-${Math.min(cols, 5)}`;
 
       grid.innerHTML = devices.map((d, i) => {
         const color = COMPARE_COLORS[i];
