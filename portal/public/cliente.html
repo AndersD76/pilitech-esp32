@@ -1006,17 +1006,21 @@
         const liveData = await api('/api/live-status');
         if (!liveData) return;
 
+        // Se nenhum ESP32 mandando live-status, não fazer nada (evita overlays falsos)
+        if (Object.keys(liveData).length === 0) return;
+
         // Atualizar cards dos dispositivos com dados em tempo real
         Object.keys(liveData).forEach(serial => {
           const d = liveData[serial];
           const card = document.querySelector(`[data-serial="${serial}"]`);
           if (!card) return;
 
-          // Se sistema foi ativado mas card ainda mostra AGUARDANDO ATIVACAO, re-renderizar
+          // Se sistema foi ativado mas card ainda mostra AGUARDANDO ATIVACAO, esconder
           const activationEl = card.querySelector('.live-activation');
           if (d.sistema_ativo === true && activationEl) {
-            refreshData();
-            return;
+            activationEl.style.display = 'none';
+            const lc = card.querySelector('.live-content');
+            if (lc) lc.style.display = 'block';
           }
 
           // Atualizar sensores
@@ -1209,8 +1213,9 @@
           knownLiveDevices.add(serial);
           const oldOverlay = card.querySelector('.live-offline-overlay');
           if (oldOverlay) oldOverlay.remove();
-          // Se card tinha tela offline estática (do refreshData), re-renderizar
-          if (card.querySelector('.offline-screen')) refreshData();
+          // Se card tinha tela offline estática, remover
+          const offScreen = card.querySelector('.offline-screen');
+          if (offScreen) offScreen.remove();
         });
 
         // Detectar dispositivos que saíram do ar em tempo real
