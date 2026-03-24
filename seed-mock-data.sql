@@ -113,57 +113,71 @@ FROM devices d,
   generate_series(CURRENT_TIMESTAMP - INTERVAL '4 hours', CURRENT_TIMESTAMP, INTERVAL '5 minutes') AS ts
 WHERE d.serial_number = 'MOCK-TOMB-003';
 
--- 7. Inserir cycle_data (dados de ciclo com tempos por sensor)
--- Tombador #1 - 15 ciclos recentes
-INSERT INTO cycle_data (device_id, ciclo_numero, tempo_total, sensor0, sensor40, trava_roda, trava_chassi, trava_pino_e, trava_pino_d, tempo_padrao, eficiencia, created_at)
-SELECT d.id,
-  n,
-  800 + (random() * 400)::int,                     -- tempo total 800-1200s
-  120 + (random() * 60)::int,                       -- sensor0
-  200 + (random() * 100)::int,                      -- sensor40
-  80 + (random() * 40)::int,                        -- trava roda
-  90 + (random() * 50)::int,                        -- trava chassi
-  70 + (random() * 30)::int,                        -- trava pino E
-  75 + (random() * 35)::int,                        -- trava pino D
-  1200,
-  65 + (random() * 30)::numeric(5,2),               -- eficiência 65-95%
-  CURRENT_TIMESTAMP - (INTERVAL '1 hour' * (15 - n))
-FROM devices d, generate_series(1, 15) AS n
-WHERE d.serial_number = 'MOCK-TOMB-001';
+-- 7. Inserir cycle_data - 30 DIAS de histórico (exceto domingos)
+-- sensor0 = portão, sensor40 = moega/fosso
 
--- Tombador #2 - 10 ciclos recentes
+-- Tombador #1 - Alta produção (8-12 ciclos/dia)
 INSERT INTO cycle_data (device_id, ciclo_numero, tempo_total, sensor0, sensor40, trava_roda, trava_chassi, trava_pino_e, trava_pino_d, tempo_padrao, eficiencia, created_at)
 SELECT d.id,
-  n,
-  900 + (random() * 300)::int,
-  130 + (random() * 50)::int,
-  220 + (random() * 80)::int,
-  85 + (random() * 35)::int,
-  95 + (random() * 45)::int,
-  75 + (random() * 25)::int,
-  80 + (random() * 30)::int,
+  row_number() OVER () as ciclo,
+  800 + (random() * 400)::int as tt,
+  60 + (random() * 80)::int,     -- portão 60-140s
+  100 + (random() * 120)::int,   -- moega 100-220s
+  40 + (random() * 60)::int,     -- trava roda
+  50 + (random() * 70)::int,     -- trava chassi
+  30 + (random() * 50)::int,     -- trava pino E
+  35 + (random() * 55)::int,     -- trava pino D
   1200,
-  60 + (random() * 35)::numeric(5,2),
-  CURRENT_TIMESTAMP - (INTERVAL '1 hour' * (10 - n))
-FROM devices d, generate_series(1, 10) AS n
-WHERE d.serial_number = 'MOCK-TOMB-002';
+  LEAST(99, GREATEST(55, (1200.0 / (800 + (random() * 400)::int) * 100)))::numeric(5,2),
+  dia + (INTERVAL '1 hour' * (7 + (random() * 11)::int)) + (INTERVAL '1 minute' * (random() * 59)::int)
+FROM devices d,
+  generate_series(CURRENT_TIMESTAMP - INTERVAL '30 days', CURRENT_TIMESTAMP - INTERVAL '1 day', INTERVAL '1 day') AS dia,
+  generate_series(1, 10) AS ciclo_idx
+WHERE d.serial_number = 'MOCK-TOMB-001'
+  AND EXTRACT(DOW FROM dia) != 0  -- excluir domingos
+  AND ciclo_idx <= 8 + (random() * 4)::int;
 
--- Tombador #3 - 20 ciclos recentes (mais produtivo)
+-- Tombador #2 - Produção média (5-9 ciclos/dia)
 INSERT INTO cycle_data (device_id, ciclo_numero, tempo_total, sensor0, sensor40, trava_roda, trava_chassi, trava_pino_e, trava_pino_d, tempo_padrao, eficiencia, created_at)
 SELECT d.id,
-  n,
+  row_number() OVER () as ciclo,
+  900 + (random() * 350)::int,
+  70 + (random() * 70)::int,
+  110 + (random() * 100)::int,
+  45 + (random() * 55)::int,
+  55 + (random() * 65)::int,
+  35 + (random() * 45)::int,
+  40 + (random() * 50)::int,
+  1200,
+  LEAST(99, GREATEST(55, (1200.0 / (900 + (random() * 350)::int) * 100)))::numeric(5,2),
+  dia + (INTERVAL '1 hour' * (7 + (random() * 11)::int)) + (INTERVAL '1 minute' * (random() * 59)::int)
+FROM devices d,
+  generate_series(CURRENT_TIMESTAMP - INTERVAL '30 days', CURRENT_TIMESTAMP - INTERVAL '1 day', INTERVAL '1 day') AS dia,
+  generate_series(1, 9) AS ciclo_idx
+WHERE d.serial_number = 'MOCK-TOMB-002'
+  AND EXTRACT(DOW FROM dia) != 0
+  AND ciclo_idx <= 5 + (random() * 4)::int;
+
+-- Tombador #3 - Campeão (10-16 ciclos/dia, ciclos mais rápidos)
+INSERT INTO cycle_data (device_id, ciclo_numero, tempo_total, sensor0, sensor40, trava_roda, trava_chassi, trava_pino_e, trava_pino_d, tempo_padrao, eficiencia, created_at)
+SELECT d.id,
+  row_number() OVER () as ciclo,
   700 + (random() * 350)::int,
-  100 + (random() * 55)::int,
-  180 + (random() * 90)::int,
-  70 + (random() * 45)::int,
-  80 + (random() * 55)::int,
-  60 + (random() * 35)::int,
-  65 + (random() * 40)::int,
+  50 + (random() * 75)::int,
+  90 + (random() * 110)::int,
+  35 + (random() * 55)::int,
+  45 + (random() * 60)::int,
+  25 + (random() * 45)::int,
+  30 + (random() * 50)::int,
   1200,
-  70 + (random() * 28)::numeric(5,2),
-  CURRENT_TIMESTAMP - (INTERVAL '45 minutes' * (20 - n))
-FROM devices d, generate_series(1, 20) AS n
-WHERE d.serial_number = 'MOCK-TOMB-003';
+  LEAST(99, GREATEST(55, (1200.0 / (700 + (random() * 350)::int) * 100)))::numeric(5,2),
+  dia + (INTERVAL '1 hour' * (7 + (random() * 11)::int)) + (INTERVAL '1 minute' * (random() * 59)::int)
+FROM devices d,
+  generate_series(CURRENT_TIMESTAMP - INTERVAL '30 days', CURRENT_TIMESTAMP - INTERVAL '1 day', INTERVAL '1 day') AS dia,
+  generate_series(1, 16) AS ciclo_idx
+WHERE d.serial_number = 'MOCK-TOMB-003'
+  AND EXTRACT(DOW FROM dia) != 0
+  AND ciclo_idx <= 10 + (random() * 6)::int;
 
 -- 8. Inserir alguns alertas recentes
 INSERT INTO event_logs (device_id, timestamp, event_type, message, sensor_name, sensor_value)
