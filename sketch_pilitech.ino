@@ -39,6 +39,17 @@ WebSocketsServer webSocket(81);
 Preferences preferences;
 HTTPClient http;
 
+// Timeout HTTP em milissegundos (evita bloquear o loop por 30s+)
+#define HTTP_TIMEOUT_MS 5000
+
+// Debounce dos sensores (contatos mecânicos bounciam)
+#define DEBOUNCE_MS 50
+unsigned long sensorLastChange[8] = {0,0,0,0,0,0,0,0};
+bool sensorStable[8] = {false,false,false,false,false,false,false,false};
+
+// Buffer reutilizável para paths SPIFFS (evita String temporárias)
+char pathBuf[48];
+
 bool lastWiFiConnected = false;  // Rastreia mudança de estado WiFi
 
 // Rastrear estado anterior para detectar alertas
@@ -1449,6 +1460,23 @@ void syncAllDO() {
 }
 
 
+// Debounce: só aceita mudança se estado permaneceu estável por DEBOUNCE_MS
+bool debounceRead(int pin, int index) {
+  bool raw = !digitalRead(pin);  // ATIVAS-BAIXO
+  unsigned long now = millis();
+  if (raw != sensorStable[index]) {
+    if (sensorLastChange[index] == 0) {
+      sensorLastChange[index] = now;
+    } else if (now - sensorLastChange[index] >= DEBOUNCE_MS) {
+      sensorStable[index] = raw;
+      sensorLastChange[index] = 0;
+    }
+  } else {
+    sensorLastChange[index] = 0;
+  }
+  return sensorStable[index];
+}
+
 void readSensors() {
   if (simulationMode) {
     // Modo simulação: usa valores enviados pelo tablet simulador
@@ -1463,37 +1491,23 @@ void readSensors() {
     return;
   }
 
-  // Entradas são ATIVAS-BAIXO: LOW = ativo, HIGH = inativo
-  sensor_0_graus  = !digitalRead(SENSOR_0_GRAUS);
-  sensor_40_graus = !digitalRead(SENSOR_40_GRAUS);
-  trava_roda      = !digitalRead(SENSOR_TRAVA_RODA);
-  trava_chassi    = !digitalRead(SENSOR_TRAVA_CHASSI);
-  trava_pino_e    = !digitalRead(SENSOR_TRAVA_PINO_E);
-  trava_pino_d    = !digitalRead(SENSOR_TRAVA_PINO_D);
-  moega_fosso     = !digitalRead(SENSOR_MOEGA_FOSSO);
-  portao_fechado  = !digitalRead(SENSOR_PORTAO);
+  // Leitura com debounce (evita bouncing de contatos mecânicos)
+  sensor_0_graus  = debounceRead(SENSOR_0_GRAUS, 0);
+  sensor_40_graus = debounceRead(SENSOR_40_GRAUS, 1);
+  trava_roda      = debounceRead(SENSOR_TRAVA_RODA, 2);
+  trava_chassi    = debounceRead(SENSOR_TRAVA_CHASSI, 3);
+  trava_pino_e    = debounceRead(SENSOR_TRAVA_PINO_E, 4);
+  trava_pino_d    = debounceRead(SENSOR_TRAVA_PINO_D, 5);
+  moega_fosso     = debounceRead(SENSOR_MOEGA_FOSSO, 6);
+  portao_fechado  = debounceRead(SENSOR_PORTAO, 7);
 
-  // DEBUG: mostrar valor bruto do GPIO e o valor lógico que o sistema usa
+  // DEBUG: resumo a cada 30s (reduzido para não bloquear UART)
   static unsigned long lastDebug = 0;
-  if (millis() - lastDebug >= 5000) {
+  if (millis() - lastDebug >= 30000) {
     lastDebug = millis();
-    Serial.println("DEBUG SENSORES (raw -> logico):");
-    Serial.printf("  GPIO4 (0°)        raw=%d  sensor_0_graus=%d\n",
-                  digitalRead(SENSOR_0_GRAUS), sensor_0_graus);
-    Serial.printf("  GPIO5 (40°)       raw=%d  sensor_40_graus=%d\n",
-                  digitalRead(SENSOR_40_GRAUS), sensor_40_graus);
-    Serial.printf("  GPIO6 (TRAVA RODA) raw=%d  trava_roda=%d\n",
-                  digitalRead(SENSOR_TRAVA_RODA), trava_roda);
-    Serial.printf("  GPIO7 (TRAVA CHASSI) raw=%d  trava_chassi=%d\n",
-                  digitalRead(SENSOR_TRAVA_CHASSI), trava_chassi);
-    Serial.printf("  GPIO8 (TRAVA PINO E) raw=%d  trava_pino_e=%d\n",
-                  digitalRead(SENSOR_TRAVA_PINO_E), trava_pino_e);
-    Serial.printf("  GPIO9 (TRAVA PINO D) raw=%d  trava_pino_d=%d\n",
-                  digitalRead(SENSOR_TRAVA_PINO_D), trava_pino_d);
-    Serial.printf("  GPIO10 (MOEGA/FOSSO) raw=%d  moega_fosso=%d\n",
-                  digitalRead(SENSOR_MOEGA_FOSSO), moega_fosso);
-    Serial.printf("  GPIO11 (PORTAO)   raw=%d  portao_fechado=%d\n\n",
-                  digitalRead(SENSOR_PORTAO), portao_fechado);
+    Serial.printf("SENS: 0=%d 40=%d TR=%d TC=%d PE=%d PD=%d MG=%d PT=%d\n",
+      sensor_0_graus, sensor_40_graus, trava_roda, trava_chassi,
+      trava_pino_e, trava_pino_d, moega_fosso, portao_fechado);
   }
 }
 
@@ -1620,33 +1634,40 @@ void onWebSocketEvent(uint8_t num, WStype_t type, uint8_t *payload, size_t lengt
             break;  // Não faz nada, sai do comando
           }
 
-          // Desconecta qualquer conexão anterior (se for diferente ou não conectado)
-          if (WiFi.status() == WL_CONNECTED) {
-            Serial.printf("Desconectando de: %s\n", WiFi.SSID().c_str());
+          // Desconecta STA sem derrubar o AP
+          WiFi.disconnect(false);  // false = não apagar credenciais do IDF
+          delay(200);
+
+          // Garante modo AP+STA (AP já ativo, não reinicia)
+          if (WiFi.getMode() != WIFI_AP_STA) {
+            WiFi.mode(WIFI_AP_STA);
+            delay(200);
           }
-          WiFi.disconnect();
-          delay(100);
 
-          // Garante modo AP+STA
-          WiFi.mode(WIFI_AP_STA);
-          delay(100);
-
-          // Inicia conexão
+          // Inicia conexão (não-bloqueante — resultado vem no loop via lastWiFiConnected)
           WiFi.begin(ssid.c_str(), pass.c_str());
 
-          // Aguarda conexão (máx 20 segundos)
+          // Salvar credenciais WiFi para auto-reconexão no boot
+          preferences.begin("pilitech", false);
+          preferences.putString("wifiSSID", ssid);
+          preferences.putString("wifiPass", pass);
+          preferences.end();
+
+          // Aguarda com yield (máx 15s, sem bloquear AP)
           int attempts = 0;
-          while (WiFi.status() != WL_CONNECTED && attempts < 40) {
-            delay(500);
-            Serial.print(".");
+          while (WiFi.status() != WL_CONNECTED && attempts < 30) {
+            delay(100);
+            server.handleClient();  // Mantém AP respondendo
+            webSocket.loop();       // Mantém WebSocket vivo
+            yield();
             attempts++;
 
-            // Envia status a cada 2 segundos
-            if (attempts % 4 == 0) {
+            // Envia status a cada 3 segundos
+            if (attempts % 30 == 0) {
               StaticJsonDocument<128> statusDoc;
               statusDoc["cmd"] = "WIFI_STATUS";
               statusDoc["status"] = "connecting";
-              statusDoc["attempt"] = attempts / 4;
+              statusDoc["attempt"] = attempts / 30;
               String statusJson;
               serializeJson(statusDoc, statusJson);
               webSocket.broadcastTXT(statusJson);
@@ -1654,43 +1675,22 @@ void onWebSocketEvent(uint8_t num, WStype_t type, uint8_t *payload, size_t lengt
           }
 
           if (WiFi.status() == WL_CONNECTED) {
-            Serial.println("\n✓ WiFi CONECTADO COM SUCESSO!");
-            Serial.printf("  SSID: %s\n", ssid.c_str());
-            Serial.printf("  IP Local: %s\n", WiFi.localIP().toString().c_str());
-            Serial.printf("  Gateway: %s\n", WiFi.gatewayIP().toString().c_str());
-            Serial.printf("  DNS: %s\n", WiFi.dnsIP().toString().c_str());
-            Serial.printf("  RSSI: %d dBm\n", WiFi.RSSI());
-            Serial.println("  ✓ Internet disponível - dados serão sincronizados com NeonDB");
+            Serial.printf("WiFi OK: %s IP:%s RSSI:%d\n",
+              ssid.c_str(), WiFi.localIP().toString().c_str(), WiFi.RSSI());
 
-            // Salvar credenciais WiFi para auto-reconexão no boot
-            preferences.begin("pilitech", false);
-            preferences.putString("wifiSSID", ssid);
-            preferences.putString("wifiPass", pass);
-            preferences.end();
-            Serial.println("  ✓ Credenciais WiFi salvas para reconexão automática");
-
-            // ENVIAR DADOS IMEDIATAMENTE ao conectar para aparecer como Online
-            Serial.println("📤 Enviando dados IMEDIATAMENTE para atualizar status Online...");
-            if (enviarLeituraSensores()) {
-              Serial.println("✓ Status ONLINE atualizado no banco!");
-              enviarEvento("INFO", "WiFi conectado via interface - Dispositivo online", "wifi", true);
-            }
-
-            // Envia confirmação com mensagem melhorada
+            // Envia confirmação
             StaticJsonDocument<256> successDoc;
             successDoc["cmd"] = "WIFI_STATUS";
             successDoc["status"] = "connected";
             successDoc["ip"] = WiFi.localIP().toString();
             successDoc["ssid"] = ssid;
-            successDoc["message"] = "Conectado com sucesso! Internet disponível.";
+            successDoc["message"] = "Conectado com sucesso!";
             String successJson;
             serializeJson(successDoc, successJson);
             webSocket.broadcastTXT(successJson);
           } else {
-            Serial.println("\n✗ FALHA ao conectar WiFi");
-            Serial.printf("Status: %d\n", WiFi.status());
+            Serial.printf("WiFi FALHA: status=%d\n", WiFi.status());
 
-            // Envia erro
             StaticJsonDocument<128> errorDoc;
             errorDoc["cmd"] = "WIFI_STATUS";
             errorDoc["status"] = "failed";
@@ -1875,29 +1875,31 @@ void onWebSocketEvent(uint8_t num, WStype_t type, uint8_t *payload, size_t lengt
 // Função para enviar dados para a API
 // Buffer universal: salva {endpoint, payload} no SPIFFS quando não consegue enviar
 // Live-status NUNCA é bufferizado (dados voláteis, sem valor histórico)
+// Helper: gera path do buffer slot no pathBuf global
+void bufPath(int i) {
+  snprintf(pathBuf, sizeof(pathBuf), "%s/buf_%d.json", BUFFER_DIR, i);
+}
+
 void bufferAPICall(const char* endpoint, String jsonPayload) {
   // Não bufferizar live-status
-  if (String(endpoint) == "/api/live-status") return;
+  if (strcmp(endpoint, "/api/live-status") == 0) return;
 
   // Verificar espaço SPIFFS
-  size_t totalBytes = SPIFFS.totalBytes();
-  size_t usedBytes = SPIFFS.usedBytes();
-  size_t freeBytes = totalBytes - usedBytes;
+  size_t freeBytes = SPIFFS.totalBytes() - SPIFFS.usedBytes();
 
-  // Se menos de 10KB livre, remover snapshots antigos (sensor-reading) para dar espaço
+  // Se menos de 10KB livre, remover snapshots antigos
   if (freeBytes < 10240) {
-    Serial.println("SPIFFS quase cheio! Removendo snapshots antigos...");
+    Serial.println("SPIFFS quase cheio! Limpando...");
     for (int i = 0; i < MAX_BUFFER_SIZE; i++) {
-      String fn = String(BUFFER_DIR) + "/buf_" + String(i) + ".json";
-      if (SPIFFS.exists(fn)) {
-        File f = SPIFFS.open(fn, "r");
+      bufPath(i);
+      if (SPIFFS.exists(pathBuf)) {
+        File f = SPIFFS.open(pathBuf, "r");
         if (f) {
-          String content = f.readString();
+          // Ler só primeira linha (endpoint) para decidir prioridade
+          String ep = f.readStringUntil('\n');
           f.close();
-          // Prioridade: manter cycle-data e event, sacrificar sensor-reading
-          if (content.indexOf("sensor-reading") > 0) {
-            SPIFFS.remove(fn);
-            Serial.printf("  Removido buf_%d (sensor-reading) para liberar espaco\n", i);
+          if (ep.indexOf("sensor-reading") >= 0) {
+            SPIFFS.remove(pathBuf);
             freeBytes = SPIFFS.totalBytes() - SPIFFS.usedBytes();
             if (freeBytes >= 10240) break;
           }
@@ -1906,17 +1908,17 @@ void bufferAPICall(const char* endpoint, String jsonPayload) {
     }
   }
 
-  // Se ainda sem espaço, desistir
   if (freeBytes < 2048) {
-    Serial.println("SPIFFS CHEIO! Impossivel bufferizar - dado perdido");
+    Serial.println("SPIFFS CHEIO!");
     return;
   }
 
   // Encontrar próximo slot disponível
   int slot = -1;
-  for (int i = 0; i < MAX_BUFFER_SIZE * 3; i++) {
-    String fn = String(BUFFER_DIR) + "/buf_" + String(i) + ".json";
-    if (!SPIFFS.exists(fn)) {
+  int maxSlots = MAX_BUFFER_SIZE * 3;
+  for (int i = 0; i < maxSlots; i++) {
+    bufPath(i);
+    if (!SPIFFS.exists(pathBuf)) {
       slot = i;
       break;
     }
@@ -1927,14 +1929,13 @@ void bufferAPICall(const char* endpoint, String jsonPayload) {
     return;
   }
 
-  // Salvar: primeira linha = endpoint, segunda linha = payload JSON
-  String fn = String(BUFFER_DIR) + "/buf_" + String(slot) + ".json";
-  File file = SPIFFS.open(fn, "w");
+  bufPath(slot);
+  File file = SPIFFS.open(pathBuf, "w");
   if (file) {
     file.println(endpoint);
     file.print(jsonPayload);
     file.close();
-    Serial.printf("Buffer: salvo buf_%d [%s] (%d bytes)\n", slot, endpoint, jsonPayload.length());
+    Serial.printf("Buf: slot %d [%s]\n", slot, endpoint);
   }
 }
 
@@ -1945,28 +1946,29 @@ bool sendToAPI(const char* endpoint, String jsonPayload) {
     return false;
   }
 
-  String url = String(API_URL) + endpoint;
-  http.begin(url);
+  char urlBuf[128];
+  snprintf(urlBuf, sizeof(urlBuf), "%s%s", API_URL, endpoint);
+  http.begin(urlBuf);
+  http.setTimeout(HTTP_TIMEOUT_MS);  // Evita bloquear 30s+
   http.addHeader("Content-Type", "application/json");
   http.addHeader("X-API-Key", API_KEY);
 
   int httpCode = http.POST(jsonPayload);
 
   if (httpCode > 0) {
-    String response = http.getString();
-    Serial.printf("API [%d]: %s\n", httpCode, response.c_str());
+    http.getString();  // Consumir resposta sem alocar String extra
     http.end();
     if (httpCode == 200) {
+      Serial.printf("API OK [%s]\n", endpoint);
       return true;
     } else {
-      // Server respondeu mas com erro - bufferizar para retry
+      Serial.printf("API [%d] %s\n", httpCode, endpoint);
       bufferAPICall(endpoint, jsonPayload);
       return false;
     }
   } else {
-    Serial.printf("API Error: %s\n", http.errorToString(httpCode).c_str());
+    Serial.printf("API Err: %s [%s]\n", http.errorToString(httpCode).c_str(), endpoint);
     http.end();
-    // Falha de rede - bufferizar
     bufferAPICall(endpoint, jsonPayload);
     return false;
   }
@@ -2118,73 +2120,74 @@ void saveSnapshotToBuffer() {
   enviarLeituraSensores();
 }
 
-// Sincronizar buffer universal: lê endpoint + payload de cada arquivo
+// Sincronização incremental: envia MAX_SYNC_PER_CALL por vez (não bloqueia)
+#define MAX_SYNC_PER_CALL 3
+int syncNextSlot = 0;  // Posição atual na varredura
+
 int syncBufferedData() {
   if (WiFi.status() != WL_CONNECTED) return 0;
 
   int synced = 0;
-  int failed = 0;
   int maxSlots = MAX_BUFFER_SIZE * 3;
+  int checked = 0;
 
-  Serial.println("\nSincronizando buffer...");
+  for (int i = syncNextSlot; checked < maxSlots && synced < MAX_SYNC_PER_CALL; i = (i + 1) % maxSlots, checked++) {
+    bufPath(i);
+    if (!SPIFFS.exists(pathBuf)) continue;
 
-  for (int i = 0; i < maxSlots; i++) {
-    String fn = String(BUFFER_DIR) + "/buf_" + String(i) + ".json";
-    if (!SPIFFS.exists(fn)) continue;
-
-    File file = SPIFFS.open(fn, "r");
+    File file = SPIFFS.open(pathBuf, "r");
     if (!file) continue;
 
-    // Primeira linha = endpoint, resto = payload JSON
     String endpoint = file.readStringUntil('\n');
     endpoint.trim();
     String payload = file.readString();
     file.close();
 
     if (endpoint.length() == 0 || payload.length() == 0) {
-      SPIFFS.remove(fn);
+      SPIFFS.remove(pathBuf);
       continue;
     }
 
-    Serial.printf("  buf_%d [%s]...", i, endpoint.c_str());
-
-    // Enviar diretamente sem passar pelo auto-buffer (evitar loop)
-    String url = String(API_URL) + endpoint;
-    http.begin(url);
+    char urlBuf[128];
+    snprintf(urlBuf, sizeof(urlBuf), "%s%s", API_URL, endpoint.c_str());
+    http.begin(urlBuf);
+    http.setTimeout(HTTP_TIMEOUT_MS);
     http.addHeader("Content-Type", "application/json");
     http.addHeader("X-API-Key", API_KEY);
     int httpCode = http.POST(payload);
 
     if (httpCode == 200) {
-      SPIFFS.remove(fn);
-      Serial.println(" OK");
+      SPIFFS.remove(pathBuf);
       synced++;
-    } else {
-      Serial.printf(" FALHA [%d]\n", httpCode);
-      failed++;
     }
     http.end();
-    delay(200);
+    yield();  // Permite WiFi stack processar
 
-    // Se perdeu WiFi durante sync, parar
-    if (WiFi.status() != WL_CONNECTED) {
-      Serial.println("WiFi perdido durante sync - pausando");
-      break;
-    }
+    if (WiFi.status() != WL_CONNECTED) break;
+    syncNextSlot = (i + 1) % maxSlots;
   }
 
-  Serial.printf("Sync: %d enviados, %d falharam\n", synced, failed);
+  if (synced > 0) Serial.printf("Sync: %d enviados\n", synced);
   return synced;
 }
 
-// Contar itens pendentes no buffer
+// Contar itens pendentes no buffer (cache de 30s para não iterar 288 arquivos toda hora)
+int _cachedBufferCount = -1;
+unsigned long _lastBufferCountTime = 0;
+
 int countBufferedSnapshots() {
+  unsigned long now = millis();
+  if (_cachedBufferCount >= 0 && now - _lastBufferCountTime < 30000) {
+    return _cachedBufferCount;
+  }
   int count = 0;
   int maxSlots = MAX_BUFFER_SIZE * 3;
   for (int i = 0; i < maxSlots; i++) {
-    String fn = String(BUFFER_DIR) + "/buf_" + String(i) + ".json";
-    if (SPIFFS.exists(fn)) count++;
+    bufPath(i);
+    if (SPIFFS.exists(pathBuf)) count++;
   }
+  _cachedBufferCount = count;
+  _lastBufferCountTime = now;
   return count;
 }
 
@@ -2200,9 +2203,10 @@ void printSPIFFSInfo() {
 void clearBuffer() {
   int maxSlots = MAX_BUFFER_SIZE * 3;
   for (int i = 0; i < maxSlots; i++) {
-    String fn = String(BUFFER_DIR) + "/buf_" + String(i) + ".json";
-    if (SPIFFS.exists(fn)) SPIFFS.remove(fn);
+    bufPath(i);
+    if (SPIFFS.exists(pathBuf)) SPIFFS.remove(pathBuf);
   }
+  _cachedBufferCount = 0;
   Serial.println("Buffer limpo!");
 }
 
@@ -2289,40 +2293,36 @@ void setup() {
 
   Serial.println("Configurando Access Point...");
   WiFi.mode(WIFI_AP_STA);
-  WiFi.disconnect(true);  // Limpar credenciais internas do IDF para evitar auto-conexão fantasma
-  delay(100);
-  WiFi.softAP(AP_SSID, AP_PASSWORD);
+  WiFi.disconnect(false);  // Limpar STA sem afetar AP
+  delay(200);
+  WiFi.softAP(AP_SSID, AP_PASSWORD, 1, 0, 4);  // Canal 1, visível, máx 4 clientes
 
   IPAddress IP = WiFi.softAPIP();
-  Serial.printf("\n✓ AP Ativo\n");
-  Serial.printf("  SSID: %s\n", AP_SSID);
-  Serial.printf("  Senha: %s\n", AP_PASSWORD);
-  Serial.printf("  IP: %s\n\n", IP.toString().c_str());
+  Serial.printf("AP: %s @ %s\n", AP_SSID, IP.toString().c_str());
 
-  // Auto-reconexão WiFi: tenta conectar com credenciais salvas
+  // Auto-reconexão WiFi STA (não-bloqueante no boot — resultado vem no loop)
   preferences.begin("pilitech", true);
   String savedSSID = preferences.getString("wifiSSID", "");
   String savedPass = preferences.getString("wifiPass", "");
   preferences.end();
 
   if (savedSSID.length() > 0) {
-    Serial.printf("📶 Tentando reconectar WiFi salvo: %s\n", savedSSID.c_str());
+    Serial.printf("WiFi STA: %s (conectando em background)\n", savedSSID.c_str());
     WiFi.begin(savedSSID.c_str(), savedPass.c_str());
+    // Aguarda rápido (5s) sem bloquear — loop continuará checando
     int attempts = 0;
-    while (WiFi.status() != WL_CONNECTED && attempts < 20) {
-      delay(500);
-      Serial.print(".");
+    while (WiFi.status() != WL_CONNECTED && attempts < 50) {
+      delay(100);
       attempts++;
     }
     if (WiFi.status() == WL_CONNECTED) {
-      Serial.printf("\n✓ WiFi reconectado automaticamente!\n");
-      Serial.printf("  SSID: %s | IP: %s | RSSI: %d dBm\n",
-                    savedSSID.c_str(), WiFi.localIP().toString().c_str(), WiFi.RSSI());
+      Serial.printf("WiFi OK: %s IP:%s RSSI:%d\n",
+        savedSSID.c_str(), WiFi.localIP().toString().c_str(), WiFi.RSSI());
     } else {
-      Serial.println("\n⚠ WiFi salvo não disponível - aguardando configuração manual");
+      Serial.println("WiFi STA: nao conectou no boot, retry no loop");
     }
   } else {
-    Serial.println("📶 Nenhum WiFi salvo - aguardando configuração via interface");
+    Serial.println("Nenhum WiFi salvo");
   }
 
   server.on("/", handleRoot);
@@ -2366,67 +2366,17 @@ void loop() {
   // Sensores contam tempo independente do portão.
   // Portão fecha = início do ciclo (zera contadores). Portão abre = fim (totaliza).
 
-  // --- Portão Fechado: ON→start, OFF→acumula ---
-  if (portao_fechado && !lastPortaoFechado && !portao_timing) {
-    portao_start = currentMillis; portao_timing = true;
-    Serial.println("  Portao: fechou - iniciou contagem");
-  }
-  if (!portao_fechado && lastPortaoFechado && portao_timing) {
-    currentDurations.portao += currentMillis - portao_start;
-    portao_timing = false;
-    Serial.printf("  Portao: abriu - parou contagem: %lu s\n", currentDurations.portao / 1000);
-  }
+  // --- Tracking de duração por sensor (macro para evitar repetição) ---
+  #define TRACK_SENSOR(val, last, dur, start, timing) \
+    if ((val) && !(last) && !(timing)) { (start) = currentMillis; (timing) = true; } \
+    if (!(val) && (last) && (timing)) { (dur) += currentMillis - (start); (timing) = false; }
 
-  // --- Moega/Fosso: ON→start, OFF→acumula ---
-  if (moega_fosso && !lastMoegaFosso && !moega_timing) {
-    moega_start = currentMillis; moega_timing = true;
-    Serial.println("  Moega/Fosso: ativou - iniciou contagem");
-  }
-  if (!moega_fosso && lastMoegaFosso && moega_timing) {
-    currentDurations.moega += currentMillis - moega_start;
-    moega_timing = false;
-    Serial.printf("  Moega/Fosso: desativou - parou contagem: %lu s\n", currentDurations.moega / 1000);
-  }
-
-  // --- Trava Roda: ON→start, OFF→acumula ---
-  if (trava_roda && !lastTravaRoda && !travaRoda_timing) {
-    travaRoda_start = currentMillis; travaRoda_timing = true;
-  }
-  if (!trava_roda && lastTravaRoda && travaRoda_timing) {
-    currentDurations.travaRoda += currentMillis - travaRoda_start;
-    travaRoda_timing = false;
-    Serial.printf("  Trava Roda: %lu s\n", currentDurations.travaRoda / 1000);
-  }
-
-  // --- Trava Chassi: ON→start, OFF→acumula ---
-  if (trava_chassi && !lastTravaChassi && !travaChassi_timing) {
-    travaChassi_start = currentMillis; travaChassi_timing = true;
-  }
-  if (!trava_chassi && lastTravaChassi && travaChassi_timing) {
-    currentDurations.travaChassi += currentMillis - travaChassi_start;
-    travaChassi_timing = false;
-    Serial.printf("  Trava Chassi: %lu s\n", currentDurations.travaChassi / 1000);
-  }
-
-  // --- Trava Pino E: ON→start, OFF→acumula ---
-  if (trava_pino_e && !lastTravaPinoE && !travaPinoE_timing) {
-    travaPinoE_start = currentMillis; travaPinoE_timing = true;
-  }
-  if (!trava_pino_e && lastTravaPinoE && travaPinoE_timing) {
-    currentDurations.travaPinoE += currentMillis - travaPinoE_start;
-    travaPinoE_timing = false;
-    Serial.printf("  Trava Pino E: %lu s\n", currentDurations.travaPinoE / 1000);
-  }
-
-  // --- Trava Pino D: ON→start, OFF→acumula ---
-  if (trava_pino_d && !lastTravaPinoD && !travaPinoD_timing) {
-    travaPinoD_start = currentMillis; travaPinoD_timing = true;
-  }
-  if (!trava_pino_d && lastTravaPinoD && travaPinoD_timing) {
-    currentDurations.travaPinoD += currentMillis - travaPinoD_start;
-    travaPinoD_timing = false;
-    Serial.printf("  Trava Pino D: %lu s\n", currentDurations.travaPinoD / 1000);
-  }
+  TRACK_SENSOR(portao_fechado, lastPortaoFechado, currentDurations.portao, portao_start, portao_timing);
+  TRACK_SENSOR(moega_fosso, lastMoegaFosso, currentDurations.moega, moega_start, moega_timing);
+  TRACK_SENSOR(trava_roda, lastTravaRoda, currentDurations.travaRoda, travaRoda_start, travaRoda_timing);
+  TRACK_SENSOR(trava_chassi, lastTravaChassi, currentDurations.travaChassi, travaChassi_start, travaChassi_timing);
+  TRACK_SENSOR(trava_pino_e, lastTravaPinoE, currentDurations.travaPinoE, travaPinoE_start, travaPinoE_timing);
+  TRACK_SENSOR(trava_pino_d, lastTravaPinoD, currentDurations.travaPinoD, travaPinoD_start, travaPinoD_timing);
 
   // === INÍCIO DO CICLO ===
   // SEMPRE por sensor 0°: ciclo inicia quando sensor 0° DESATIVA (plataforma saiu)
@@ -2534,18 +2484,18 @@ void loop() {
     }
   }
 
-  // ====== DETECÇÃO E ENVIO AUTOMÁTICO DE ALERTAS ======
-  // Sempre envia (se offline, auto-bufferiza no SPIFFS)
-  if (moega_fosso && !lastMoegaFosso) {
-    Serial.println("ALERTA: Moega/Fosso cheio detectado!");
+  // ====== DETECÇÃO E ENVIO AUTOMÁTICO DE ALERTAS (com throttle) ======
+  static unsigned long lastMoegaAlert = 0;
+  if (moega_fosso && !lastMoegaFosso && currentMillis - lastMoegaAlert >= 5000) {
+    lastMoegaAlert = currentMillis;
+    Serial.println("ALERTA: Moega/Fosso cheio!");
     enviarEvento("ALERT", "Moega/Fosso cheio! Necessario esvaziamento", "moega_fosso", true);
   }
-  else if (!moega_fosso && lastMoegaFosso) {
-    Serial.println("Moega/Fosso normalizado");
+  else if (!moega_fosso && lastMoegaFosso && currentMillis - lastMoegaAlert >= 5000) {
+    lastMoegaAlert = currentMillis;
     enviarEvento("INFO", "Moega/Fosso esvaziado", "moega_fosso", false);
   }
 
-  // Atualiza estados anteriores
   lastMoegaFosso = moega_fosso;
 
   // Envia dados WS
@@ -2567,33 +2517,46 @@ void loop() {
     }
   }
 
-  // Status serial
+  // Status serial (a cada 60s para não poluir UART)
   static unsigned long lastStatus = 0;
-  if (currentMillis - lastStatus >= 30000) {
+  if (currentMillis - lastStatus >= 60000) {
     lastStatus = currentMillis;
-    int buffered = countBufferedSnapshots();
-    size_t spiffsFree = SPIFFS.totalBytes() - SPIFFS.usedBytes();
-    Serial.printf("Up:%lus | Mem:%d | WiFi:%s | Ciclos:%lu/%lu | Buffer:%d | SPIFFS:%dKB livre\n",
+    Serial.printf("Up:%lus Mem:%d WiFi:%s Ciclos:%lu/%lu Buf:%d\n",
                   uptimeSeconds, ESP.getFreeHeap(),
-                  (WiFi.status() == WL_CONNECTED) ? "ON" : "OFF",
+                  wifiConnected ? "ON" : "OFF",
                   stats.ciclosHoje, stats.ciclosTotal,
-                  buffered, spiffsFree / 1024);
+                  countBufferedSnapshots());
   }
 
-  // ====== AUTO-RECONEXÃO WiFi (a cada 30 segundos se desconectado) ======
+  // ====== AUTO-RECONEXÃO WiFi (a cada 60s, sem derrubar AP) ======
   static unsigned long lastWiFiRetry = 0;
-  if (WiFi.status() != WL_CONNECTED && currentMillis - lastWiFiRetry >= 30000) {
+  static int wifiRetryCount = 0;
+  if (WiFi.status() != WL_CONNECTED && currentMillis - lastWiFiRetry >= 60000) {
     lastWiFiRetry = currentMillis;
+    wifiRetryCount++;
+
+    // A cada 5 tentativas falhas, resetar WiFi stack (mas manter AP)
+    if (wifiRetryCount % 5 == 0) {
+      Serial.println("WiFi: reset STA stack");
+      WiFi.disconnect(false);
+      delay(200);
+      if (WiFi.getMode() != WIFI_AP_STA) {
+        WiFi.mode(WIFI_AP_STA);
+        delay(200);
+      }
+    }
+
     preferences.begin("pilitech", true);
     String sSSID = preferences.getString("wifiSSID", "");
     String sPass = preferences.getString("wifiPass", "");
     preferences.end();
     if (sSSID.length() > 0) {
-      Serial.printf("📶 Tentando reconectar WiFi: %s\n", sSSID.c_str());
-      WiFi.disconnect();
-      delay(100);
-      WiFi.begin(sSSID.c_str(), sPass.c_str());
+      Serial.printf("WiFi retry #%d: %s\n", wifiRetryCount, sSSID.c_str());
+      WiFi.begin(sSSID.c_str(), sPass.c_str());  // Não chamar disconnect antes!
     }
+  }
+  if (WiFi.status() == WL_CONNECTED && wifiRetryCount > 0) {
+    wifiRetryCount = 0;  // Reset ao conectar
   }
 
   // ====== GERENCIAMENTO OFFLINE/ONLINE ======
@@ -2605,28 +2568,16 @@ void loop() {
 
   // Detecta RECONEXÃO WiFi (mudança de estado offline->online)
   if (wifiConnected && !lastWiFiConnected) {
-    Serial.println("\n✓ WiFi RECONECTADO!");
+    Serial.println("WiFi RECONECTADO!");
 
-    // ENVIAR DADOS IMEDIATAMENTE ao conectar
-    Serial.println("📤 Enviando dados ao vivo IMEDIATAMENTE...");
-    if (enviarLeituraSensores()) {
-      Serial.println("✓ Status ONLINE atualizado no banco!");
-      enviarEvento("INFO", "WiFi conectado - Dispositivo online", "wifi", true);
-    }
+    // Enviar dados imediatamente
+    enviarLeituraSensores();
+    enviarEvento("INFO", "WiFi conectado - Dispositivo online", "wifi", true);
 
-    // Resetar timer para próxima sincronização (5min a partir de agora)
+    // Resetar timer e iniciar sync incremental (não bloqueia)
     lastAPISync = currentMillis;
-
-    // Sincronizar buffer pendente
-    int buffered = countBufferedSnapshots();
-    if (buffered > 0) {
-      Serial.printf("Buffer: %d itens pendentes. Sincronizando...\n", buffered);
-      printSPIFFSInfo();
-      int synced = syncBufferedData();
-      Serial.printf("Sync completo: %d/%d enviados\n", synced, buffered);
-    } else {
-      Serial.println("Buffer vazio - nada a sincronizar");
-    }
+    syncNextSlot = 0;
+    _cachedBufferCount = -1;  // Invalidar cache
   }
 
   // Atualiza estado anterior
@@ -2711,14 +2662,16 @@ void loop() {
     sendToAPI("/api/live-status", livePayload);
   }
 
-  // ====== SINCRONIZAÇÃO COMPLETA NO BANCO A CADA 5 MINUTOS ======
+  // ====== SINCRONIZAÇÃO NO BANCO A CADA 5 MINUTOS ======
   if (wifiConnected && currentMillis - lastAPISync >= 300000) {
     lastAPISync = currentMillis;
-    Serial.println("\n🌐 WiFi online - sincronizando dados ao vivo...");
-    if (enviarLeituraSensores()) {
-      Serial.println("✓ Dados sincronizados com sucesso!");
-    } else {
-      Serial.println("✗ Falha ao sincronizar dados");
-    }
+    enviarLeituraSensores();
+  }
+
+  // ====== SYNC INCREMENTAL DO BUFFER (a cada 10s, máx 3 por vez) ======
+  static unsigned long lastBufferSync = 0;
+  if (wifiConnected && currentMillis - lastBufferSync >= 10000) {
+    lastBufferSync = currentMillis;
+    syncBufferedData();  // Envia até 3 itens, não bloqueia
   }
 }
