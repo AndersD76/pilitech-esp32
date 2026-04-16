@@ -2332,6 +2332,10 @@
     // Expose showAlert globally for testing
     window.showPiliAlert = showAlert;
 
+    // Check alerts on load and every 15s
+    checkAlerts();
+    setInterval(checkAlerts, 15000);
+
   </script>
 </body>
 </html>
