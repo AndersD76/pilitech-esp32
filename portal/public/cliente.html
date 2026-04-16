@@ -69,6 +69,31 @@
     </div>
   </header>
 
+  <!-- Alert Banner (in-app notification) -->
+  <div id="alertBanner" class="hidden">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-3">
+      <div id="alertBannerContent" class="bg-red-600 rounded-lg p-4 flex items-center justify-between shadow-lg animate-pulse">
+        <div class="flex items-center gap-3">
+          <svg class="w-6 h-6 text-white flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z"/>
+          </svg>
+          <div>
+            <p class="text-white font-bold text-sm" id="alertTitle">ALERTA</p>
+            <p class="text-white/90 text-xs" id="alertMessage">-</p>
+          </div>
+        </div>
+        <div class="flex items-center gap-2">
+          <span class="text-white/70 text-xs" id="alertTime"></span>
+          <button onclick="dismissAlert()" class="p-1 hover:bg-white/20 rounded-lg">
+            <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+            </svg>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- Trial/Subscription Warning Banner -->
   <div id="trialBanner" class="hidden">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3">
@@ -2269,6 +2294,43 @@
 
     // Init push on page load
     initPushNotifications();
+
+    // ========== IN-APP ALERT BANNER ==========
+    function showAlert(title, message, type) {
+      const banner = document.getElementById('alertBanner');
+      const content = document.getElementById('alertBannerContent');
+      document.getElementById('alertTitle').textContent = title;
+      document.getElementById('alertMessage').textContent = message;
+      document.getElementById('alertTime').textContent = new Date().toLocaleTimeString('pt-BR');
+      const colors = {
+        critical: 'bg-red-600',
+        warning: 'bg-yellow-500',
+        info: 'bg-blue-500'
+      };
+      content.className = `${colors[type] || colors.critical} rounded-lg p-4 flex items-center justify-between shadow-lg`;
+      if (type === 'critical') content.classList.add('animate-pulse');
+      banner.classList.remove('hidden');
+      // Auto-play sound
+      try { new Audio('data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbsGczFj+a2teleS0cR6zg7LSFOh0wk9/t3KlmMhk8oOPw4rFrMxU6oOb04LBpMBc6n+fw4LBpMBc6').play(); } catch(e) {}
+    }
+
+    function dismissAlert() {
+      document.getElementById('alertBanner').classList.add('hidden');
+    }
+
+    // Poll for recent alerts
+    async function checkAlerts() {
+      try {
+        const res = await api('/api/alerts/recent');
+        if (res && res.alerts && res.alerts.length > 0) {
+          const a = res.alerts[0];
+          if (!a._dismissed) showAlert(a.title || 'ALERTA', a.message, a.type || 'critical');
+        }
+      } catch(e) {}
+    }
+
+    // Expose showAlert globally for testing
+    window.showPiliAlert = showAlert;
 
   </script>
 </body>

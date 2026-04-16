@@ -2590,6 +2590,21 @@ async function initDatabase() {
   }
 }
 
+// ==================== IN-APP ALERTS ====================
+const recentAlerts = [];
+
+app.post('/api/alerts/send', (req, res) => {
+  const { title, message, type } = req.body;
+  const alert = { title, message, type: type || 'critical', timestamp: new Date().toISOString(), id: Date.now() };
+  recentAlerts.unshift(alert);
+  if (recentAlerts.length > 50) recentAlerts.pop();
+  res.json({ success: true, alert });
+});
+
+app.get('/api/alerts/recent', authenticateToken, (req, res) => {
+  res.json({ alerts: recentAlerts.slice(0, 5) });
+});
+
 // ==================== PUSH NOTIFICATIONS ====================
 
 // VAPID public key endpoint
