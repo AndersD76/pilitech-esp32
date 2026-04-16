@@ -18,8 +18,7 @@
     "ws": "^8.20.0"
   },
   "devDependencies": {
-    "nodemon": "^3.0.2",
-    "puppeteer": "^24.40.0"
+    "nodemon": "^3.0.2"
   },
   "author": "PILI Equipamentos",
   "license": "ISC"
