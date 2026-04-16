@@ -2199,6 +2199,12 @@
         if (sub) {
           pushSubscription = sub;
           document.getElementById('notifDot').classList.remove('hidden');
+          // Re-sync subscription with server (in case server restarted)
+          fetch('/api/push/subscribe', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+            body: JSON.stringify({ subscription: sub.toJSON() })
+          }).catch(() => {});
         }
       } catch (e) {
         console.log('Push init error:', e);
