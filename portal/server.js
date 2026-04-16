@@ -12,6 +12,15 @@ const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
 const { Pool } = require('pg');
 const crypto = require('crypto');
+const webpush = require('web-push');
+
+// Web Push VAPID config
+const VAPID_PUBLIC = 'BJZkImr6VnfYyQ2iCgW1fksl1jFaQe3jGcvSdYfFuf55wtj5Iv1RySh2kpG3W6YSgT3DvjsmZBdaHbrGQQJa6-M';
+const VAPID_PRIVATE = 'l1oFv6BMPACSY0Vnqcawjb961Au6cRQUgOnA1OTFEkY';
+webpush.setVapidDetails('mailto:contato@pilitech.com.br', VAPID_PUBLIC, VAPID_PRIVATE);
+
+// In-memory push subscriptions (per user)
+const pushSubscriptions = new Map();
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -2102,6 +2111,12 @@ app.post('/api/event', validateApiKey, async (req, res) => {
       VALUES ($1, $2, $3, $4, $5)
     `, [deviceResult.rows[0].id, event_type, message, sensor_name || null, sensor_value || null]);
 
+    // Auto-send push notification for critical alerts
+    const alertTypes = ['moega_cheia', 'moega_fosso', 'alerta_critico', 'parada_emergencia', 'sensor_falha'];
+    if (alertTypes.includes(event_type)) {
+      sendAlertPush(serial_number, event_type, message || `Alerta: ${event_type}`).catch(e => console.error('Push error:', e));
+    }
+
     res.json({ success: true, message: 'Evento registrado' });
   } catch (err) {
     console.error('Erro ao registrar evento:', err);
@@ -2574,6 +2589,94 @@ async function initDatabase() {
     console.error('Erro ao inicializar banco:', err.message);
   }
 }
+
+// ==================== PUSH NOTIFICATIONS ====================
+
+// VAPID public key endpoint
+app.get('/api/push/vapid-key', (req, res) => {
+  res.json({ publicKey: VAPID_PUBLIC });
+});
+
+// Subscribe to push
+app.post('/api/push/subscribe', authenticateToken, async (req, res) => {
+  const { subscription } = req.body;
+  if (!subscription) return res.status(400).json({ error: 'Subscription required' });
+
+  const userId = req.user.id || req.user.email;
+  pushSubscriptions.set(userId, subscription);
+  console.log(`🔔 Push subscription registered for ${userId}`);
+  res.json({ success: true, message: 'Push notification ativada' });
+});
+
+// Unsubscribe from push
+app.post('/api/push/unsubscribe', authenticateToken, (req, res) => {
+  const userId = req.user.id || req.user.email;
+  pushSubscriptions.delete(userId);
+  console.log(`🔕 Push subscription removed for ${userId}`);
+  res.json({ success: true });
+});
+
+// Send push notification (admin or system)
+app.post('/api/push/send', async (req, res) => {
+  const { title, body, icon, tag, empresa_id } = req.body;
+  const payload = JSON.stringify({
+    title: title || 'PILI TECH',
+    body: body || 'Nova notificação',
+    icon: icon || '/favicon.ico',
+    tag: tag || 'pilitech-alert',
+    data: { url: '/cliente.html' }
+  });
+
+  let sent = 0;
+  for (const [userId, sub] of pushSubscriptions) {
+    try {
+      await webpush.sendNotification(sub, payload);
+      sent++;
+    } catch (err) {
+      if (err.statusCode === 410) pushSubscriptions.delete(userId);
+    }
+  }
+  console.log(`📨 Push enviado para ${sent} usuários`);
+  res.json({ success: true, sent });
+});
+
+// Send alert push (called internally when events are inserted)
+async function sendAlertPush(deviceSerial, alertType, message) {
+  const payload = JSON.stringify({
+    title: `⚠️ ALERTA: ${deviceSerial}`,
+    body: message,
+    icon: '/favicon.ico',
+    tag: `alert-${deviceSerial}-${Date.now()}`,
+    data: { url: '/cliente.html' }
+  });
+
+  for (const [userId, sub] of pushSubscriptions) {
+    try {
+      await webpush.sendNotification(sub, payload);
+    } catch (err) {
+      if (err.statusCode === 410) pushSubscriptions.delete(userId);
+    }
+  }
+}
+
+// Test push endpoint
+app.post('/api/push/test', authenticateToken, async (req, res) => {
+  const userId = req.user.id || req.user.email;
+  const sub = pushSubscriptions.get(userId);
+  if (!sub) return res.status(404).json({ error: 'Nenhuma subscription encontrada. Ative as notificações primeiro.' });
+
+  try {
+    await webpush.sendNotification(sub, JSON.stringify({
+      title: '🔔 PILI TECH',
+      body: 'Notificações push ativadas com sucesso!',
+      icon: '/favicon.ico',
+      tag: 'test'
+    }));
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
 
 app.listen(PORT, async () => {
   await initDatabase();

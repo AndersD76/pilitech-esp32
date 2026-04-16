@@ -1126,271 +1126,149 @@ const char simulator_html[] PROGMEM = R"rawliteral(<!DOCTYPE html>
 <title>PILI TECH - TX</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
-body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;background:#dc2626;width:1024px;height:600px;overflow:hidden;display:flex;flex-direction:column;padding:8px;gap:6px}
-.topbar{display:flex;align-items:center;justify-content:space-between;height:30px;padding:0 6px}
-.logo{font-size:15px;font-weight:800;color:#fff;letter-spacing:2px;display:flex;align-items:center;gap:6px}
-.logo svg{width:18px;height:18px;stroke:#fff;fill:none}
-.right{display:flex;align-items:center;gap:10px}
-.sim-toggle{padding:3px 12px;border-radius:4px;font-size:10px;font-weight:700;cursor:pointer;border:2px solid #fff;background:transparent;color:#fff;letter-spacing:1px}
-.sim-toggle.on{background:#fff;color:#dc2626}
-.conn{font-size:9px;color:rgba(255,255,255,0.8);font-weight:600;display:flex;align-items:center;gap:4px}
-.dot{width:6px;height:6px;border-radius:50%;background:rgba(255,255,255,0.3)}
-.dot.online{background:#fff;animation:pulse 2s infinite}
-@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.4}}
-.cards{flex:1;display:grid;grid-template-columns:2fr 3fr;gap:8px;min-height:0}
-.card{background:#fff;border-radius:16px;padding:16px;display:flex;flex-direction:column;justify-content:space-evenly}
-.group{text-align:center}
-.glabel{font-size:12px;font-weight:800;color:#dc2626;text-transform:uppercase;letter-spacing:1px;margin-top:4px}
-.g2{display:grid;grid-template-columns:repeat(2,120px);gap:10px;justify-content:center}
-.g4{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
-.sq{aspect-ratio:1;border:none;border-radius:14px;background:#dc2626;color:#fff;cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;transition:all 0.15s;font-size:9px;font-weight:700;text-transform:uppercase;position:relative;overflow:hidden}
-.sq:active{transform:scale(0.9);opacity:0.85}
-.sq.on{background:#16a34a}
-.sq.alert-on{background:#ea580c;animation:blink 1s infinite}
-@keyframes blink{0%,100%{opacity:1}50%{opacity:0.6}}
-.sq svg{width:36px;height:36px;stroke:currentColor;fill:none;stroke-width:2}
-.sq .prog{position:absolute;bottom:0;left:0;height:4px;width:0%;background:rgba(255,255,255,0.5);transition:width 30s linear}
-.sq.holding{background:#7f1d1d;transform:scale(0.95)}
-.sq.holding .prog{width:100%}
-.warn{font-size:9px;color:#dc2626;font-weight:600;min-height:12px;text-align:center}
-.slabels{display:grid;gap:8px;margin-top:3px}
-.slabels.c4{grid-template-columns:repeat(4,1fr)}
-.slabels.c2{grid-template-columns:repeat(2,120px);justify-content:center}
-.slbl{font-size:9px;font-weight:700;color:#991b1b;text-transform:uppercase;text-align:center}
+body{font-family:-apple-system,sans-serif;background:#0f172a;width:1024px;height:600px;overflow:hidden;display:flex;flex-direction:column;color:#fff}
+.top{display:flex;align-items:center;justify-content:space-between;height:34px;padding:0 10px;background:#1e293b}
+.logo{font-size:14px;font-weight:800;letter-spacing:2px}
+.rt{display:flex;align-items:center;gap:8px}
+.sim{padding:3px 14px;border-radius:4px;font-size:10px;font-weight:700;cursor:pointer;border:2px solid #475569;background:transparent;color:#94a3b8;letter-spacing:1px}
+.sim.on{border-color:#22c55e;background:#22c55e;color:#fff}
+.conn{font-size:9px;color:#64748b;display:flex;align-items:center;gap:4px}
+.dot{width:6px;height:6px;border-radius:50%;background:#334155;display:inline-block}
+.dot.on{background:#22c55e;box-shadow:0 0 6px #22c55e}
+.flow{flex:1;display:grid;grid-template-columns:repeat(3,1fr);grid-template-rows:1fr 1fr;gap:5px;padding:5px}
+.step{background:#1e293b;border-radius:10px;padding:8px;border:2px solid transparent;display:flex;flex-direction:column;transition:border-color .3s,background .3s}
+.step.cur{border-color:#f59e0b;background:#1c1917}
+.step.ok{border-color:rgba(34,197,94,0.3);background:#0f1f14}
+.sh{display:flex;align-items:center;gap:5px;margin-bottom:6px}
+.sn{width:20px;height:20px;border-radius:50%;background:#334155;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:800;flex-shrink:0}
+.step.cur .sn{background:#f59e0b;color:#000}
+.step.ok .sn{background:#22c55e;color:#fff}
+.st{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:#64748b}
+.step.cur .st{color:#f59e0b}
+.step.ok .st{color:#22c55e}
+.ar{color:#334155;font-size:14px;font-weight:800;margin-left:auto}
+.step.cur .ar{color:#f59e0b}
+.bg{flex:1;display:grid;gap:4px;align-content:start}
+.bg.c2{grid-template-columns:1fr 1fr}
+.b{border:none;border-radius:8px;padding:10px 4px;cursor:pointer;font-size:9px;font-weight:700;text-transform:uppercase;color:#94a3b8;background:#334155;transition:all .15s;display:flex;flex-direction:column;align-items:center;gap:3px}
+.b:active{transform:scale(.95)}
+.b svg{width:24px;height:24px;stroke:currentColor;fill:none;stroke-width:2}
+.b.on{background:#22c55e;color:#fff}
+.b.act{background:#dc2626;color:#fff}
+.b.mv{background:#f59e0b;color:#fff;animation:pls 1s infinite}
+.b.al{background:#ea580c;color:#fff;animation:blk 1s infinite}
+.b:disabled{opacity:.25;cursor:not-allowed;transform:none!important}
+.foot{height:36px;display:flex;align-items:center;gap:8px;padding:0 10px;background:#1e293b}
+.foot .b{padding:6px 16px;flex-direction:row;gap:6px;font-size:9px}
+.ph{font-size:10px;color:#94a3b8;margin-left:auto;font-weight:600}
+@keyframes pls{0%,100%{opacity:1}50%{opacity:.6}}
+@keyframes blk{0%,100%{opacity:1}50%{opacity:.5}}
 </style>
 </head>
 <body>
-<div class="topbar">
-<div class="logo">
-<svg viewBox="0 0 24 24" stroke-width="2"><path d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z"/></svg>
-PILI TECH
-</div>
-<div class="right">
-<button class="sim-toggle" id="simBadge" onclick="toggleSim()">SIM: OFF</button>
-<div class="conn"><div class="dot" id="dot"></div><span id="status">---</span></div>
+<div class="top">
+<div class="logo">PILI TECH</div>
+<div class="rt">
+<button class="sim" id="simB" onclick="toggleSim()">SIM: OFF</button>
+<div class="conn"><div class="dot" id="dot"></div><span id="sts">---</span></div>
 </div>
 </div>
-<div class="cards">
-<div class="card">
-<div class="group">
-<div class="g2">
-<button class="sq" onclick="fecharPortao()"><svg viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 018 0v4"/></svg></button>
-<button class="sq" id="btnAbrir" onclick="abrirPortao()"><svg viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 018 0"/></svg></button>
+<div class="flow">
+<div class="step" id="s1"><div class="sh"><div class="sn">1</div><div class="st">Travar</div><div class="ar">&rarr;</div></div>
+<div class="bg c2">
+<button class="b" id="bTR" onclick="trav(2)"><svg viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 018 0v4"/></svg>Rodas</button>
+<button class="b" id="bTC" onclick="trav(3)"><svg viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 018 0v4"/></svg>Chassi</button>
+<button class="b" id="bTE" onclick="trav(4)"><svg viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 018 0v4"/></svg>Pino E</button>
+<button class="b" id="bTD" onclick="trav(5)"><svg viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 018 0v4"/></svg>Pino D</button>
+</div></div>
+<div class="step" id="s2"><div class="sh"><div class="sn">2</div><div class="st">Fechar Port&atilde;o</div><div class="ar">&rarr;</div></div>
+<div class="bg">
+<button class="b act" id="bFP" onclick="fechar()"><svg viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 018 0v4"/></svg>Fechar Port&atilde;o</button>
+</div></div>
+<div class="step" id="s3"><div class="sh"><div class="sn">3</div><div class="st">Subir</div></div>
+<div class="bg">
+<button class="b act" id="bSub" onclick="subir()"><svg viewBox="0 0 24 24"><polyline points="6 15 12 9 18 15"/></svg>Subir Plataforma</button>
+</div></div>
+<div class="step" id="s4"><div class="sh"><div class="sn">4</div><div class="st">Descer</div><div class="ar">&rarr;</div></div>
+<div class="bg">
+<button class="b act" id="bDes" onclick="descer()"><svg viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg>Descer Plataforma</button>
+</div></div>
+<div class="step" id="s5"><div class="sh"><div class="sn">5</div><div class="st">Abrir Port&atilde;o</div><div class="ar">&rarr;</div></div>
+<div class="bg">
+<button class="b act" id="bAP" onclick="abrir()"><svg viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 018 0"/></svg>Abrir Port&atilde;o</button>
+</div></div>
+<div class="step" id="s6"><div class="sh"><div class="sn">6</div><div class="st">Destravar</div></div>
+<div class="bg c2">
+<button class="b" id="bDR" onclick="dest(2)"><svg viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 018 0"/></svg>Rodas</button>
+<button class="b" id="bDC" onclick="dest(3)"><svg viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 018 0"/></svg>Chassi</button>
+<button class="b" id="bDE" onclick="dest(4)"><svg viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 018 0"/></svg>Pino E</button>
+<button class="b" id="bDD" onclick="dest(5)"><svg viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 018 0"/></svg>Pino D</button>
+</div></div>
 </div>
-<div class="slabels c2"><div class="slbl">Fechar</div><div class="slbl">Abrir</div></div>
-<div class="glabel">Port&atilde;o</div>
-<div class="warn" id="msgPortao"></div>
-</div>
-<div class="group">
-<div class="g2">
-<button class="sq" id="btnSubir" onmousedown="subirStart()" onmouseup="subirEnd()" onmouseleave="subirEnd()" ontouchstart="subirStart()" ontouchend="subirEnd()"><svg viewBox="0 0 24 24"><polyline points="6 15 12 9 18 15"/></svg><div class="prog"></div></button>
-<button class="sq" id="btnDescer" onmousedown="descerStart()" onmouseup="descerEnd()" onmouseleave="descerEnd()" ontouchstart="descerStart()" ontouchend="descerEnd()"><svg viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg><div class="prog"></div></button>
-</div>
-<div class="slabels c2"><div class="slbl">Subir</div><div class="slbl">Descer</div></div>
-<div class="glabel">Plataforma</div>
-<div style="display:flex;gap:4px;justify-content:center"><div class="warn" id="msgSubir"></div><div class="warn" id="msgDescer"></div></div>
-</div>
-<div class="group">
-<div class="g2">
-<button class="sq" id="aMoega" onclick="toggleMoega()"><svg viewBox="0 0 24 24"><path d="M12 9v2m0 4h.01M5.07 19H19a2 2 0 001.75-2.98L13.75 4a2 2 0 00-3.5 0L3.32 16.02A2 2 0 005.07 19z"/></svg></button>
-<button class="sq" id="aFosso" onclick="toggleFosso()"><svg viewBox="0 0 24 24"><path d="M12 9v2m0 4h.01M5.07 19H19a2 2 0 001.75-2.98L13.75 4a2 2 0 00-3.5 0L3.32 16.02A2 2 0 005.07 19z"/></svg></button>
-</div>
-<div class="slabels c2"><div class="slbl">Moega</div><div class="slbl">Fosso</div></div>
-<div class="glabel">Alertas</div>
-</div>
-</div>
-<div class="card">
-<div class="group">
-<div class="glabel" style="margin-top:0;margin-bottom:6px">Travar</div>
-<div class="g4">
-<button class="sq" id="tRodas" onclick="travar(2)"><svg viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 018 0v4"/></svg></button>
-<button class="sq" id="tChassi" onclick="travar(3)"><svg viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 018 0v4"/></svg></button>
-<button class="sq" id="tPinoE" onclick="travar(4)"><svg viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 018 0v4"/></svg></button>
-<button class="sq" id="tPinoD" onclick="travar(5)"><svg viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 018 0v4"/></svg></button>
-</div>
-<div class="slabels c4"><div class="slbl">Rodas</div><div class="slbl">Chassi</div><div class="slbl">Pino E</div><div class="slbl">Pino D</div></div>
-</div>
-<div class="group">
-<div class="glabel" style="margin-top:0;margin-bottom:6px">Destravar</div>
-<div class="g4">
-<button class="sq" onclick="destravar(2)"><svg viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 018 0"/></svg></button>
-<button class="sq" onclick="destravar(3)"><svg viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 018 0"/></svg></button>
-<button class="sq" onclick="destravar(4)"><svg viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 018 0"/></svg></button>
-<button class="sq" onclick="destravar(5)"><svg viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 018 0"/></svg></button>
-</div>
-<div class="slabels c4"><div class="slbl">Rodas</div><div class="slbl">Chassi</div><div class="slbl">Pino E</div><div class="slbl">Pino D</div></div>
-<div class="warn" id="msgDestravar"></div>
-</div>
-</div>
+<div class="foot">
+<button class="b" id="bMo" onclick="togMoega()"><svg viewBox="0 0 24 24" style="width:16px;height:16px"><path d="M12 9v2m0 4h.01M5 19h14a2 2 0 001.75-3L13.75 4a2 2 0 00-3.5 0L3.25 16A2 2 0 005 19z"/></svg>Moega/Fosso</button>
+<div class="ph" id="phTxt">Ative SIM para iniciar</div>
 </div>
 <script>
-var ws,connected=false,simOn=false;
-var sensors=[false,false,false,false,false,false,false,false];
-var holding=false,holdTimer=null,holdingDescer=false,holdTimerDescer=null;
+var ws,simOn=false,moving=false,phase=0;
+var s=[false,false,false,false,false,false,false,false];
 function connect(){
 ws=new WebSocket('ws://'+location.hostname+':81/');
-ws.onopen=function(){
-connected=true;
-document.getElementById('dot').className='dot online';
-document.getElementById('status').textContent='Conectado';
-};
-ws.onclose=function(){
-connected=false;
-document.getElementById('dot').className='dot';
-document.getElementById('status').textContent='Desconectado';
-setTimeout(connect,2000);
-};
+ws.onopen=function(){document.getElementById('dot').className='dot on';document.getElementById('sts').textContent='Conectado';};
+ws.onclose=function(){document.getElementById('dot').className='dot';document.getElementById('sts').textContent='Desconectado';setTimeout(connect,2000);};
 ws.onmessage=function(e){
-try{
-var d=JSON.parse(e.data);
-if(d.cmd)return;
-sensors[0]=!!d.sensor_0_graus;
-sensors[1]=!!d.sensor_40_graus;
-sensors[2]=!!d.trava_roda;
-sensors[3]=!!d.trava_chassi;
-sensors[4]=!!d.trava_pino_e;
-sensors[5]=!!d.trava_pino_d;
-sensors[6]=!!d.moega_fosso;
-sensors[7]=!!d.portao_fechado;
-if(typeof d.simulationMode!=='undefined'){
-simOn=d.simulationMode;
-var b=document.getElementById('simBadge');
-b.className='sim-toggle'+(simOn?' on':'');
-b.textContent='SIM: '+(simOn?'ON':'OFF');
-}
-updateUI();
-}catch(ex){}
-};
-}
-function updateUI(){
-var tIds=['tRodas','tChassi','tPinoE','tPinoD'];
-var tSens=[2,3,4,5];
-for(var j=0;j<4;j++){
-document.getElementById(tIds[j]).className='sq'+(sensors[tSens[j]]?' on':'');
-}
-document.getElementById('aMoega').className='sq'+(sensors[6]?' alert-on':'');
-document.getElementById('aFosso').className='sq'+(sensors[6]?' alert-on':'');
-var allTravas=sensors[2]&&sensors[3]&&sensors[4]&&sensors[5];
-var noTravas=!sensors[2]&&!sensors[3]&&!sensors[4]&&!sensors[5];
-var at0=sensors[0];
-var portao=sensors[7];
-var msgPortao=document.getElementById('msgPortao');
-if(!at0||!noTravas){
-var r=[];
-if(!at0)r.push('fora do 0\u00b0');
-if(!noTravas)r.push('travas ativas');
-msgPortao.textContent='\u26a0 '+r.join(' e ');
-}else{msgPortao.textContent='';}
-var msgSubir=document.getElementById('msgSubir');
-if(!allTravas||!portao){
-var r2=[];
-if(!allTravas)r2.push('travas');
-if(!portao)r2.push('port\u00e3o');
-msgSubir.textContent='\u26a0 '+r2.join(' e ');
-}else{msgSubir.textContent='';}
-var msgDescer=document.getElementById('msgDescer');
-if(sensors[0]){msgDescer.textContent='\u26a0 j\u00e1 em 0\u00b0';}
-else{msgDescer.textContent='';}
-var msgDest=document.getElementById('msgDestravar');
-if(!at0){msgDest.textContent='\u26a0 fora do 0\u00b0';}
-else{msgDest.textContent='';}
+try{var d=JSON.parse(e.data);if(d.cmd)return;
+s[0]=!!d.sensor_0_graus;s[1]=!!d.sensor_40_graus;s[2]=!!d.trava_roda;s[3]=!!d.trava_chassi;
+s[4]=!!d.trava_pino_e;s[5]=!!d.trava_pino_d;s[6]=!!d.moega_fosso;s[7]=!!d.portao_fechado;
+if(typeof d.simulationMode!=='undefined'){simOn=d.simulationMode;
+var b=document.getElementById('simB');b.className='sim'+(simOn?' on':'');b.textContent='SIM: '+(simOn?'ON':'OFF');}
+upd();}catch(ex){}
+};}
+function upd(){
+var ids=['bTR','bTC','bTE','bTD'];
+for(var i=0;i<4;i++)document.getElementById(ids[i]).className='b'+(s[i+2]?' on':'');
+document.getElementById('bFP').className='b act'+(s[7]?' on':'');
+document.getElementById('bAP').className='b act';
+document.getElementById('bSub').className='b act'+(moving&&!s[1]?' mv':'');
+document.getElementById('bDes').className='b act'+(moving&&!s[0]?' mv':'');
+document.getElementById('bMo').className='b'+(s[6]?' al':'');
+var allT=s[2]&&s[3]&&s[4]&&s[5];var noT=!s[2]&&!s[3]&&!s[4]&&!s[5];
+if(noT&&!s[7])phase=0;
+if(allT&&phase==0)phase=1;
+if(s[7]&&phase==1)phase=2;
+if(s[1]&&phase>=2)phase=3;
+if(s[0]&&!s[1]&&phase==3&&!moving)phase=4;
+if(!s[7]&&phase==4)phase=5;
+if(noT&&phase==5)phase=0;
+for(var i=1;i<=6;i++){var el=document.getElementById('s'+i);el.className='step'+(i==phase+1?' cur':'')+(i<=phase?' ok':'');}
+var msgs=['\u2460 Trave as 4 travas','\u2461 Feche o port\u00e3o','\u2462 Toque SUBIR','\u2463 Toque DESCER','\u2464 Abra o port\u00e3o','\u2465 Destrave tudo'];
+document.getElementById('phTxt').textContent=simOn?msgs[phase]:'Ative SIM para iniciar';
 }
 var actx=null;
-function beep(freq,dur,type){
-try{
-if(!actx)actx=new(window.AudioContext||window.webkitAudioContext)();
-var o=actx.createOscillator();
-var g=actx.createGain();
-o.type=type||'sine';
-o.frequency.value=freq;
-g.gain.value=0.15;
-o.connect(g);g.connect(actx.destination);
-o.start();
-g.gain.exponentialRampToValueAtTime(0.001,actx.currentTime+dur);
-o.stop(actx.currentTime+dur);
-}catch(e){}
+function beep(f,d,t){try{if(!actx)actx=new(window.AudioContext||window.webkitAudioContext)();var o=actx.createOscillator(),g=actx.createGain();o.type=t||'sine';o.frequency.value=f;g.gain.value=0.15;o.connect(g);g.connect(actx.destination);o.start();g.gain.exponentialRampToValueAtTime(0.001,actx.currentTime+d);o.stop(actx.currentTime+d);}catch(e){}}
+function sndOk(){beep(600,.1);setTimeout(function(){beep(900,.15);},120);}
+function sndOff(){beep(400,.12);}
+function sndErr(){beep(200,.25,'square');}
+function tx(o){if(ws&&ws.readyState===1)ws.send(JSON.stringify(o));}
+function sim(i,v){tx({cmd:'SIM_SET',sensor:i,value:v});}
+function chk(){if(!simOn){sndErr();return false;}return true;}
+function toggleSim(){if(!simOn)tx({cmd:'SIM_ON'});else tx({cmd:'SIM_OFF'});phase=0;}
+function trav(i){if(!chk())return;sndOk();sim(i,true);}
+function dest(i){if(!chk())return;if(!s[0]){sndErr();return;}sndOff();sim(i,false);}
+function fechar(){if(!chk())return;sndOk();sim(7,true);}
+function abrir(){if(!chk())return;if(!s[0]){sndErr();return;}sndOff();sim(7,false);}
+function subir(){
+if(!chk()||moving)return;var allT=s[2]&&s[3]&&s[4]&&s[5];
+if(!allT||!s[7]){sndErr();return;}
+moving=true;beep(400,.6,'triangle');sim(0,false);
+setTimeout(function(){sim(1,true);moving=false;},3000);
 }
-function sndError(){beep(200,0.25,'square');}
-function sndOff(){beep(400,0.12,'sine');}
-function sndFechar(){beep(600,0.1,'sine');setTimeout(function(){beep(900,0.15,'sine');},120);}
-function sndAbrir(){beep(900,0.1,'sine');setTimeout(function(){beep(500,0.15,'sine');},120);}
-function sndSubir(){beep(400,0.6,'triangle');}
-function sndDescer(){beep(700,0.3,'triangle');setTimeout(function(){beep(350,0.4,'triangle');},100);}
-function sndMoega(){beep(800,0.12,'sawtooth');setTimeout(function(){beep(1100,0.15,'sawtooth');},140);}
-function sndFosso(){beep(500,0.15,'sawtooth');setTimeout(function(){beep(750,0.15,'sawtooth');},160);}
-function send(obj){
-if(ws&&ws.readyState===1)ws.send(JSON.stringify(obj));
+function descer(){
+if(!chk()||moving)return;if(s[0]){sndErr();return;}
+moving=true;beep(700,.3,'triangle');sim(1,false);
+setTimeout(function(){sim(0,true);moving=false;},3000);
 }
-function toggleSim(){
-if(!simOn)send({cmd:'SIM_ON'});
-else send({cmd:'SIM_OFF'});
-}
-function simSet(s,v){
-if(!simOn){sndError();alert('Ative SIM primeiro!');return;}
-send({cmd:'SIM_SET',sensor:s,value:v});
-}
-function travar(i){
-if(!simOn){sndError();alert('Ative SIM primeiro!');return;}
-simSet(i,true);
-}
-function destravar(i){
-if(!simOn){sndError();alert('Ative SIM primeiro!');return;}
-simSet(i,false);
-}
-function fecharPortao(){
-if(!simOn){sndError();alert('Ative SIM primeiro!');return;}
-sndFechar();
-send({cmd:'SIM_SET',sensor:7,value:true});
-}
-function abrirPortao(){
-if(!simOn){sndError();alert('Ative SIM primeiro!');return;}
-if(!sensors[0]||sensors[2]||sensors[3]||sensors[4]||sensors[5]){sndError();return;}
-sndAbrir();
-send({cmd:'SIM_SET',sensor:7,value:false});
-}
-function toggleMoega(){
-if(!simOn){sndError();alert('Ative SIM primeiro!');return;}
-if(!sensors[6])sndMoega();else sndOff();
-send({cmd:'SIM_SET',sensor:6,value:!sensors[6]});
-}
-function toggleFosso(){
-if(!simOn){sndError();alert('Ative SIM primeiro!');return;}
-if(!sensors[6])sndFosso();else sndOff();
-send({cmd:'SIM_SET',sensor:6,value:!sensors[6]});
-}
-function subirStart(){
-if(holding)return;
-var allT=sensors[2]&&sensors[3]&&sensors[4]&&sensors[5];
-if(!allT||!sensors[7]){sndError();return;}
-if(!simOn){sndError();alert('Ative SIM primeiro!');return;}
-holding=true;
-sndSubir();
-document.getElementById('btnSubir').classList.add('holding');
-simSet(0,false);
-holdTimer=setTimeout(function(){if(holding)simSet(1,true);},30000);
-}
-function subirEnd(){
-if(!holding)return;
-holding=false;
-if(holdTimer){clearTimeout(holdTimer);holdTimer=null;}
-document.getElementById('btnSubir').classList.remove('holding');
-}
-function descerStart(){
-if(holdingDescer)return;
-if(!simOn){sndError();alert('Ative SIM primeiro!');return;}
-if(sensors[0]){sndError();return;}
-holdingDescer=true;
-sndDescer();
-document.getElementById('btnDescer').classList.add('holding');
-simSet(1,false);
-holdTimerDescer=setTimeout(function(){if(holdingDescer)simSet(0,true);},30000);
-}
-function descerEnd(){
-if(!holdingDescer)return;
-holdingDescer=false;
-if(holdTimerDescer){clearTimeout(holdTimerDescer);holdTimerDescer=null;}
-document.getElementById('btnDescer').classList.remove('holding');
-}
+function togMoega(){if(!chk())return;if(!s[6])beep(800,.12,'sawtooth');else sndOff();sim(6,!s[6]);}
 connect();
 </script>
 </body>
@@ -2292,37 +2170,32 @@ void setup() {
     sensorEnabled[4], sensorEnabled[5], sensorEnabled[6], sensorEnabled[7]);
 
   Serial.println("Configurando Access Point...");
-  WiFi.mode(WIFI_AP_STA);
-  WiFi.disconnect(false);  // Limpar STA sem afetar AP
+  WiFi.disconnect(true, true);  // Limpar STA + credenciais IDF
   delay(200);
-  WiFi.softAP(AP_SSID, AP_PASSWORD, 1, 0, 4);  // Canal 1, visível, máx 4 clientes
 
-  IPAddress IP = WiFi.softAPIP();
-  Serial.printf("AP: %s @ %s\n", AP_SSID, IP.toString().c_str());
-
-  // Auto-reconexão WiFi STA (não-bloqueante no boot — resultado vem no loop)
+  // Verificar se tem WiFi salvo ANTES de escolher o modo
   preferences.begin("pilitech", true);
   String savedSSID = preferences.getString("wifiSSID", "");
   String savedPass = preferences.getString("wifiPass", "");
   preferences.end();
 
   if (savedSSID.length() > 0) {
-    Serial.printf("WiFi STA: %s (conectando em background)\n", savedSSID.c_str());
+    // Tem WiFi salvo: modo AP+STA
+    WiFi.mode(WIFI_AP_STA);
+    delay(200);
+    WiFi.softAP(AP_SSID, AP_PASSWORD);
+    delay(200);
+    Serial.printf("AP: %s @ %s\n", AP_SSID, WiFi.softAPIP().toString().c_str());
+    Serial.printf("WiFi STA: %s (background)\n", savedSSID.c_str());
     WiFi.begin(savedSSID.c_str(), savedPass.c_str());
-    // Aguarda rápido (5s) sem bloquear — loop continuará checando
-    int attempts = 0;
-    while (WiFi.status() != WL_CONNECTED && attempts < 50) {
-      delay(100);
-      attempts++;
-    }
-    if (WiFi.status() == WL_CONNECTED) {
-      Serial.printf("WiFi OK: %s IP:%s RSSI:%d\n",
-        savedSSID.c_str(), WiFi.localIP().toString().c_str(), WiFi.RSSI());
-    } else {
-      Serial.println("WiFi STA: nao conectou no boot, retry no loop");
-    }
   } else {
-    Serial.println("Nenhum WiFi salvo");
+    // Sem WiFi salvo: modo AP puro (mais estável)
+    WiFi.mode(WIFI_AP);
+    delay(200);
+    WiFi.softAP(AP_SSID, AP_PASSWORD);
+    delay(200);
+    Serial.printf("AP: %s @ %s\n", AP_SSID, WiFi.softAPIP().toString().c_str());
+    Serial.println("Modo AP puro (sem STA) - configure WiFi pela interface");
   }
 
   server.on("/", handleRoot);
@@ -2523,40 +2396,45 @@ void loop() {
     lastStatus = currentMillis;
     Serial.printf("Up:%lus Mem:%d WiFi:%s Ciclos:%lu/%lu Buf:%d\n",
                   uptimeSeconds, ESP.getFreeHeap(),
-                  wifiConnected ? "ON" : "OFF",
+                  (WiFi.status() == WL_CONNECTED) ? "ON" : "OFF",
                   stats.ciclosHoje, stats.ciclosTotal,
                   countBufferedSnapshots());
   }
 
-  // ====== AUTO-RECONEXÃO WiFi (a cada 60s, sem derrubar AP) ======
+  // ====== AUTO-RECONEXÃO WiFi STA (sem interferir no AP) ======
+  // Tenta reconectar apenas 3 vezes, depois para (evita oscilar o AP)
+  // Novas tentativas só via interface (WIFI_CONNECT) ou reboot
   static unsigned long lastWiFiRetry = 0;
   static int wifiRetryCount = 0;
-  if (WiFi.status() != WL_CONNECTED && currentMillis - lastWiFiRetry >= 60000) {
+  static bool wifiRetryGaveUp = false;
+
+  if (!wifiRetryGaveUp && WiFi.status() != WL_CONNECTED && currentMillis - lastWiFiRetry >= 120000) {
     lastWiFiRetry = currentMillis;
     wifiRetryCount++;
 
-    // A cada 5 tentativas falhas, resetar WiFi stack (mas manter AP)
-    if (wifiRetryCount % 5 == 0) {
-      Serial.println("WiFi: reset STA stack");
-      WiFi.disconnect(false);
-      delay(200);
-      if (WiFi.getMode() != WIFI_AP_STA) {
-        WiFi.mode(WIFI_AP_STA);
-        delay(200);
+    if (wifiRetryCount > 3) {
+      wifiRetryGaveUp = true;
+      Serial.println("WiFi STA: desistiu apos 3 tentativas (AP continua ativo)");
+    } else {
+      preferences.begin("pilitech", true);
+      String sSSID = preferences.getString("wifiSSID", "");
+      String sPass = preferences.getString("wifiPass", "");
+      preferences.end();
+      if (sSSID.length() > 0) {
+        // Mudar para AP+STA se ainda em modo AP puro
+        if (WiFi.getMode() == WIFI_AP) {
+          WiFi.mode(WIFI_AP_STA);
+          delay(200);
+        }
+        Serial.printf("WiFi STA retry #%d: %s\n", wifiRetryCount, sSSID.c_str());
+        WiFi.begin(sSSID.c_str(), sPass.c_str());
       }
     }
-
-    preferences.begin("pilitech", true);
-    String sSSID = preferences.getString("wifiSSID", "");
-    String sPass = preferences.getString("wifiPass", "");
-    preferences.end();
-    if (sSSID.length() > 0) {
-      Serial.printf("WiFi retry #%d: %s\n", wifiRetryCount, sSSID.c_str());
-      WiFi.begin(sSSID.c_str(), sPass.c_str());  // Não chamar disconnect antes!
-    }
   }
-  if (WiFi.status() == WL_CONNECTED && wifiRetryCount > 0) {
-    wifiRetryCount = 0;  // Reset ao conectar
+  // Se conectou, resetar contadores
+  if (WiFi.status() == WL_CONNECTED && (wifiRetryCount > 0 || wifiRetryGaveUp)) {
+    wifiRetryCount = 0;
+    wifiRetryGaveUp = false;
   }
 
   // ====== GERENCIAMENTO OFFLINE/ONLINE ======
@@ -2596,7 +2474,7 @@ void loop() {
 
   // ====== LIVE STATUS A CADA 10 SEGUNDOS (sem gravar no banco) ======
   static unsigned long lastLiveStatus = 0;
-  if (wifiConnected && currentMillis - lastLiveStatus >= 10000) {
+  if (wifiConnected && currentMillis - lastLiveStatus >= 30000) {
     lastLiveStatus = currentMillis;
 
     StaticJsonDocument<1536> liveDoc;

@@ -49,6 +49,12 @@
             </svg>
             Assinar
           </a>
+          <button onclick="togglePushNotifications()" id="btnNotif" class="relative p-2 bg-gray-100 hover:bg-gray-200 rounded-lg" title="Notificações Push">
+            <svg class="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/>
+            </svg>
+            <span id="notifDot" class="hidden absolute -top-1 -right-1 w-3 h-3 bg-green-500 rounded-full border-2 border-white"></span>
+          </button>
           <div class="text-right hidden sm:block">
             <p class="text-sm font-medium text-gray-800" id="userName">Cliente</p>
             <p class="text-xs text-gray-500" id="lastUpdate">Atualizando...</p>
@@ -2181,6 +2187,82 @@
     }
     // Carregar após 2s (depois do refreshData inicial)
     setTimeout(initCompareSelector, 2000);
+
+    // ========== PUSH NOTIFICATIONS ==========
+    let pushSubscription = null;
+
+    async function initPushNotifications() {
+      if (!('serviceWorker' in navigator) || !('PushManager' in window)) return;
+      try {
+        const reg = await navigator.serviceWorker.register('/sw-push.js');
+        const sub = await reg.pushManager.getSubscription();
+        if (sub) {
+          pushSubscription = sub;
+          document.getElementById('notifDot').classList.remove('hidden');
+        }
+      } catch (e) {
+        console.log('Push init error:', e);
+      }
+    }
+
+    async function togglePushNotifications() {
+      if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+        alert('Seu navegador não suporta notificações push.');
+        return;
+      }
+      if (pushSubscription) {
+        // Unsubscribe
+        if (confirm('Deseja desativar as notificações push?')) {
+          await pushSubscription.unsubscribe();
+          await fetch('/api/push/unsubscribe', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token }
+          });
+          pushSubscription = null;
+          document.getElementById('notifDot').classList.add('hidden');
+          alert('Notificações desativadas.');
+        }
+      } else {
+        // Subscribe
+        const perm = await Notification.requestPermission();
+        if (perm !== 'granted') {
+          alert('Permissão de notificação negada.');
+          return;
+        }
+        try {
+          const vapidRes = await fetch('/api/push/vapid-key');
+          const { publicKey } = await vapidRes.json();
+          const reg = await navigator.serviceWorker.ready;
+          const sub = await reg.pushManager.subscribe({
+            userVisibleOnly: true,
+            applicationServerKey: urlBase64ToUint8Array(publicKey)
+          });
+          await fetch('/api/push/subscribe', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+            body: JSON.stringify({ subscription: sub.toJSON() })
+          });
+          pushSubscription = sub;
+          document.getElementById('notifDot').classList.remove('hidden');
+          alert('Notificações push ativadas! Você receberá alertas em tempo real.');
+        } catch (e) {
+          console.error('Push subscribe error:', e);
+          alert('Erro ao ativar notificações: ' + e.message);
+        }
+      }
+    }
+
+    function urlBase64ToUint8Array(base64String) {
+      const padding = '='.repeat((4 - base64String.length % 4) % 4);
+      const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+      const rawData = window.atob(base64);
+      const outputArray = new Uint8Array(rawData.length);
+      for (let i = 0; i < rawData.length; ++i) outputArray[i] = rawData.charCodeAt(i);
+      return outputArray;
+    }
+
+    // Init push on page load
+    initPushNotifications();
 
   </script>
 </body>
