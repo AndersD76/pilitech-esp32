@@ -2,11 +2,11 @@
 <html lang="pt-BR">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=1024">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>PILI TECH v1.0</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
-body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;background:linear-gradient(135deg,#dc2626 0%,#7f1d1d 50%,#000 100%);width:1024px;height:600px;overflow:hidden}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;background:linear-gradient(135deg,#dc2626 0%,#7f1d1d 50%,#000 100%);width:100%;min-height:100vh;overflow-y:auto}
 .header{height:52px;background:#fff;border-bottom:1px solid #e5e7eb;display:flex;align-items:center;justify-content:space-between;padding:0 20px;box-shadow:0 1px 3px rgba(0,0,0,0.1)}
 .logo{display:flex;align-items:center;gap:10px;font-size:18px;font-weight:700;color:#dc2626}
 .logo svg{width:24px;height:24px;stroke:#dc2626;fill:none}
@@ -23,8 +23,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;ba
 .tab svg{width:14px;height:14px;stroke:currentColor;fill:none}
 .tab:hover{background:#f3f4f6}
 .tab.active{background:#dc2626;color:#fff}
-.content{height:508px;padding:8px;overflow:hidden}
-.panel{display:none;height:100%;overflow:hidden}
+.content{min-height:500px;padding:8px;overflow:visible}
+.panel{display:none;overflow:visible}
 .panel.active{display:grid;gap:8px}
 .card{background:#fff;border-radius:8px;padding:10px 12px;box-shadow:0 1px 3px rgba(0,0,0,0.1);overflow:hidden}
 .card-title{font-size:13px;font-weight:700;color:#111827;margin-bottom:8px;display:flex;align-items:center;gap:6px}
@@ -640,25 +640,21 @@ for(var i=0;i<6;i++){
 var el=document.getElementById(durEls[i]);
 if(!el)continue;
 var t=Math.round(durs[durKeys[i]]/1000)||0;
-if(isActive&&t>0){el.textContent=t+'s';el.className='sensor-dur timing';}
-else if(t>0){el.textContent=t+'s';el.className='sensor-dur done';}
+if(isActive&&t>0){el.textContent=t+'min';el.className='sensor-dur timing';}
+else if(t>0){el.textContent=t+'min';el.className='sensor-dur done';}
 else{el.textContent='';el.className='sensor-dur';}
 }
 var timer=document.getElementById('cycleTimer');
 var label=document.getElementById('cycleLabel');
 var cst=data.cst||0;
 if(isActive){
-var elapsed=Math.round(cst/1000);
-var min=Math.floor(elapsed/60);
-var sec=elapsed%60;
-timer.textContent=String(min).padStart(2,'0')+':'+String(Math.round(sec)).padStart(2,'0');
+var elMin=Math.round(cst/1000);
+timer.textContent=elMin+'min';
 timer.style.color='#10b981';
 label.textContent='CICLO EM ANDAMENTO';label.style.color='#10b981';
 }else if(data.lct>0){
-var lctS=Math.round(data.lct/1000);
-var lMin=Math.floor(lctS/60);
-var lSec=lctS%60;
-timer.textContent=String(lMin).padStart(2,'0')+':'+String(lSec).padStart(2,'0');
+var lcMin=Math.round(data.lct/1000);
+timer.textContent=lcMin+'min';
 timer.style.color='#6b7280';
 label.textContent='ULTIMO CICLO';label.style.color='#6b7280';
 }else{
@@ -684,38 +680,35 @@ var anyActive=vals.some(function(v){return v>0;});
 if(anyActive||isActive){
 var mx=Math.max.apply(null,vals)||1;
 for(var i=0;i<6;i++){
-document.getElementById(ids[i]).textContent=vals[i]+'s';
+document.getElementById(ids[i]).textContent=vals[i]+'min';
 var barEl=document.getElementById(bars[i]);
 barEl.style.width=Math.round((vals[i]/mx)*100)+'%';
 if(isActive){barEl.className='bar-active';barEl.style.background='';}
 else{barEl.className='bar-done';barEl.style.background='';}
 }
 if(isActive){
-var elapsedS=Math.round((data.cst||0)/1000);
-var mn2=Math.floor(elapsedS/60);var sc2=elapsedS%60;
-document.getElementById('lcTotal').textContent=String(mn2).padStart(2,'0')+':'+String(sc2).padStart(2,'0');
+var elM=Math.round((data.cst||0)/1000);
+document.getElementById('lcTotal').textContent=elM+'min';
 if(titleEl)titleEl.textContent='CICLO ATUAL';
 }else{
-var totalSec=Math.max.apply(null,vals)||0;
-var mn3=Math.floor(totalSec/60);var sc3=totalSec%60;
-document.getElementById('lcTotal').textContent=totalSec>0?String(mn3).padStart(2,'0')+':'+String(sc3).padStart(2,'0'):'-';
+var totalMin=Math.max.apply(null,vals)||0;
+document.getElementById('lcTotal').textContent=totalMin>0?totalMin+'min':'-';
 if(titleEl)titleEl.textContent='ÚLTIMO CICLO';
 }
 }else if(data.lct>0){
-var lctS=Math.round(data.lct/1000);
-var lMin=Math.floor(lctS/60);var lSec=lctS%60;
-document.getElementById('lcTotal').textContent=String(lMin).padStart(2,'0')+':'+String(lSec).padStart(2,'0');
+var lctMin=Math.round(data.lct/1000);
+document.getElementById('lcTotal').textContent=lctMin+'min';
 if(titleEl)titleEl.textContent='ÚLTIMO CICLO';
 for(var i=0;i<6;i++){
-document.getElementById(ids[i]).textContent=vals[i]+'s';
+document.getElementById(ids[i]).textContent=vals[i]+'min';
 var barEl2=document.getElementById(bars[i]);
 barEl2.style.width=vals[i]>0?Math.round((vals[i]/(Math.max.apply(null,vals)||1))*100)+'%':'0%';
 barEl2.className='bar-done';barEl2.style.background='';
 }
 }
 if(!isActive&&data.lct>0){
-var tt5=Math.round(data.lct/1000);var mn5=Math.floor(tt5/60);var sc5=tt5%60;
-timer.textContent=String(mn5).padStart(2,'0')+':'+String(sc5).padStart(2,'0');
+var ttMin=Math.round(data.lct/1000);
+timer.textContent=ttMin+'min';
 timer.style.color='#6b7280';label.textContent='ULTIMO CICLO';label.style.color='#6b7280';
 }
 updateSistemaStatus();
