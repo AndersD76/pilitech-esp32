@@ -566,22 +566,30 @@ updateUI();
 };
 }
 function updateUI(){
-document.getElementById('s0').textContent=data.sensor_0_graus?'ATIVO':'INATIVO';
-document.getElementById('s40').textContent=data.sensor_40_graus?'ATIVO':'INATIVO';
-document.getElementById('tr').textContent=data.trava_roda?'ATIVO':'INATIVO';
-document.getElementById('tc').textContent=data.trava_chassi?'ATIVO':'INATIVO';
-document.getElementById('tpe').textContent=data.trava_pino_e?'ATIVO':'INATIVO';
-document.getElementById('tpd').textContent=data.trava_pino_d?'ATIVO':'INATIVO';
-document.getElementById('mf').textContent=data.moega_fosso?'CHEIO':'OK';
-document.getElementById('portao').textContent=data.portao_fechado?'FECHADO':'ABERTO';
-document.getElementById('ch').textContent=data.ciclosHoje||0;
-document.getElementById('ct').textContent=data.ciclosTotal||0;
-document.getElementById('h').textContent=data.horasOperacao||0;
-document.getElementById('m').textContent=data.minutosOperacao||0;
-document.getElementById('mem').textContent=Math.round((data.freeHeap||0)/1024);
-document.getElementById('up').textContent=data.uptime||0;
-if(data.lastMaint)document.getElementById('lastMaint').textContent=data.lastMaint;
-if(data.wifiConnected){
+var S0=data.s0!==undefined?data.s0:data.sensor_0_graus;
+var S40=data.s40!==undefined?data.s40:data.sensor_40_graus;
+var TR=data.tr!==undefined?data.tr:data.trava_roda;
+var TC=data.tc!==undefined?data.tc:data.trava_chassi;
+var TPE=data.tpe!==undefined?data.tpe:data.trava_pino_e;
+var TPD=data.tpd!==undefined?data.tpd:data.trava_pino_d;
+var MF=data.mf!==undefined?data.mf:data.moega_fosso;
+var PT=data.pt!==undefined?data.pt:data.portao_fechado;
+document.getElementById('s0').textContent=S0?'ATIVO':'INATIVO';
+document.getElementById('s40').textContent=S40?'ATIVO':'INATIVO';
+document.getElementById('tr').textContent=TR?'ATIVO':'INATIVO';
+document.getElementById('tc').textContent=TC?'ATIVO':'INATIVO';
+document.getElementById('tpe').textContent=TPE?'ATIVO':'INATIVO';
+document.getElementById('tpd').textContent=TPD?'ATIVO':'INATIVO';
+document.getElementById('mf').textContent=MF?'CHEIO':'OK';
+document.getElementById('portao').textContent=PT?'FECHADO':'ABERTO';
+document.getElementById('ch').textContent=data.ct||data.ciclosHoje||0;
+document.getElementById('ct').textContent=data.ctotal||data.ciclosTotal||0;
+document.getElementById('h').textContent=data.hop||data.horasOperacao||0;
+document.getElementById('m').textContent=data.mop||data.minutosOperacao||0;
+document.getElementById('mem').textContent=Math.round((data.heap||data.freeHeap||0)/1024);
+document.getElementById('up').textContent=data.up||data.uptime||0;
+if(data.lm||data.lastMaint)document.getElementById('lastMaint').textContent=data.lm||data.lastMaint;
+if(data.wc!==undefined?data.wc:data.wifiConnected){
 document.getElementById('wifiStatus').classList.add('connected');
 document.getElementById('wifiText').textContent='WiFi';
 }else{
@@ -589,133 +597,124 @@ document.getElementById('wifiStatus').classList.remove('connected');
 document.getElementById('wifiText').textContent='Offline';
 }
 var si=document.querySelectorAll('.sensor-item');
-si[0].classList.toggle('active',data.sensor_0_graus);
-si[1].classList.toggle('active',data.sensor_40_graus);
-si[2].classList.toggle('active',data.trava_roda);
-si[3].classList.toggle('active',data.trava_chassi);
-si[4].classList.toggle('active',data.trava_pino_e);
-si[5].classList.toggle('active',data.trava_pino_d);
+si[0].classList.toggle('active',!!S0);
+si[1].classList.toggle('active',!!S40);
+si[2].classList.toggle('active',!!TR);
+si[3].classList.toggle('active',!!TC);
+si[4].classList.toggle('active',!!TPE);
+si[5].classList.toggle('active',!!TPD);
 si[6].classList.remove('active','alert');
-if(data.moega_fosso){
+if(MF){
 si[6].classList.add('alert');
 if(!lastMoegaFosso){addLog('ALERTA: Moega/Fosso cheio!');lastMoegaFosso=true;}
 }else{
 if(lastMoegaFosso){addLog('Moega/Fosso normalizado');lastMoegaFosso=false;}
 }
-si[7].classList.toggle('active',data.portao_fechado);
-if(data.sensorConfig){
+si[7].classList.toggle('active',!!PT);
+var seCfg=data.se||data.sensorConfig;
+if(seCfg){
 var sIds=['si0','si1','si2','si3','si4','si5','si6','si7'];
 for(var i=0;i<8;i++){
-document.getElementById(sIds[i]).style.display=data.sensorConfig[i]?'':'none';
+document.getElementById(sIds[i]).style.display=seCfg[i]?'':'none';
 }
 if(!configDirty){
 var cfgIds=['cfgS0','cfgS40','cfgTR','cfgTC','cfgTPE','cfgTPD','cfgMF','cfgPT'];
 for(var i=0;i<8;i++){
 var el=document.getElementById(cfgIds[i]);
-if(el)el.checked=data.sensorConfig[i];
+if(el)el.checked=seCfg[i];
 }
 }
 }
-var hrs=data.horasOperacao||0;
+var hrs=data.hop||data.horasOperacao||0;
 var pct=Math.min((hrs/2000)*100,100);
 document.getElementById('maintBar').style.width=pct+'%';
 document.getElementById('maintHrs').textContent=Math.max(2000-hrs,0);
 updateTimeline();
 }
 function updateTimeline(){
-var sKeys=['portao','moega','travaRoda','travaChassi','travaPinoE','travaPinoD'];
-var sOnKeys=['pTon','mGon','tRon','tCon','tPEon','tPDon'];
+var durs={portao:data.dpt||0,moega:data.dmf||0,travaRoda:data.dtr||0,travaChassi:data.dtc||0,travaPinoE:data.dtpe||0,travaPinoD:data.dtpd||0};
 var durEls=['sd0','sd1','sd2','sd3','sd4','sd5'];
+var durKeys=['portao','moega','travaRoda','travaChassi','travaPinoE','travaPinoD'];
+var isActive=data.ca||data.cycleActive||false;
 for(var i=0;i<6;i++){
 var el=document.getElementById(durEls[i]);
 if(!el)continue;
-var t=0,isOn=false;
-if(data.currentCycle){t=data.currentCycle[sKeys[i]]||0;isOn=data.currentCycle[sOnKeys[i]]||false;}
-if(isOn){el.textContent=t+'s';el.className='sensor-dur timing';}
+var t=Math.round(durs[durKeys[i]]/1000)||0;
+if(isActive&&t>0){el.textContent=t+'s';el.className='sensor-dur timing';}
 else if(t>0){el.textContent=t+'s';el.className='sensor-dur done';}
 else{el.textContent='';el.className='sensor-dur';}
 }
 var timer=document.getElementById('cycleTimer');
 var label=document.getElementById('cycleLabel');
-if(data.cycleInProgress&&data.currentCycle){
-var elapsed=data.currentCycle.elapsed||0;
+var cst=data.cst||0;
+if(isActive){
+var elapsed=Math.round(cst/1000);
 var min=Math.floor(elapsed/60);
 var sec=elapsed%60;
-timer.textContent=String(min).padStart(2,'0')+':'+String(sec).padStart(2,'0');
+timer.textContent=String(min).padStart(2,'0')+':'+String(Math.round(sec)).padStart(2,'0');
 timer.style.color='#10b981';
 label.textContent='CICLO EM ANDAMENTO';label.style.color='#10b981';
+}else if(data.lct>0){
+var lctS=Math.round(data.lct/1000);
+var lMin=Math.floor(lctS/60);
+var lSec=lctS%60;
+timer.textContent=String(lMin).padStart(2,'0')+':'+String(lSec).padStart(2,'0');
+timer.style.color='#6b7280';
+label.textContent='ULTIMO CICLO';label.style.color='#6b7280';
 }else{
 timer.textContent='--:--';timer.style.color='#6b7280';
 label.textContent='CICLO PARADO';label.style.color='#6b7280';
 }
 var platL=document.getElementById('platLabel');
 var platT=document.getElementById('platTimer');
-var ps=data.platformState||0;
-if(ps===1){platL.textContent='PLATAFORMA: SUBINDO';platL.style.color='#f59e0b';platT.textContent='';platT.style.color='#f59e0b';}
-else if(ps===2){platL.textContent='PLATAFORMA: DESCENDO';platL.style.color='#3b82f6';platT.textContent='';platT.style.color='#3b82f6';}
-else if(ps===3){platL.textContent='CICLO COMPLETO';platL.style.color='#10b981';platT.textContent='';platT.style.color='#10b981';}
-else{platL.textContent='PLATAFORMA: PARADA';platL.style.color='#6b7280';platT.textContent='';platT.style.color='#6b7280';}
-// Barras em tempo real: usa currentCycle (sempre disponivel agora)
-var cc=data.currentCycle;
-var lc=data.lastCycle;
+var S40=data.s40!==undefined?data.s40:data.sensor_40_graus;
+var S0=data.s0!==undefined?data.s0:data.sensor_0_graus;
+if(isActive&&S40){platL.textContent='PLATAFORMA: SUBINDO';platL.style.color='#f59e0b';}
+else if(isActive&&!S40&&!S0){platL.textContent='PLATAFORMA: DESCENDO';platL.style.color='#3b82f6';}
+else if(!isActive&&data.lct>0){platL.textContent='PLATAFORMA: PARADA';platL.style.color='#10b981';}
+else{platL.textContent='PLATAFORMA: PARADA';platL.style.color='#6b7280';}
+if(platT)platT.textContent='';
+var cc=durs;
 var ids=['lc0','lc1','lc2','lc3','lc4','lc5'];
 var bars=['lb0','lb1','lb2','lb3','lb4','lb5'];
 var tableTitle=document.getElementById('lastCycleTable');
 var titleEl=tableTitle?tableTitle.previousElementSibling:null;
-if(cc){
-var vals=[cc.portao||0,cc.moega||0,cc.travaRoda||0,cc.travaChassi||0,cc.travaPinoE||0,cc.travaPinoD||0];
+var vals=[Math.round((cc.portao||0)/1000),Math.round((cc.moega||0)/1000),Math.round((cc.travaRoda||0)/1000),Math.round((cc.travaChassi||0)/1000),Math.round((cc.travaPinoE||0)/1000),Math.round((cc.travaPinoD||0)/1000)];
 var anyActive=vals.some(function(v){return v>0;});
-if(anyActive||data.cycleInProgress){
-// Barras em tempo real com dados atuais
+if(anyActive||isActive){
 var mx=Math.max.apply(null,vals)||1;
-var onKeys=['pTon','mGon','tRon','tCon','tPEon','tPDon'];
 for(var i=0;i<6;i++){
 document.getElementById(ids[i]).textContent=vals[i]+'s';
 var barEl=document.getElementById(bars[i]);
 barEl.style.width=Math.round((vals[i]/mx)*100)+'%';
-if(cc[onKeys[i]]){barEl.className='bar-active';barEl.style.background='';}
+if(isActive){barEl.className='bar-active';barEl.style.background='';}
 else{barEl.className='bar-done';barEl.style.background='';}
 }
-if(data.cycleInProgress){
-var elapsed=cc.elapsed||0;
-var mn2=Math.floor(elapsed/60);var sc2=elapsed%60;
+if(isActive){
+var elapsedS=Math.round((data.cst||0)/1000);
+var mn2=Math.floor(elapsedS/60);var sc2=elapsedS%60;
 document.getElementById('lcTotal').textContent=String(mn2).padStart(2,'0')+':'+String(sc2).padStart(2,'0');
 if(titleEl)titleEl.textContent='CICLO ATUAL';
 }else{
 var totalSec=Math.max.apply(null,vals)||0;
 var mn3=Math.floor(totalSec/60);var sc3=totalSec%60;
 document.getElementById('lcTotal').textContent=totalSec>0?String(mn3).padStart(2,'0')+':'+String(sc3).padStart(2,'0'):'-';
-if(titleEl)titleEl.textContent='SENSORES AO VIVO';
+if(titleEl)titleEl.textContent='ÚLTIMO CICLO';
 }
-}else if(lc&&lc.total>0){
-// Sem atividade atual, mostra ultimo ciclo
-var vals2=[lc.portao||0,lc.moega||0,lc.travaRoda||0,lc.travaChassi||0,lc.travaPinoE||0,lc.travaPinoD||0];
-var mx2=Math.max.apply(null,vals2)||1;
+}else if(data.lct>0){
+var lctS=Math.round(data.lct/1000);
+var lMin=Math.floor(lctS/60);var lSec=lctS%60;
+document.getElementById('lcTotal').textContent=String(lMin).padStart(2,'0')+':'+String(lSec).padStart(2,'0');
+if(titleEl)titleEl.textContent='ÚLTIMO CICLO';
 for(var i=0;i<6;i++){
-document.getElementById(ids[i]).textContent=vals2[i]+'s';
+document.getElementById(ids[i]).textContent=vals[i]+'s';
 var barEl2=document.getElementById(bars[i]);
-barEl2.style.width=Math.round((vals2[i]/mx2)*100)+'%';
+barEl2.style.width=vals[i]>0?Math.round((vals[i]/(Math.max.apply(null,vals)||1))*100)+'%':'0%';
 barEl2.className='bar-done';barEl2.style.background='';
 }
-var tt=lc.total;var mn=Math.floor(tt/60);var sc=tt%60;
-document.getElementById('lcTotal').textContent=String(mn).padStart(2,'0')+':'+String(sc).padStart(2,'0');
-if(titleEl)titleEl.textContent='ÚLTIMO CICLO';
 }
-}else if(lc&&lc.total>0){
-var vals3=[lc.portao||0,lc.moega||0,lc.travaRoda||0,lc.travaChassi||0,lc.travaPinoE||0,lc.travaPinoD||0];
-var mx3=Math.max.apply(null,vals3)||1;
-for(var i=0;i<6;i++){
-document.getElementById(ids[i]).textContent=vals3[i]+'s';
-var barEl3=document.getElementById(bars[i]);
-barEl3.style.width=Math.round((vals3[i]/mx3)*100)+'%';
-barEl3.className='bar-done';barEl3.style.background='';
-}
-var tt2=lc.total;var mn4=Math.floor(tt2/60);var sc4=tt2%60;
-document.getElementById('lcTotal').textContent=String(mn4).padStart(2,'0')+':'+String(sc4).padStart(2,'0');
-if(titleEl)titleEl.textContent='ÚLTIMO CICLO';
-}
-if(!data.cycleInProgress&&lc&&lc.total>0){
-var tt5=lc.total;var mn5=Math.floor(tt5/60);var sc5=tt5%60;
+if(!isActive&&data.lct>0){
+var tt5=Math.round(data.lct/1000);var mn5=Math.floor(tt5/60);var sc5=tt5%60;
 timer.textContent=String(mn5).padStart(2,'0')+':'+String(sc5).padStart(2,'0');
 timer.style.color='#6b7280';label.textContent='ULTIMO CICLO';label.style.color='#6b7280';
 }
