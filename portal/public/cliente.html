@@ -920,21 +920,15 @@
         const moega = alertStatus(t.moega_fosso, 'CHEIO!', 'OK');
         const portao = sensorStatus(t.portao_fechado, 'Fechado', 'Aberto');
 
-        // Subscription tag - usar status global OU fallback para subscription_info do device
+        // Subscription tag - só mostrar se NÃO ativo
         let subTag = '';
         const subSt = subscriptionStatus || {};
         const devSub = d.subscription_info || {};
         const effStatus = subSt.status || devSub.status || (subSt.active ? 'active' : (devSub.active ? 'active' : ''));
         if (effStatus === 'trial') {
           const daysLeft = subSt.trialDaysRemaining || Math.max(0, Math.ceil((new Date(devSub.expires_at || subSt.expiresAt) - new Date()) / (1000*60*60*24)));
-          subTag = `<span class="px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-700">Trial: ${daysLeft} dias restantes</span>`;
-        } else if (effStatus === 'active') {
-          const expiresAt = subSt.expiresAt || devSub.expires_at;
-          const dateStr = expiresAt ? new Date(expiresAt).toLocaleDateString('pt-BR') : '';
-          subTag = dateStr
-            ? `<span class="px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-700">Assinado ate ${dateStr}</span>`
-            : `<span class="px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-700">Assinatura ativa</span>`;
-        } else {
+          subTag = `<span class="px-2 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-700">Avaliação: ${daysLeft}d</span>`;
+        } else if (effStatus !== 'active') {
           subTag = `<span class="px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-700">Sem assinatura</span>`;
         }
 
