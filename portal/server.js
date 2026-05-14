@@ -1748,6 +1748,22 @@ app.post('/api/payment/confirm/:subscriptionId', authenticateToken, requireSuper
   }
 });
 
+// Ativar assinatura de empresa (super admin)
+app.post('/api/empresas/:id/activate', authenticateToken, requireSuperAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { years } = req.body;
+    const expiresAt = new Date();
+    expiresAt.setFullYear(expiresAt.getFullYear() + (years || 10));
+    await pool.query(`
+      UPDATE empresas SET subscription_active = true, subscription_expires_at = $1, trial_ends_at = NULL WHERE id = $2
+    `, [expiresAt, id]);
+    res.json({ success: true, message: `Assinatura ativada até ${expiresAt.toISOString().split('T')[0]}` });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // Listar assinaturas (admin)
 app.get('/api/subscriptions', authenticateToken, async (req, res) => {
   try {
