@@ -1024,6 +1024,12 @@
                 </div>
               </div>
 
+              <!-- Alerta Moega Cheia -->
+              <div class="live-moega-alert mb-3 p-3 bg-red-600 rounded-lg text-white text-center animate-pulse" style="display:none">
+                <div class="font-bold text-sm">MOEGA/FOSSO CHEIO - OPERACAO PARADA</div>
+                <div class="text-xs text-red-200">Aguardando esvaziamento para retomar ciclos</div>
+              </div>
+
               <!-- Ciclo + Plataforma -->
               <div class="live-cycle-box mb-3 p-3 bg-gray-50 rounded-lg">
                 <div class="flex justify-between items-center">
@@ -1046,13 +1052,13 @@
                     const pct = Math.min(Math.round((val / total) * 100), 100);
                     return `<div class="live-dur-row flex items-center gap-2 ${i % 2 === 1 ? 'bg-gray-50' : ''} px-2 py-1 rounded" data-sensor="${keys[i]}">
                       <span class="text-xs text-gray-600 w-24 shrink-0">${name}</span>
-                      <span class="live-dur-val text-xs font-bold w-8 text-right">${val ? val + 's' : '-'}</span>
+                      <span class="live-dur-val text-xs font-bold w-8 text-right">${val ? Math.round(val) + 'min' : '-'}</span>
                       <div class="flex-1 bg-gray-200 h-2.5 rounded-full overflow-hidden"><div class="live-dur-bar h-full bg-red-600 rounded-full transition-all" style="width:${pct}%"></div></div>
                     </div>`;
                   }).join('')}
                   <div class="flex items-center gap-2 px-2 pt-1 border-t-2 border-gray-200">
                     <span class="text-xs font-bold text-gray-700 w-24">TOTAL CICLO</span>
-                    <span class="live-dur-total text-xs font-bold text-red-600">${t.last_cycle ? (Math.floor(t.last_cycle.tempo_total / 60) + ':' + String(t.last_cycle.tempo_total % 60).padStart(2, '0')) : '-'}</span>
+                    <span class="live-dur-total text-xs font-bold text-red-600">${t.last_cycle ? Math.round(t.last_cycle.tempo_total) + 'min' : '-'}</span>
                   </div>
                 </div>
               </div>
@@ -1241,20 +1247,16 @@
           if (cycleLabel && cycleTimer) {
             if (d.cycle_in_progress && d.current_cycle) {
               const elapsed = d.current_cycle.elapsed || 0;
-              const min = Math.floor(elapsed / 60);
-              const sec = elapsed % 60;
               cycleLabel.textContent = 'CICLO EM ANDAMENTO';
               cycleLabel.className = 'live-cycle-label text-xs font-bold text-green-600';
-              cycleTimer.textContent = String(min).padStart(2, '0') + ':' + String(sec).padStart(2, '0');
+              cycleTimer.textContent = Math.round(elapsed) + 'min';
               cycleTimer.className = 'live-cycle-timer text-lg font-bold text-green-600 font-mono';
               if (cycleBox) cycleBox.className = 'live-cycle-box mb-3 p-3 bg-green-50 rounded-lg border border-green-200';
             } else {
               if (d.last_cycle && d.last_cycle.tempo_total > 0) {
                 const tt = d.last_cycle.tempo_total;
-                const mn = Math.floor(tt / 60);
-                const sc = tt % 60;
                 cycleLabel.textContent = 'ULTIMO CICLO';
-                cycleTimer.textContent = String(mn).padStart(2, '0') + ':' + String(sc).padStart(2, '0');
+                cycleTimer.textContent = Math.round(tt) + 'min';
               } else {
                 cycleLabel.textContent = 'CICLO PARADO';
                 cycleTimer.textContent = '--:--';
@@ -1272,6 +1274,13 @@
             const [label, color] = states[ps] || states[0];
             platformEl.textContent = 'PLATAFORMA: ' + label;
             platformEl.className = 'live-platform text-[10px] font-bold ' + color;
+          }
+
+          // Alerta moega cheia — bloqueia operacao
+          const moegaAlert = card.querySelector('.live-moega-alert');
+          if (moegaAlert) {
+            const moegaCheio = d.moega_fosso === true && !d.cycle_in_progress;
+            moegaAlert.style.display = moegaCheio ? 'block' : 'none';
           }
 
           // Durações dos sensores (ciclo atual ou último)
@@ -1298,7 +1307,7 @@
                 const pct = Math.min(Math.round((val / maxVal) * 100), 100);
                 const valEl = row.querySelector('.live-dur-val');
                 const barEl = row.querySelector('.live-dur-bar');
-                if (valEl) valEl.textContent = val + 's';
+                if (valEl) valEl.textContent = Math.round(val) + 'min';
                 if (barEl) {
                   barEl.style.width = pct + '%';
                   barEl.className = 'live-dur-bar h-full rounded-full transition-all ' + (isTiming ? 'bar-running' : 'bg-red-600');
@@ -1307,10 +1316,10 @@
               if (durTotal) {
                 if (d.cycle_in_progress) {
                   const elapsed = cc.elapsed || 0;
-                  durTotal.textContent = Math.floor(elapsed / 60) + ':' + String(elapsed % 60).padStart(2, '0');
+                  durTotal.textContent = Math.round(elapsed) + 'min';
                 } else {
                   const maxSec = Math.max(...vals) || 0;
-                  durTotal.textContent = maxSec > 0 ? Math.floor(maxSec / 60) + ':' + String(maxSec % 60).padStart(2, '0') : '-';
+                  durTotal.textContent = maxSec > 0 ? Math.round(maxSec) + 'min' : '-';
                 }
               }
             } else if (d.last_cycle && d.last_cycle.tempo_total > 0) {
@@ -1324,7 +1333,7 @@
                 const pct = Math.min(Math.round((val / maxVal) * 100), 100);
                 const valEl = row.querySelector('.live-dur-val');
                 const barEl = row.querySelector('.live-dur-bar');
-                if (valEl) valEl.textContent = val ? val + 's' : '-';
+                if (valEl) valEl.textContent = val ? Math.round(val) + 'min' : '-';
                 if (barEl) {
                   barEl.style.width = pct + '%';
                   barEl.className = 'live-dur-bar h-full bg-red-600 rounded-full transition-all';
@@ -1332,7 +1341,7 @@
               });
               if (durTotal) {
                 const tt = lc.tempo_total;
-                durTotal.textContent = Math.floor(tt / 60) + ':' + String(tt % 60).padStart(2, '0');
+                durTotal.textContent = Math.round(tt) + 'min';
               }
             }
           } else if (d.last_cycle && d.last_cycle.tempo_total > 0) {
@@ -1345,7 +1354,7 @@
               const pct = Math.min(Math.round((val / maxVal) * 100), 100);
               const valEl = row.querySelector('.live-dur-val');
               const barEl = row.querySelector('.live-dur-bar');
-              if (valEl) valEl.textContent = val ? val + 's' : '-';
+              if (valEl) valEl.textContent = val ? Math.round(val) + 'min' : '-';
               if (barEl) {
                 barEl.style.width = pct + '%';
                 barEl.className = 'live-dur-bar h-full bg-red-600 rounded-full transition-all';
@@ -1353,7 +1362,7 @@
             });
             if (durTotal) {
               const tt = lc.tempo_total;
-              durTotal.textContent = Math.floor(tt / 60) + ':' + String(tt % 60).padStart(2, '0');
+              durTotal.textContent = Math.round(tt) + 'min';
             }
           }
 
