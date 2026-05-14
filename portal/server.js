@@ -8,11 +8,13 @@ require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
+const http = require('http');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
 const { Pool } = require('pg');
 const crypto = require('crypto');
 const webpush = require('web-push');
+const { setupDemoMode } = require('./demo-mode');
 
 // Web Push VAPID config
 const VAPID_PUBLIC = 'BJZkImr6VnfYyQ2iCgW1fksl1jFaQe3jGcvSdYfFuf55wtj5Iv1RySh2kpG3W6YSgT3DvjsmZBdaHbrGQQJa6-M';
@@ -275,6 +277,7 @@ app.post('/api/login', async (req, res) => {
         u.id, u.email, u.password, u.nome, u.role, u.empresa_id, u.unidade_id,
         e.razao_social as empresa_nome, e.cnpj as empresa_cnpj,
         e.trial_ends_at, e.subscription_active, e.subscription_expires_at,
+        COALESCE(e.is_demo, FALSE) as is_demo,
         un.nome as unidade_nome
       FROM pilitech_usuarios u
       LEFT JOIN empresas e ON u.empresa_id = e.id
@@ -317,7 +320,8 @@ app.post('/api/login', async (req, res) => {
         role: user.role,
         nome: user.nome,
         empresa_id: user.empresa_id,
-        unidade_id: user.unidade_id
+        unidade_id: user.unidade_id,
+        is_demo: !!user.is_demo
       },
       JWT_SECRET,
       { expiresIn: '24h' }
@@ -334,6 +338,7 @@ app.post('/api/login', async (req, res) => {
         empresa: user.empresa_nome,
         empresa_cnpj: user.empresa_cnpj,
         unidade: user.unidade_nome,
+        is_demo: !!user.is_demo,
         subscriptionStatus,
         trialDaysRemaining,
         canViewTelemetry: subscriptionStatus !== 'expired'
@@ -2693,7 +2698,10 @@ app.post('/api/push/test', authenticateToken, async (req, res) => {
   }
 });
 
-app.listen(PORT, async () => {
+const server = http.createServer(app);
+setupDemoMode(app, server, pool);
+
+server.listen(PORT, async () => {
   await initDatabase();
   console.log('');
   console.log('=========================================');
