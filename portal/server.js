@@ -14,7 +14,7 @@ const bcrypt = require('bcryptjs');
 const { Pool } = require('pg');
 const crypto = require('crypto');
 const webpush = require('web-push');
-const { setupDemoMode } = require('./demo-mode');
+const { setupDemoMode, startEmbeddedEmulators } = require('./demo-mode');
 
 // Web Push VAPID config
 const VAPID_PUBLIC = 'BJZkImr6VnfYyQ2iCgW1fksl1jFaQe3jGcvSdYfFuf55wtj5Iv1RySh2kpG3W6YSgT3DvjsmZBdaHbrGQQJa6-M';
@@ -2715,7 +2715,7 @@ app.post('/api/push/test', authenticateToken, async (req, res) => {
 });
 
 const server = http.createServer(app);
-setupDemoMode(app, server, pool);
+setupDemoMode(app, server, pool, liveDeviceStatus);
 
 server.listen(PORT, async () => {
   await initDatabase();
@@ -2734,4 +2734,12 @@ server.listen(PORT, async () => {
   console.log('   Trial: 30 dias');
   console.log('');
   console.log('=========================================');
+
+  // Iniciar emuladores ESP32 embarcados (rodam no próprio servidor)
+  setTimeout(() => {
+    const baseUrl = process.env.RAILWAY_PUBLIC_DOMAIN
+      ? `https://${process.env.RAILWAY_PUBLIC_DOMAIN}`
+      : `http://localhost:${PORT}`;
+    startEmbeddedEmulators(baseUrl);
+  }, 5000);
 });

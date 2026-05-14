@@ -180,7 +180,7 @@ function simulateCycleAsync(state, broadcast, onComplete) {
   }, total + 500);
 }
 
-function setupDemoMode(app, httpServer, pool) {
+function setupDemoMode(app, httpServer, pool, liveDeviceStatus) {
   const demo = requireDemo(pool);
 
   app.post('/api/demo/cycle', authMiddleware(), demo, async (req, res) => {
@@ -305,7 +305,7 @@ function setupDemoMode(app, httpServer, pool) {
       }
       if (!dev) { socket.write('HTTP/1.1 404 Not Found\r\n\r\n'); socket.destroy(); return; }
       wss.handleUpgrade(req, socket, head, (ws) => {
-        handleDemoWs(ws, dev, pool);
+        handleDemoWs(ws, dev, pool, liveDeviceStatus);
       });
     }).catch(() => { socket.destroy(); });
   });
@@ -325,95 +325,61 @@ function setupDemoMode(app, httpServer, pool) {
   console.log('[DEMO] modo demonstracao ativo (rotas /api/demo/*, /iot-simulator/:serial, WS /ws/demo/:serial, heartbeat 60s)');
 }
 
-function handleDemoWs(ws, device, pool) {
-  const state = newSimState(device.serial_number);
-  const broadcast = () => {
-    if (ws.readyState === WebSocket.OPEN) ws.send(getStatePayload(state));
-  };
+function handleDemoWs(ws, device, pool, liveDeviceStatus) {
+  const serial = device.serial_number;
+  console.log(`[DEMO WS] ${serial} conectado (proxy de dados reais)`);
 
-  ws.send(getStatePayload(state));
-  console.log(`[DEMO WS] ${device.serial_number} conectado`);
-
-  const uptimeTimer = setInterval(() => {
-    state.uptime_seconds++;
-    state.free_heap = 180000 + Math.floor(Math.random() * 20000);
-    if (state.uptime_seconds % 60 === 0) {
-      state.minutos_operacao++;
-      if (state.minutos_operacao >= 60) { state.minutos_operacao = 0; state.horas_operacao++; }
-    }
-    if (state.uptime_seconds % 2 === 0) broadcast();
-  }, 1000);
-
-  const lastSeenTimer = setInterval(() => {
-    pool.query('UPDATE devices SET last_seen = CURRENT_TIMESTAMP WHERE id = $1', [device.id])
-      .catch(e => console.error('[DEMO last_seen] ' + e.message));
-  }, 30_000);
-
-  let cycleScheduler;
-  const scheduleNextCycle = () => {
-    const delay = 15000 + Math.floor(Math.random() * 10000);
-    cycleScheduler = setTimeout(() => {
-      simulateCycleAsync(state, broadcast, () => {
-        persistCycle(pool, device.id).then(r => {
-          if (r) console.log(`[DEMO ${device.serial_number}] ciclo #${r.ciclo_numero} persistido`);
-        });
-      });
-      scheduleNextCycle();
-    }, delay);
-  };
-  scheduleNextCycle();
-
-  const firstCycle = setTimeout(() => {
-    simulateCycleAsync(state, broadcast, (durMs, durations) => {
-      persistCycle(pool, device.id, durMs, durations).then(r => {
-        if (r) console.log(`[DEMO ${device.serial_number}] ciclo #${r.ciclo_numero} persistido`);
-      });
+  function buildPayloadFromLive(live) {
+    return JSON.stringify({
+      s0: !!live.sensor_0_graus, s40: !!live.sensor_40_graus,
+      tr: !!live.trava_roda, tc: !!live.trava_chassi,
+      tpe: !!live.trava_pino_e, tpd: !!live.trava_pino_d,
+      mf: !!live.moega_fosso, pt: !!live.portao_fechado,
+      ct: live.ciclos_hoje || 0, ctotal: live.ciclos_total || 0,
+      hop: live.horas_operacao || 0, mop: live.minutos_operacao || 0,
+      heap: live.free_heap || 190000, up: live.uptime_seconds || 0,
+      sa: live.sistema_ativo !== false, wc: live.wifi_connected !== false,
+      wssid: 'PILI-DEMO', wrssi: -42, wip: '192.168.1.105',
+      sn: serial, fw: 'v2.1.0', apip: '192.168.4.1',
+      ca: !!live.cycle_in_progress,
+      cst: live.current_cycle ? Math.round((live.current_cycle.elapsed || 0) * 1000) : 0,
+      lct: live.last_cycle ? Math.round((live.last_cycle.elapsed || live.last_cycle.tempo_total || 0) * 1000) : 0,
+      dpt: live.current_cycle ? Math.round((live.current_cycle.portao || 0) * 1000) : (live.last_cycle ? Math.round((live.last_cycle.portao || 0) * 1000) : 0),
+      dmf: live.current_cycle ? Math.round((live.current_cycle.moega || 0) * 1000) : (live.last_cycle ? Math.round((live.last_cycle.moega || 0) * 1000) : 0),
+      dtr: live.current_cycle ? Math.round((live.current_cycle.trava_roda || 0) * 1000) : (live.last_cycle ? Math.round((live.last_cycle.trava_roda || 0) * 1000) : 0),
+      dtc: live.current_cycle ? Math.round((live.current_cycle.trava_chassi || 0) * 1000) : (live.last_cycle ? Math.round((live.last_cycle.trava_chassi || 0) * 1000) : 0),
+      dtpe: live.current_cycle ? Math.round((live.current_cycle.trava_pino_e || 0) * 1000) : (live.last_cycle ? Math.round((live.last_cycle.trava_pino_e || 0) * 1000) : 0),
+      dtpd: live.current_cycle ? Math.round((live.current_cycle.trava_pino_d || 0) * 1000) : (live.last_cycle ? Math.round((live.last_cycle.trava_pino_d || 0) * 1000) : 0),
+      se: [true, true, true, true, true, true, true, true],
+      lm: 'Nao registrada',
+      sistemaIniciado: live.sistema_ativo !== false,
+      wifiConnected: live.wifi_connected !== false,
     });
-  }, 3000);
+  }
+
+  const proxyTimer = setInterval(() => {
+    if (ws.readyState !== WebSocket.OPEN) return;
+    const live = liveDeviceStatus ? liveDeviceStatus.get(serial) : null;
+    if (live) {
+      ws.send(buildPayloadFromLive(live));
+    }
+  }, 1000);
 
   ws.on('message', (raw) => {
     try {
       const msg = JSON.parse(raw.toString());
-      switch (msg.cmd) {
-        case 'TOGGLE_SISTEMA':
-          state.sistema_ativo = !state.sistema_ativo;
-          broadcast();
-          break;
-        case 'RESET_CICLOS':
-          state.ciclos_hoje = 0;
-          broadcast();
-          break;
-        case 'SET_OUTPUT':
-          if (msg.pin >= 0 && msg.pin < 8) { state.outputs[msg.pin] = msg.value; broadcast(); }
-          break;
-        case 'SENSOR_ENABLE':
-          if (msg.index >= 0 && msg.index < 8) { state.sensorEnabled[msg.index] = msg.enabled; broadcast(); }
-          break;
-        case 'MAINT_LOG':
-          state.lastMaintenance = new Date().toLocaleDateString('pt-BR');
-          state.maintenanceLog.push({ date: state.lastMaintenance, hours: state.horas_operacao, desc: msg.data?.desc || '', tech: msg.data?.tech || '' });
-          pool.query(`
-            INSERT INTO maintenances (device_id, timestamp, technician, description, horas_operacao)
-            VALUES ($1, CURRENT_TIMESTAMP, $2, $3, $4)
-          `, [device.id, msg.data?.tech || 'Tecnico Demo', msg.data?.desc || 'Manutencao via simulador', state.horas_operacao]).catch(() => {});
-          broadcast();
-          break;
-        case 'WIFI_CONNECT':
-          setTimeout(() => {
-            state.wifi_connected = true; state.wifi_ssid = msg.ssid;
-            state.wifi_rssi = -35 - Math.floor(Math.random() * 30);
-            state.wifi_ip = '192.168.1.' + (100 + Math.floor(Math.random() * 50));
-            ws.send(JSON.stringify({ wifi: 'ok', ssid: msg.ssid, ip: state.wifi_ip, rssi: state.wifi_rssi }));
-            broadcast();
-          }, 2000);
-          break;
-        case 'WIFI_SCAN':
-          ws.send(JSON.stringify({ scan: [
-            { ssid: 'PILI-DEMO', rssi: -42, enc: 3 },
-            { ssid: 'AGRO-WIFI', rssi: -55, enc: 3 },
-            { ssid: 'GALPAO-5G', rssi: -48, enc: 3 },
-          ]}));
-          break;
+      if (msg.cmd === 'WIFI_CONNECT') {
+        setTimeout(() => {
+          ws.send(JSON.stringify({
+            cmd: 'WIFI_STATUS', status: 'connected',
+            message: 'Conectado', ssid: msg.ssid, ip: '192.168.1.105'
+          }));
+        }, 2000);
+      } else if (msg.cmd === 'MAINT_LOG') {
+        pool.query(`
+          INSERT INTO maintenances (device_id, timestamp, technician, description, horas_operacao)
+          VALUES ($1, CURRENT_TIMESTAMP, $2, $3, 0)
+        `, [device.id, msg.data?.tech || 'Tecnico', msg.data?.desc || 'Manutencao']).catch(() => {});
       }
     } catch (e) {
       console.error('[DEMO WS msg]', e.message);
@@ -421,14 +387,9 @@ function handleDemoWs(ws, device, pool) {
   });
 
   const cleanup = () => {
-    state._stopped = true;
-    clearInterval(uptimeTimer);
-    clearInterval(lastSeenTimer);
-    clearTimeout(cycleScheduler);
-    clearTimeout(firstCycle);
-    console.log(`[DEMO WS] ${device.serial_number} desconectado`);
+    clearInterval(proxyTimer);
+    console.log(`[DEMO WS] ${serial} desconectado`);
   };
-
   ws.on('close', cleanup);
   ws.on('error', cleanup);
 }
@@ -445,4 +406,206 @@ function authMiddleware() {
   };
 }
 
-module.exports = { setupDemoMode, isDemoEmpresa };
+// ============ EMULADOR ESP32 EMBUTIDO (roda no Railway) ============
+const http = require('http');
+const https = require('https');
+const API_KEY = 'pilitech_00002025_secret_key';
+const EMU_SPEED = 10;
+const DEMO_SERIALS = ['DEMO-TOMB-001', 'DEMO-TOMB-002', 'DEMO-TOMB-003'];
+
+function emuDelay(ms) { return new Promise(r => setTimeout(r, ms / EMU_SPEED)); }
+function emuRand(a, b) { return Math.floor(Math.random() * (b - a + 1)) + a; }
+
+function emuSendRequest(baseUrl, path, body) {
+  return new Promise((resolve, reject) => {
+    const data = JSON.stringify(body);
+    const parsed = new URL(path, baseUrl);
+    const isHttps = parsed.protocol === 'https:';
+    const opts = {
+      hostname: parsed.hostname,
+      port: parsed.port || (isHttps ? 443 : 80),
+      path: parsed.pathname,
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(data), 'X-API-Key': API_KEY },
+    };
+    const lib = isHttps ? https : http;
+    const req = lib.request(opts, (res) => {
+      let b = ''; res.on('data', c => b += c); res.on('end', () => resolve({ status: res.statusCode }));
+    });
+    req.on('error', reject);
+    req.setTimeout(10000, () => { req.destroy(); reject(new Error('timeout')); });
+    req.write(data); req.end();
+  });
+}
+
+async function runEmbeddedEmulator(serial, baseUrl) {
+  const st = {
+    serial_number: serial,
+    sensor_0_graus: true, sensor_40_graus: false,
+    trava_roda: false, trava_chassi: false, trava_pino_e: false, trava_pino_d: false,
+    moega_fosso: false, portao_fechado: false,
+    ciclos_hoje: 0, ciclos_total: emuRand(1500, 2000),
+    horas_operacao: emuRand(700, 1200), minutos_operacao: emuRand(0, 59),
+    sistema_ativo: true, wifi_connected: true,
+    free_heap: 192000, uptime_seconds: 0,
+    cycle_in_progress: false, current_cycle: null, last_cycle: null,
+    platform_state: 'PARADO',
+  };
+  const startTime = Date.now();
+
+  async function sendStatus() {
+    st.uptime_seconds = Math.floor((Date.now() - startTime) / 1000);
+    st.free_heap = emuRand(180000, 200000);
+    try {
+      await emuSendRequest(baseUrl, '/api/live-status', { ...st });
+    } catch (e) { /* silent */ }
+  }
+
+  async function sendCycle(cycleNum, tempoTotal, durations) {
+    const tempoPadrao = 1200;
+    const eficiencia = Math.min(100, parseFloat(((tempoPadrao / tempoTotal) * 100).toFixed(1)));
+    try {
+      await emuSendRequest(baseUrl, '/api/cycle-data', {
+        serial_number: serial, ciclo_numero: cycleNum,
+        tempo_total: tempoTotal,
+        portao: durations.portao, moega: durations.moega,
+        trava_roda: durations.trava_roda, trava_chassi: durations.trava_chassi,
+        trava_pino_e: durations.trava_pino_e, trava_pino_d: durations.trava_pino_d,
+        tempo_padrao: tempoPadrao, eficiencia,
+      });
+    } catch (e) { /* silent */ }
+  }
+
+  async function sendEvent(type, message) {
+    try {
+      await emuSendRequest(baseUrl, '/api/event', {
+        serial_number: serial, type, message, details: {}, timestamp: new Date().toISOString(),
+      });
+    } catch (e) { /* silent */ }
+  }
+
+  // Live status loop
+  setInterval(sendStatus, 10000 / EMU_SPEED);
+
+  // Send initial status
+  await sendStatus();
+  await sendEvent('INFO', 'ESP32 inicializado - emulador Railway ativo');
+  console.log(`[EMU] ${serial} iniciado (ciclos_total=${st.ciclos_total}, horas=${st.horas_operacao}h${st.minutos_operacao}m)`);
+
+  // Cycle loop
+  while (true) {
+    const waitTime = emuRand(30000, 120000);
+    await emuDelay(waitTime);
+
+    // ~20% chance moega cheia — operacao para
+    if (Math.random() < 0.2) {
+      st.moega_fosso = true;
+      st.cycle_in_progress = false;
+      await sendStatus();
+      await sendEvent('ALERT', 'Moega/Fosso cheio - operacao pausada');
+      console.log(`[EMU] ${serial} MOEGA CHEIA - parada`);
+      await emuDelay(emuRand(60000, 180000));
+      st.moega_fosso = false;
+      await sendStatus();
+      await sendEvent('INFO', 'Moega/Fosso esvaziado - operacao retomada');
+      console.log(`[EMU] ${serial} moega esvaziada - retomando`);
+      await emuDelay(5000);
+    }
+
+    // Run cycle
+    const cycleStart = Date.now();
+    const timers = {};
+    st.cycle_in_progress = true;
+    st.platform_state = 'PARADO';
+    st.current_cycle = { portao: 0, moega: 0, trava_roda: 0, trava_chassi: 0, trava_pino_e: 0, trava_pino_d: 0, elapsed: 0 };
+
+    function updateTimes() {
+      const now = Date.now();
+      st.current_cycle.elapsed = parseFloat(((now - cycleStart) / 1000).toFixed(1));
+      for (const k of Object.keys(timers)) {
+        if (timers[k]) st.current_cycle[k] = parseFloat(((now - timers[k]) / 1000).toFixed(1));
+      }
+    }
+
+    // Portao fecha
+    st.portao_fechado = true; timers.portao = Date.now();
+    updateTimes(); await sendStatus(); await emuDelay(emuRand(5000, 15000));
+
+    // Moega enche
+    st.moega_fosso = true; timers.moega = Date.now();
+    updateTimes(); await sendStatus(); await emuDelay(emuRand(3000, 8000));
+
+    // Travas
+    st.trava_roda = true; timers.trava_roda = Date.now();
+    updateTimes(); await sendStatus(); await emuDelay(emuRand(2000, 5000));
+
+    st.trava_chassi = true; timers.trava_chassi = Date.now();
+    updateTimes(); await sendStatus(); await emuDelay(emuRand(1000, 3000));
+
+    st.trava_pino_e = true; timers.trava_pino_e = Date.now();
+    updateTimes(); await sendStatus(); await emuDelay(emuRand(1000, 3000));
+
+    st.trava_pino_d = true; timers.trava_pino_d = Date.now();
+    updateTimes(); await sendStatus(); await emuDelay(emuRand(2000, 4000));
+
+    // Plataforma sobe
+    st.sensor_0_graus = false; st.sensor_40_graus = true; st.platform_state = 'SUBINDO';
+    updateTimes(); await sendStatus(); await emuDelay(emuRand(10000, 20000));
+
+    // Desce
+    st.platform_state = 'DESCENDO';
+    await sendStatus(); await emuDelay(emuRand(8000, 15000));
+
+    // Retorna
+    st.sensor_40_graus = false; st.sensor_0_graus = true; st.platform_state = 'CICLO_COMPLETO';
+    updateTimes(); await sendStatus(); await emuDelay(emuRand(2000, 4000));
+
+    // Libera travas
+    st.trava_pino_d = false; st.trava_pino_e = false; st.trava_chassi = false; st.trava_roda = false;
+    await sendStatus(); await emuDelay(emuRand(1000, 3000));
+
+    st.moega_fosso = false;
+    await sendStatus(); await emuDelay(emuRand(1000, 2000));
+
+    st.portao_fechado = false;
+    updateTimes();
+
+    // Finaliza
+    const tempoTotal = parseFloat(((Date.now() - cycleStart) / 1000 * EMU_SPEED).toFixed(1));
+    const durations = {
+      portao: parseFloat(((st.current_cycle.portao || 0) * EMU_SPEED).toFixed(1)),
+      moega: parseFloat(((st.current_cycle.moega || 0) * EMU_SPEED).toFixed(1)),
+      trava_roda: parseFloat(((st.current_cycle.trava_roda || 0) * EMU_SPEED).toFixed(1)),
+      trava_chassi: parseFloat(((st.current_cycle.trava_chassi || 0) * EMU_SPEED).toFixed(1)),
+      trava_pino_e: parseFloat(((st.current_cycle.trava_pino_e || 0) * EMU_SPEED).toFixed(1)),
+      trava_pino_d: parseFloat(((st.current_cycle.trava_pino_d || 0) * EMU_SPEED).toFixed(1)),
+    };
+
+    st.ciclos_hoje++;
+    st.ciclos_total++;
+    st.minutos_operacao += Math.floor(tempoTotal / 60) || 1;
+    if (st.minutos_operacao >= 60) { st.horas_operacao += Math.floor(st.minutos_operacao / 60); st.minutos_operacao %= 60; }
+
+    st.last_cycle = { ...st.current_cycle };
+    st.current_cycle = null;
+    st.cycle_in_progress = false;
+    st.platform_state = 'PARADO';
+
+    await sendCycle(st.ciclos_total, tempoTotal, durations);
+    await sendStatus();
+    console.log(`[EMU] ${serial} ciclo #${st.ciclos_total} completo (${tempoTotal.toFixed(0)}s equiv)`);
+  }
+}
+
+function startEmbeddedEmulators(baseUrl) {
+  if (!baseUrl) {
+    const port = process.env.PORT || 3001;
+    baseUrl = `http://localhost:${port}`;
+  }
+  console.log(`[EMU] Iniciando ${DEMO_SERIALS.length} emuladores ESP32 embarcados (speed=${EMU_SPEED}x, target=${baseUrl})`);
+  for (const serial of DEMO_SERIALS) {
+    setTimeout(() => runEmbeddedEmulator(serial, baseUrl), emuRand(2000, 5000));
+  }
+}
+
+module.exports = { setupDemoMode, isDemoEmpresa, startEmbeddedEmulators };
