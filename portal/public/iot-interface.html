@@ -942,7 +942,14 @@ if(logs.length>0)document.getElementById('logs').innerHTML=logs.join('<br>');
 connectWS();
 function openPDF(filename){
 addLog('Abrindo: '+filename);
-window.location.href='http://127.0.0.1:8080/'+encodeURIComponent(filename);
+var m=document.getElementById('pdfInfoModal');
+if(!m){
+m=document.createElement('div');m.id='pdfInfoModal';m.className='modal';
+m.innerHTML='<div class="modal-content"><div class="modal-header"><div class="modal-title" id="pdfModalTitle"></div><button class="modal-close" onclick="document.getElementById(\'pdfInfoModal\').classList.remove(\'show\')">✕</button></div><div class="modal-body"><div style="text-align:center;padding:30px"><svg style="width:64px;height:64px;stroke:#dc2626;fill:none;margin-bottom:16px" viewBox="0 0 24 24" stroke-width="1.5"><path d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"/><path d="M9 13h6m-6 3h4"/></svg><p style="font-size:14px;font-weight:700;color:#111827;margin-bottom:8px">Documento disponivel no ESP32 local</p><p style="color:#6b7280;font-size:12px">Este documento esta armazenado no cartao SD do dispositivo.<br>Conecte-se a rede WiFi <b>PILI-TECH</b> e acesse <b>192.168.4.1</b> para visualizar.</p></div></div><div class="modal-footer"><button onclick="document.getElementById(\'pdfInfoModal\').classList.remove(\'show\')" class="btn btn-primary" style="width:100%">Entendi</button></div></div>';
+document.body.appendChild(m);
+}
+document.getElementById('pdfModalTitle').textContent=filename;
+m.classList.add('show');
 }
 </script>
 </body>
