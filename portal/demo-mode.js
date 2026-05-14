@@ -497,21 +497,6 @@ async function runEmbeddedEmulator(serial, baseUrl) {
     const waitTime = emuRand(30000, 120000);
     await emuDelay(waitTime);
 
-    // ~20% chance moega cheia — operacao para
-    if (Math.random() < 0.2) {
-      st.moega_fosso = true;
-      st.cycle_in_progress = false;
-      await sendStatus();
-      await sendEvent('ALERT', 'Moega/Fosso cheio - operacao pausada');
-      console.log(`[EMU] ${serial} MOEGA CHEIA - parada`);
-      await emuDelay(emuRand(60000, 180000));
-      st.moega_fosso = false;
-      await sendStatus();
-      await sendEvent('INFO', 'Moega/Fosso esvaziado - operacao retomada');
-      console.log(`[EMU] ${serial} moega esvaziada - retomando`);
-      await emuDelay(5000);
-    }
-
     // Run cycle
     const cycleStart = Date.now();
     const timers = {};
@@ -531,9 +516,26 @@ async function runEmbeddedEmulator(serial, baseUrl) {
     st.portao_fechado = true; timers.portao = Date.now();
     updateTimes(); await sendStatus(); await emuDelay(emuRand(5000, 15000));
 
-    // Moega enche
+    // Moega enche durante descarga
     st.moega_fosso = true; timers.moega = Date.now();
-    updateTimes(); await sendStatus(); await emuDelay(emuRand(3000, 8000));
+    updateTimes(); await sendStatus();
+    // ~25% chance fosso transborda — PARA o ciclo ate esvaziar
+    if (Math.random() < 0.25) {
+      st.cycle_in_progress = false;
+      st.platform_state = 'PARADO';
+      await sendStatus();
+      await sendEvent('ALERT', 'Moega/Fosso cheio - ciclo interrompido');
+      console.log(`[EMU] ${serial} MOEGA CHEIA durante ciclo - PARADA`);
+      await emuDelay(emuRand(60000, 180000));
+      st.moega_fosso = false;
+      st.cycle_in_progress = true;
+      await sendStatus();
+      await sendEvent('INFO', 'Moega/Fosso esvaziado - ciclo retomado');
+      console.log(`[EMU] ${serial} moega esvaziada - retomando ciclo`);
+      await emuDelay(3000);
+    } else {
+      await emuDelay(emuRand(3000, 8000));
+    }
 
     // Travas
     st.trava_roda = true; timers.trava_roda = Date.now();

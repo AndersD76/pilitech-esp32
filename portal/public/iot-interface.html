@@ -185,6 +185,10 @@ Sensores do Sistema
 <div class="sensor-dur" id="sd0"></div>
 </div>
 </div>
+<div id="moegaAlert" style="display:none;margin-top:6px;padding:10px;background:#dc2626;border-radius:5px;text-align:center;animation:blink 1s infinite">
+<div style="font-size:14px;font-weight:700;color:#fff">MOEGA/FOSSO CHEIO — OPERACAO PARADA</div>
+<div style="font-size:11px;color:rgba(255,255,255,0.8);margin-top:2px">Aguardando esvaziamento para retomar</div>
+</div>
 <div style="margin-top:6px;padding:6px 10px;background:#f9fafb;border-radius:5px">
 <div style="display:flex;align-items:center;justify-content:space-between">
 <span style="font-size:11px;font-weight:700;color:#6b7280" id="cycleLabel">CICLO PARADO</span>
@@ -604,10 +608,14 @@ si[3].classList.toggle('active',!!TC);
 si[4].classList.toggle('active',!!TPE);
 si[5].classList.toggle('active',!!TPD);
 si[6].classList.remove('active','alert');
+var moegaAlertEl=document.getElementById('moegaAlert');
+var isActive=data.ca||data.cycleActive||false;
 if(MF){
 si[6].classList.add('alert');
+if(!isActive&&moegaAlertEl)moegaAlertEl.style.display='block';
 if(!lastMoegaFosso){addLog('ALERTA: Moega/Fosso cheio!');lastMoegaFosso=true;}
 }else{
+if(moegaAlertEl)moegaAlertEl.style.display='none';
 if(lastMoegaFosso){addLog('Moega/Fosso normalizado');lastMoegaFosso=false;}
 }
 si[7].classList.toggle('active',!!PT);
