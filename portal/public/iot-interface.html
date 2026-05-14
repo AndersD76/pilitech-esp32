@@ -609,10 +609,9 @@ si[4].classList.toggle('active',!!TPE);
 si[5].classList.toggle('active',!!TPD);
 si[6].classList.remove('active','alert');
 var moegaAlertEl=document.getElementById('moegaAlert');
-var isActive=data.ca||data.cycleActive||false;
 if(MF){
 si[6].classList.add('alert');
-if(!isActive&&moegaAlertEl)moegaAlertEl.style.display='block';
+if(moegaAlertEl)moegaAlertEl.style.display='block';
 if(!lastMoegaFosso){addLog('ALERTA: Moega/Fosso cheio!');lastMoegaFosso=true;}
 }else{
 if(moegaAlertEl)moegaAlertEl.style.display='none';

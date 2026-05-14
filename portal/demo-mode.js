@@ -516,26 +516,21 @@ async function runEmbeddedEmulator(serial, baseUrl) {
     st.portao_fechado = true; timers.portao = Date.now();
     updateTimes(); await sendStatus(); await emuDelay(emuRand(5000, 15000));
 
-    // Moega enche durante descarga
+    // Moega enche durante descarga — SEMPRE para e espera esvaziar
     st.moega_fosso = true; timers.moega = Date.now();
+    st.cycle_in_progress = false;
+    st.platform_state = 'PARADO';
     updateTimes(); await sendStatus();
-    // ~25% chance fosso transborda — PARA o ciclo ate esvaziar
-    if (Math.random() < 0.25) {
-      st.cycle_in_progress = false;
-      st.platform_state = 'PARADO';
-      await sendStatus();
-      await sendEvent('ALERT', 'Moega/Fosso cheio - ciclo interrompido');
-      console.log(`[EMU] ${serial} MOEGA CHEIA durante ciclo - PARADA`);
-      await emuDelay(emuRand(60000, 180000));
-      st.moega_fosso = false;
-      st.cycle_in_progress = true;
-      await sendStatus();
-      await sendEvent('INFO', 'Moega/Fosso esvaziado - ciclo retomado');
-      console.log(`[EMU] ${serial} moega esvaziada - retomando ciclo`);
-      await emuDelay(3000);
-    } else {
-      await emuDelay(emuRand(3000, 8000));
-    }
+    await sendEvent('ALERT', 'Moega/Fosso cheio - operacao pausada');
+    console.log(`[EMU] ${serial} MOEGA CHEIA - operacao parada`);
+    // Espera esvaziar (30s-90s simulado = 3-9s real a 10x)
+    await emuDelay(emuRand(30000, 90000));
+    st.moega_fosso = false;
+    st.cycle_in_progress = true;
+    await sendStatus();
+    await sendEvent('INFO', 'Moega/Fosso esvaziado - operacao retomada');
+    console.log(`[EMU] ${serial} moega esvaziada - retomando`);
+    await emuDelay(3000);
 
     // Travas
     st.trava_roda = true; timers.trava_roda = Date.now();
@@ -565,9 +560,6 @@ async function runEmbeddedEmulator(serial, baseUrl) {
     // Libera travas
     st.trava_pino_d = false; st.trava_pino_e = false; st.trava_chassi = false; st.trava_roda = false;
     await sendStatus(); await emuDelay(emuRand(1000, 3000));
-
-    st.moega_fosso = false;
-    await sendStatus(); await emuDelay(emuRand(1000, 2000));
 
     st.portao_fechado = false;
     updateTimes();
