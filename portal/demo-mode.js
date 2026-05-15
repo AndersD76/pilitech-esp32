@@ -180,7 +180,10 @@ function simulateCycleAsync(state, broadcast, onComplete) {
   }, total + 500);
 }
 
-function setupDemoMode(app, httpServer, pool, liveDeviceStatus) {
+let pendingCommands = null; // set by setupDemoMode from server
+
+function setupDemoMode(app, httpServer, pool, liveDeviceStatus, _pendingCommands) {
+  pendingCommands = _pendingCommands;
   const demo = requireDemo(pool);
 
   app.post('/api/demo/cycle', authMiddleware(), demo, async (req, res) => {
@@ -340,7 +343,7 @@ function handleDemoWs(ws, device, pool, liveDeviceStatus) {
       heap: live.free_heap || 190000, up: live.uptime_seconds || 0,
       sa: live.sistema_ativo !== false, wc: live.wifi_connected !== false,
       wssid: 'PILI-DEMO', wrssi: -42, wip: '192.168.1.105',
-      sn: serial, fw: 'v2.1.0', apip: '192.168.4.1',
+      sn: serial, fw: live.firmware_version || 'v2.1.0', apip: '192.168.4.1',
       ca: !!live.cycle_in_progress,
       cst: live.current_cycle ? Math.round((live.current_cycle.elapsed || 0) * 1000) : 0,
       lct: live.last_cycle ? Math.round((live.last_cycle.elapsed || live.last_cycle.tempo_total || 0) * 1000) : 0,
@@ -350,7 +353,7 @@ function handleDemoWs(ws, device, pool, liveDeviceStatus) {
       dtc: live.current_cycle ? Math.round((live.current_cycle.trava_chassi || 0) * 1000) : (live.last_cycle ? Math.round((live.last_cycle.trava_chassi || 0) * 1000) : 0),
       dtpe: live.current_cycle ? Math.round((live.current_cycle.trava_pino_e || 0) * 1000) : (live.last_cycle ? Math.round((live.last_cycle.trava_pino_e || 0) * 1000) : 0),
       dtpd: live.current_cycle ? Math.round((live.current_cycle.trava_pino_d || 0) * 1000) : (live.last_cycle ? Math.round((live.last_cycle.trava_pino_d || 0) * 1000) : 0),
-      se: [true, true, true, true, true, true, true, true],
+      se: live.sensor_config || [true, true, true, true, true, true, true, true],
       lm: 'Nao registrada',
       sistemaIniciado: live.sistema_ativo !== false,
       wifiConnected: live.wifi_connected !== false,
@@ -380,6 +383,12 @@ function handleDemoWs(ws, device, pool, liveDeviceStatus) {
           INSERT INTO maintenances (device_id, timestamp, technician, description, horas_operacao)
           VALUES ($1, CURRENT_TIMESTAMP, $2, $3, 0)
         `, [device.id, msg.data?.tech || 'Tecnico', msg.data?.desc || 'Manutencao']).catch(() => {});
+      } else if (msg.cmd === 'SAVE_CONFIG' || msg.cmd === 'RESTART_IOT' || msg.cmd === 'RESET_CICLOS' ||
+                 msg.cmd === 'RESET_CICLOS_TOTAL' || msg.cmd === 'RESET_HORIMETRO' || msg.cmd === 'START_SISTEMA' ||
+                 msg.cmd === 'STOP_SISTEMA') {
+        const queue = pendingCommands.get(serial) || [];
+        queue.push({ ...msg, timestamp: new Date().toISOString(), from: 'simulator' });
+        pendingCommands.set(serial, queue);
       }
     } catch (e) {
       console.error('[DEMO WS msg]', e.message);
@@ -416,10 +425,10 @@ const DEMO_SERIALS = ['DEMO-TOMB-001', 'DEMO-TOMB-002', 'DEMO-TOMB-003'];
 function emuDelay(ms) { return new Promise(r => setTimeout(r, ms / EMU_SPEED)); }
 function emuRand(a, b) { return Math.floor(Math.random() * (b - a + 1)) + a; }
 
-function emuSendRequest(baseUrl, path, body) {
+function emuSendRequest(baseUrl, reqPath, body) {
   return new Promise((resolve, reject) => {
     const data = JSON.stringify(body);
-    const parsed = new URL(path, baseUrl);
+    const parsed = new URL(reqPath, baseUrl);
     const isHttps = parsed.protocol === 'https:';
     const opts = {
       hostname: parsed.hostname,
@@ -430,7 +439,11 @@ function emuSendRequest(baseUrl, path, body) {
     };
     const lib = isHttps ? https : http;
     const req = lib.request(opts, (res) => {
-      let b = ''; res.on('data', c => b += c); res.on('end', () => resolve({ status: res.statusCode }));
+      let b = ''; res.on('data', c => b += c); res.on('end', () => {
+        let parsed = null;
+        try { parsed = JSON.parse(b); } catch (e) { /* not json */ }
+        resolve({ status: res.statusCode, body: parsed });
+      });
     });
     req.on('error', reject);
     req.setTimeout(10000, () => { req.destroy(); reject(new Error('timeout')); });
@@ -448,6 +461,7 @@ async function runEmbeddedEmulator(serial, baseUrl) {
     horas_operacao: emuRand(700, 1200), minutos_operacao: emuRand(0, 59),
     sistema_ativo: true, wifi_connected: true,
     free_heap: 192000, uptime_seconds: 0,
+    firmware_version: 'v2.1.0', sensor_config: [true,true,true,true,true,true,true,true],
     cycle_in_progress: false, current_cycle: null, last_cycle: null,
     platform_state: 'PARADO',
   };
@@ -457,8 +471,62 @@ async function runEmbeddedEmulator(serial, baseUrl) {
     st.uptime_seconds = Math.floor((Date.now() - startTime) / 1000);
     st.free_heap = emuRand(180000, 200000);
     try {
-      await emuSendRequest(baseUrl, '/api/live-status', { ...st });
+      const resp = await emuSendRequest(baseUrl, '/api/live-status', { ...st });
+      if (resp.body && resp.body.commands) {
+        for (const cmd of resp.body.commands) {
+          handleRemoteCommand(cmd);
+        }
+      }
     } catch (e) { /* silent */ }
+  }
+
+  function handleRemoteCommand(cmd) {
+    console.log(`[EMU] ${serial} recebeu comando remoto: ${cmd.cmd}`);
+    switch (cmd.cmd) {
+      case 'SAVE_CONFIG':
+        if (cmd.sensors && Array.isArray(cmd.sensors)) {
+          st.sensor_config = cmd.sensors;
+          console.log(`[EMU] ${serial} sensor config atualizada: ${JSON.stringify(cmd.sensors)}`);
+          sendEvent('INFO', `Config sensores atualizada remotamente: ${cmd.sensors.map((v,i) => v ? i : null).filter(v=>v!==null).join(',')}`);
+        }
+        break;
+      case 'RESTART_IOT':
+        console.log(`[EMU] ${serial} reiniciando (simulado)...`);
+        sendEvent('INFO', 'IoT reiniciado remotamente');
+        st.uptime_seconds = 0;
+        break;
+      case 'RESET_CICLOS':
+        st.ciclos_hoje = 0;
+        sendEvent('INFO', 'Ciclos de hoje resetados remotamente');
+        break;
+      case 'RESET_CICLOS_TOTAL':
+        st.ciclos_total = 0;
+        sendEvent('INFO', 'Ciclos totais resetados remotamente');
+        break;
+      case 'RESET_HORIMETRO':
+        st.horas_operacao = 0; st.minutos_operacao = 0;
+        sendEvent('INFO', 'Horimetro resetado remotamente');
+        break;
+      case 'START_SISTEMA':
+        st.sistema_ativo = true;
+        sendEvent('INFO', 'Sistema iniciado remotamente');
+        break;
+      case 'STOP_SISTEMA':
+        st.sistema_ativo = false;
+        sendEvent('INFO', 'Sistema parado remotamente');
+        break;
+      case 'OTA_UPDATE':
+        console.log(`[EMU] ${serial} OTA update para ${cmd.version} (simulado)`);
+        sendEvent('INFO', `OTA iniciado - baixando firmware ${cmd.version}`);
+        setTimeout(() => {
+          st.firmware_version = cmd.version;
+          sendEvent('INFO', `OTA concluido - firmware atualizado para ${cmd.version}`);
+          console.log(`[EMU] ${serial} firmware atualizado para ${cmd.version}`);
+        }, 5000 / EMU_SPEED);
+        break;
+      default:
+        console.log(`[EMU] ${serial} comando desconhecido: ${cmd.cmd}`);
+    }
   }
 
   async function sendCycle(cycleNum, tempoTotal, durations) {

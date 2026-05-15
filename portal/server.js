@@ -60,7 +60,7 @@ const SUPER_ADMIN = {
 
 // Middleware
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: '6mb' }));
 app.use((req, res, next) => {
   if (req.path.endsWith('.html') || req.path === '/') {
     res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
@@ -1307,6 +1307,126 @@ app.get('/api/admin/telemetria', authenticateToken, requireSuperAdmin, async (re
   }
 });
 
+// ============ CONTROLE REMOTO DE DISPOSITIVOS ============
+
+// Admin envia comando para um dispositivo
+app.post('/api/admin/device-command', authenticateToken, requireSuperAdmin, (req, res) => {
+  const { serial_number, cmd, params } = req.body;
+  if (!serial_number || !cmd) return res.status(400).json({ error: 'serial_number e cmd obrigatorios' });
+
+  const command = { cmd, ...params, timestamp: new Date().toISOString(), from: 'admin' };
+  const queue = pendingCommands.get(serial_number) || [];
+  queue.push(command);
+  pendingCommands.set(serial_number, queue);
+
+  console.log(`[ADMIN CMD] ${serial_number} <- ${cmd} ${JSON.stringify(params || {})}`);
+  res.json({ success: true, message: `Comando ${cmd} enfileirado para ${serial_number}` });
+});
+
+// Admin lista dispositivos com config atual (sensores, firmware, etc)
+app.get('/api/admin/device-details/:serial', authenticateToken, requireSuperAdmin, async (req, res) => {
+  const serial = req.params.serial;
+  const live = liveDeviceStatus.get(serial);
+  const pending = pendingCommands.get(serial) || [];
+
+  let dbInfo = null;
+  try {
+    const r = await pool.query(`
+      SELECT d.*, u.name as unidade_name, e.name as empresa_name,
+        (SELECT sensor_config FROM sensor_readings WHERE device_id = d.id ORDER BY timestamp DESC LIMIT 1) as last_sensor_config,
+        (SELECT firmware_version FROM sensor_readings WHERE device_id = d.id AND firmware_version IS NOT NULL ORDER BY timestamp DESC LIMIT 1) as last_firmware
+      FROM devices d
+      LEFT JOIN unidades u ON d.unidade_id = u.id
+      LEFT JOIN empresas e ON u.empresa_id = e.id
+      WHERE d.serial_number = $1
+    `, [serial]);
+    dbInfo = r.rows[0] || null;
+  } catch (e) { /* ignore */ }
+
+  res.json({
+    serial_number: serial,
+    online: !!live && (Date.now() - new Date(live.timestamp).getTime() < 30000),
+    live: live || null,
+    dbInfo,
+    pendingCommands: pending,
+    availableFirmware: Array.from(firmwareStore.keys()),
+  });
+});
+
+// Upload firmware — client sends JSON with base64 data
+app.post('/api/admin/firmware/upload', authenticateToken, requireSuperAdmin, (req, res) => {
+  const { version, filename, data } = req.body;
+  if (!version || !data) return res.status(400).json({ error: 'version e data (base64) obrigatorios' });
+
+  const buffer = Buffer.from(data, 'base64');
+  if (buffer.length > 4 * 1024 * 1024) return res.status(400).json({ error: 'Firmware excede 4MB' });
+
+  firmwareStore.set(version, {
+    filename: filename || 'firmware.bin',
+    size: buffer.length,
+    data: buffer,
+    uploadedAt: new Date().toISOString(),
+    uploadedBy: req.user.email || 'admin',
+  });
+  console.log(`[FIRMWARE] Upload: ${version} (${filename || 'firmware.bin'}, ${(buffer.length/1024).toFixed(1)}KB)`);
+  res.json({ success: true, version, filename: filename || 'firmware.bin', size: buffer.length });
+});
+
+// Listar firmware disponivel
+app.get('/api/admin/firmware/list', authenticateToken, requireSuperAdmin, (req, res) => {
+  const list = [];
+  firmwareStore.forEach((fw, version) => {
+    list.push({ version, filename: fw.filename, size: fw.size, uploadedAt: fw.uploadedAt, uploadedBy: fw.uploadedBy });
+  });
+  list.sort((a, b) => b.uploadedAt.localeCompare(a.uploadedAt));
+  res.json(list);
+});
+
+// Deletar firmware
+app.delete('/api/admin/firmware/:version', authenticateToken, requireSuperAdmin, (req, res) => {
+  const version = req.params.version;
+  if (!firmwareStore.has(version)) return res.status(404).json({ error: 'Versao nao encontrada' });
+  firmwareStore.delete(version);
+  res.json({ success: true });
+});
+
+// ESP32 verifica se ha atualizacao disponivel
+app.get('/api/firmware/check', validateApiKey, (req, res) => {
+  const currentVersion = req.query.version || 'v0';
+  const versions = Array.from(firmwareStore.keys()).sort();
+  const latest = versions[versions.length - 1];
+  if (latest && latest !== currentVersion) {
+    const fw = firmwareStore.get(latest);
+    return res.json({ update: true, version: latest, size: fw.size });
+  }
+  res.json({ update: false });
+});
+
+// ESP32 baixa firmware
+app.get('/api/firmware/download/:version', validateApiKey, (req, res) => {
+  const fw = firmwareStore.get(req.params.version);
+  if (!fw) return res.status(404).json({ error: 'Firmware nao encontrado' });
+  res.setHeader('Content-Type', 'application/octet-stream');
+  res.setHeader('Content-Disposition', `attachment; filename="${fw.filename}"`);
+  res.setHeader('Content-Length', fw.size);
+  res.send(fw.data);
+});
+
+// Enviar OTA para dispositivo especifico (enfileira comando)
+app.post('/api/admin/firmware/push', authenticateToken, requireSuperAdmin, (req, res) => {
+  const { serial_number, version } = req.body;
+  if (!serial_number || !version) return res.status(400).json({ error: 'serial_number e version obrigatorios' });
+  if (!firmwareStore.has(version)) return res.status(404).json({ error: 'Versao de firmware nao encontrada' });
+
+  const command = { cmd: 'OTA_UPDATE', version, timestamp: new Date().toISOString(), from: 'admin' };
+  const queue = pendingCommands.get(serial_number) || [];
+  queue.push(command);
+  pendingCommands.set(serial_number, queue);
+
+  console.log(`[OTA] Push ${version} para ${serial_number}`);
+  res.json({ success: true, message: `OTA ${version} enfileirado para ${serial_number}` });
+});
+
 app.get('/api/stats', authenticateToken, checkSubscription, async (req, res) => {
   try {
     if (!req.subscriptionStatus.canViewTelemetry) {
@@ -2060,7 +2180,12 @@ function validateApiKey(req, res, next) {
 // ============ LIVE STATUS (IN-MEMORY, TEMPO REAL) ============
 const liveDeviceStatus = new Map(); // serial_number -> { data, timestamp }
 
+// ============ COMMAND QUEUE & FIRMWARE (CONTROLE REMOTO) ============
+const pendingCommands = new Map(); // serial_number -> [{ cmd, params, timestamp }]
+const firmwareStore = new Map(); // version -> { filename, size, data (Buffer), uploadedAt, uploadedBy }
+
 // ESP32 envia status ao vivo a cada 10 segundos (sem gravar no banco)
+// Resposta inclui comandos pendentes para o dispositivo
 app.post('/api/live-status', validateApiKey, (req, res) => {
   const { serial_number } = req.body;
   if (!serial_number) return res.status(400).json({ error: 'serial_number obrigatório' });
@@ -2068,6 +2193,11 @@ app.post('/api/live-status', validateApiKey, (req, res) => {
     ...req.body,
     timestamp: new Date().toISOString()
   });
+  const cmds = pendingCommands.get(serial_number) || [];
+  if (cmds.length > 0) {
+    pendingCommands.delete(serial_number);
+    return res.json({ success: true, commands: cmds });
+  }
   res.json({ success: true });
 });
 
@@ -2778,7 +2908,7 @@ app.post('/api/push/test', authenticateToken, async (req, res) => {
 });
 
 const server = http.createServer(app);
-setupDemoMode(app, server, pool, liveDeviceStatus);
+setupDemoMode(app, server, pool, liveDeviceStatus, pendingCommands);
 
 server.listen(PORT, async () => {
   await initDatabase();
