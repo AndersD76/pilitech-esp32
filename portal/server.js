@@ -1244,6 +1244,69 @@ app.get('/api/recent-alerts', authenticateToken, checkSubscription, async (req, 
 });
 
 // Obter estatísticas
+// ============ ADMIN TELEMETRIA GLOBAL ============
+app.get('/api/admin/telemetria', authenticateToken, requireSuperAdmin, async (req, res) => {
+  try {
+    const alertas = await pool.query(`
+      SELECT el.*, d.serial_number, d.name as device_name,
+        u.name as unidade_name, e.name as empresa_name
+      FROM event_logs el
+      JOIN devices d ON el.device_id = d.id
+      LEFT JOIN unidades u ON d.unidade_id = u.id
+      LEFT JOIN empresas e ON u.empresa_id = e.id
+      WHERE el.timestamp > CURRENT_TIMESTAMP - INTERVAL '24 hours'
+      ORDER BY el.timestamp DESC LIMIT 50
+    `);
+
+    const manutencoes = await pool.query(`
+      SELECT m.*, d.serial_number, d.name as device_name,
+        u.name as unidade_name, e.name as empresa_name
+      FROM maintenances m
+      JOIN devices d ON m.device_id = d.id
+      LEFT JOIN unidades u ON d.unidade_id = u.id
+      LEFT JOIN empresas e ON u.empresa_id = e.id
+      WHERE m.timestamp > CURRENT_TIMESTAMP - INTERVAL '30 days'
+      ORDER BY m.timestamp DESC LIMIT 50
+    `);
+
+    const alertCount = await pool.query(`
+      SELECT COUNT(*) as total FROM event_logs
+      WHERE timestamp > CURRENT_TIMESTAMP - INTERVAL '24 hours'
+        AND event_type IN ('ALERT', 'moega_cheia', 'alerta_critico', 'parada_emergencia', 'sensor_falha')
+    `);
+
+    const devices = await pool.query(`
+      SELECT d.id, d.serial_number, d.name, d.last_seen,
+        u.name as unidade_name, e.name as empresa_name,
+        (SELECT COUNT(*) FROM cycle_data cd WHERE cd.device_id = d.id AND DATE(cd.created_at) = CURRENT_DATE) as ciclos_hoje,
+        (SELECT ciclos_total FROM sensor_readings sr WHERE sr.device_id = d.id ORDER BY sr.timestamp DESC LIMIT 1) as ciclos_total,
+        (SELECT horas_operacao FROM sensor_readings sr WHERE sr.device_id = d.id ORDER BY sr.timestamp DESC LIMIT 1) as horas_operacao
+      FROM devices d
+      LEFT JOIN unidades u ON d.unidade_id = u.id
+      LEFT JOIN empresas e ON u.empresa_id = e.id
+      ORDER BY d.last_seen DESC NULLS LAST
+    `);
+
+    const liveData = {};
+    liveDeviceStatus.forEach((data, serial) => {
+      const age = Date.now() - new Date(data.timestamp).getTime();
+      if (age < 30000) liveData[serial] = data;
+    });
+
+    res.json({
+      alertas: alertas.rows,
+      manutencoes: manutencoes.rows,
+      alertCount: parseInt(alertCount.rows[0].total),
+      maintCount: manutencoes.rows.length,
+      devices: devices.rows,
+      liveData,
+    });
+  } catch (err) {
+    console.error('Erro admin telemetria:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.get('/api/stats', authenticateToken, checkSubscription, async (req, res) => {
   try {
     if (!req.subscriptionStatus.canViewTelemetry) {

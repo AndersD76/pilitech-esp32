@@ -63,6 +63,16 @@
           </li>
         </ul>
 
+        <p class="text-xs text-gray-500 uppercase mb-2 px-4">Operacao</p>
+        <ul class="space-y-1 mb-4">
+          <li>
+            <a href="#" onclick="showSection('telemetria')" class="nav-link flex items-center gap-3 px-4 py-3 rounded-lg text-gray-300 hover:bg-gray-700">
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
+              Telemetria Global
+            </a>
+          </li>
+        </ul>
+
         <p class="text-xs text-gray-500 uppercase mb-2 px-4">Gestao</p>
         <ul class="space-y-1 mb-4">
           <li>
@@ -204,6 +214,63 @@
             <h3 class="text-lg font-bold text-gray-800 mb-4">Dispositivos IoT</h3>
             <div id="devicesGrid" class="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4">
               <div class="text-center py-8 text-gray-500">Carregando...</div>
+            </div>
+          </div>
+        </section>
+
+        <!-- Telemetria Global Section -->
+        <section id="sec-telemetria" class="section hidden">
+          <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+            <div class="bg-white rounded-xl shadow-sm p-5">
+              <p class="text-xs text-gray-500">Tombadores Online</p>
+              <p class="text-2xl font-bold text-green-600" id="telOnline">0</p>
+            </div>
+            <div class="bg-white rounded-xl shadow-sm p-5">
+              <p class="text-xs text-gray-500">Ciclos Hoje (Global)</p>
+              <p class="text-2xl font-bold text-pili-red" id="telCiclosHoje">0</p>
+            </div>
+            <div class="bg-white rounded-xl shadow-sm p-5">
+              <p class="text-xs text-gray-500">Alertas Ativos</p>
+              <p class="text-2xl font-bold text-red-600" id="telAlertas">0</p>
+            </div>
+            <div class="bg-white rounded-xl shadow-sm p-5">
+              <p class="text-xs text-gray-500">Manutencoes (30 dias)</p>
+              <p class="text-2xl font-bold text-blue-600" id="telManutencoes">0</p>
+            </div>
+          </div>
+
+          <!-- Alertas em tempo real -->
+          <div class="bg-white rounded-xl shadow-sm p-6 mb-6">
+            <h3 class="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
+              <svg class="w-5 h-5 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z"/></svg>
+              Alertas e Eventos Recentes
+              <span class="text-xs font-normal text-gray-400 ml-2">(ultimas 24h)</span>
+            </h3>
+            <div id="telAlertsList" class="space-y-2 max-h-64 overflow-y-auto">
+              <p class="text-gray-400 text-sm text-center py-4">Carregando alertas...</p>
+            </div>
+          </div>
+
+          <!-- Tombadores em tempo real -->
+          <div class="bg-white rounded-xl shadow-sm p-6 mb-6">
+            <h3 class="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
+              <svg class="w-5 h-5 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z"/></svg>
+              Todos os Tombadores — Tempo Real
+            </h3>
+            <div id="telDevicesLive" class="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4">
+              <p class="text-gray-400 text-sm text-center py-4 col-span-full">Carregando...</p>
+            </div>
+          </div>
+
+          <!-- Manutencoes recentes -->
+          <div class="bg-white rounded-xl shadow-sm p-6">
+            <h3 class="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
+              <svg class="w-5 h-5 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.7 6.3a1 1 0 000 1.4l1.6 1.6a1 1 0 001.4 0l3.77-3.77a6 6 0 01-7.94 7.94l-6.91 6.91a2.12 2.12 0 01-3-3l6.91-6.91a6 6 0 017.94-7.94l-3.76 3.76z"/></svg>
+              Manutencoes Registradas
+              <span class="text-xs font-normal text-gray-400 ml-2">(ultimos 30 dias)</span>
+            </h3>
+            <div id="telMaintList" class="overflow-x-auto">
+              <p class="text-gray-400 text-sm text-center py-4">Carregando...</p>
             </div>
           </div>
         </section>
@@ -773,6 +840,7 @@
 
       const titles = {
         dashboard: ['Dashboard', 'Monitoramento em tempo real'],
+        telemetria: ['Telemetria Global', 'Dados em tempo real de todos os tombadores'],
         dispositivos: ['Dispositivos', 'Gerenciar dispositivos IoT'],
         empresas: ['Empresas', 'Gerenciar empresas cadastradas'],
         unidades: ['Unidades', 'Gerenciar unidades/filiais'],
@@ -784,11 +852,129 @@
       document.getElementById('pageSubtitle').textContent = titles[name]?.[1] || '';
 
       // Load section data
+      if (name === 'telemetria') loadTelemetria();
       if (name === 'empresas') loadEmpresas();
       if (name === 'unidades') loadUnidades();
       if (name === 'usuarios') loadUsuarios();
       if (name === 'assinaturas') loadAssinaturas();
       if (name === 'cupons') loadCupons();
+    }
+
+    // ============ TELEMETRIA GLOBAL ============
+    let telemetriaTimer = null;
+    async function loadTelemetria() {
+      try {
+        const data = await api('/api/admin/telemetria');
+        if (!data) return;
+
+        // Stats
+        const onlineCount = Object.keys(data.liveData || {}).length;
+        const ciclosHoje = (data.devices || []).reduce((sum, d) => sum + (parseInt(d.ciclos_hoje) || 0), 0);
+        document.getElementById('telOnline').textContent = onlineCount;
+        document.getElementById('telCiclosHoje').textContent = ciclosHoje;
+        document.getElementById('telAlertas').textContent = data.alertCount || 0;
+        document.getElementById('telManutencoes').textContent = data.maintCount || 0;
+
+        // Alertas list
+        const alertsEl = document.getElementById('telAlertsList');
+        if (data.alertas && data.alertas.length > 0) {
+          alertsEl.innerHTML = data.alertas.map(a => {
+            const isAlert = ['ALERT', 'moega_cheia', 'alerta_critico', 'parada_emergencia', 'sensor_falha'].includes(a.event_type);
+            const bgClass = isAlert ? 'bg-red-50 border-red-200' : a.event_type === 'WARNING' ? 'bg-yellow-50 border-yellow-200' : 'bg-gray-50 border-gray-200';
+            const textClass = isAlert ? 'text-red-700' : a.event_type === 'WARNING' ? 'text-yellow-700' : 'text-gray-700';
+            const time = new Date(a.timestamp).toLocaleString('pt-BR');
+            return `<div class="p-3 rounded-lg border ${bgClass} flex items-start gap-3">
+              <div class="flex-1">
+                <div class="flex items-center gap-2">
+                  <span class="text-xs font-bold ${textClass} px-2 py-0.5 rounded">${a.event_type}</span>
+                  <span class="text-xs text-gray-500">${a.serial_number} — ${a.empresa_name || 'N/A'}</span>
+                </div>
+                <p class="text-sm ${textClass} mt-1">${a.message}</p>
+              </div>
+              <span class="text-xs text-gray-400 whitespace-nowrap">${time}</span>
+            </div>`;
+          }).join('');
+        } else {
+          alertsEl.innerHTML = '<p class="text-gray-400 text-sm text-center py-4">Nenhum alerta nas ultimas 24h</p>';
+        }
+
+        // Devices live
+        const devicesEl = document.getElementById('telDevicesLive');
+        if (data.devices && data.devices.length > 0) {
+          devicesEl.innerHTML = data.devices.map(d => {
+            const live = data.liveData[d.serial_number];
+            const isOnline = !!live;
+            const statusColor = isOnline ? 'bg-green-500' : 'bg-gray-400';
+            const statusText = isOnline ? 'Online' : 'Offline';
+            const sensorsHtml = live ? [
+              { n: '0°', v: live.sensor_0_graus }, { n: '40°', v: live.sensor_40_graus },
+              { n: 'TR', v: live.trava_roda }, { n: 'TC', v: live.trava_chassi },
+              { n: 'PE', v: live.trava_pino_e }, { n: 'PD', v: live.trava_pino_d },
+              { n: 'MG', v: live.moega_fosso }, { n: 'PT', v: live.portao_fechado }
+            ].map(s => {
+              const cls = s.n === 'MG' ? (s.v ? 'bg-red-500 text-white' : 'bg-gray-100 text-gray-400') : (s.v ? 'bg-green-500 text-white' : 'bg-gray-100 text-gray-400');
+              return `<span class="px-1.5 py-0.5 rounded text-[10px] font-bold ${cls}">${s.n}</span>`;
+            }).join('') : '<span class="text-xs text-gray-400">Sem dados</span>';
+
+            const ciclosHoje = live ? (live.ciclos_hoje || 0) : (d.ciclos_hoje || 0);
+            const ciclosTotal = live ? (live.ciclos_total || 0) : (d.ciclos_total || 0);
+            const horas = live ? (live.horas_operacao || 0) : (d.horas_operacao || 0);
+            const moegaAlert = live && live.moega_fosso && !live.cycle_in_progress;
+
+            return `<div class="border rounded-lg p-4 ${moegaAlert ? 'border-red-400 bg-red-50' : 'border-gray-200'}">
+              <div class="flex items-center justify-between mb-2">
+                <div>
+                  <p class="font-bold text-sm text-gray-800">${d.name || d.serial_number}</p>
+                  <p class="text-[10px] text-gray-400">${d.serial_number} — ${d.empresa_name || 'N/A'} / ${d.unidade_name || 'N/A'}</p>
+                </div>
+                <span class="flex items-center gap-1 text-xs font-bold ${isOnline ? 'text-green-600' : 'text-gray-400'}">
+                  <span class="w-2 h-2 rounded-full ${statusColor} ${isOnline ? 'animate-pulse' : ''}"></span>${statusText}
+                </span>
+              </div>
+              <div class="flex gap-1 mb-2 flex-wrap">${sensorsHtml}</div>
+              ${moegaAlert ? '<div class="bg-red-600 text-white text-xs font-bold p-1.5 rounded text-center mb-2 animate-pulse">MOEGA CHEIA — PARADA</div>' : ''}
+              <div class="grid grid-cols-3 gap-2 text-center">
+                <div class="bg-gray-50 rounded p-1.5"><p class="text-lg font-bold text-pili-red">${ciclosHoje}</p><p class="text-[9px] text-gray-400">HOJE</p></div>
+                <div class="bg-gray-50 rounded p-1.5"><p class="text-lg font-bold text-gray-700">${ciclosTotal}</p><p class="text-[9px] text-gray-400">TOTAL</p></div>
+                <div class="bg-gray-50 rounded p-1.5"><p class="text-lg font-bold text-blue-600">${horas}h</p><p class="text-[9px] text-gray-400">HORIM.</p></div>
+              </div>
+            </div>`;
+          }).join('');
+        }
+
+        // Manutencoes table
+        const maintEl = document.getElementById('telMaintList');
+        if (data.manutencoes && data.manutencoes.length > 0) {
+          maintEl.innerHTML = `<table class="w-full text-sm">
+            <thead><tr class="border-b">
+              <th class="text-left py-2 px-3 text-gray-500 font-medium">Data</th>
+              <th class="text-left py-2 px-3 text-gray-500 font-medium">Dispositivo</th>
+              <th class="text-left py-2 px-3 text-gray-500 font-medium">Empresa</th>
+              <th class="text-left py-2 px-3 text-gray-500 font-medium">Tecnico</th>
+              <th class="text-left py-2 px-3 text-gray-500 font-medium">Descricao</th>
+              <th class="text-right py-2 px-3 text-gray-500 font-medium">Horimetro</th>
+            </tr></thead>
+            <tbody>${data.manutencoes.map(m => `<tr class="border-b hover:bg-gray-50">
+              <td class="py-2 px-3 text-xs">${new Date(m.timestamp).toLocaleDateString('pt-BR')}</td>
+              <td class="py-2 px-3 font-medium">${m.serial_number}</td>
+              <td class="py-2 px-3 text-xs text-gray-500">${m.empresa_name || 'N/A'}</td>
+              <td class="py-2 px-3">${m.technician || '-'}</td>
+              <td class="py-2 px-3 text-xs text-gray-600">${m.description || '-'}</td>
+              <td class="py-2 px-3 text-right font-bold">${m.horas_operacao || 0}h</td>
+            </tr>`).join('')}</tbody>
+          </table>`;
+        } else {
+          maintEl.innerHTML = '<p class="text-gray-400 text-sm text-center py-4">Nenhuma manutencao nos ultimos 30 dias</p>';
+        }
+      } catch (err) {
+        console.error('Erro telemetria:', err);
+      }
+
+      // Auto-refresh every 10s while on telemetria tab
+      if (telemetriaTimer) clearTimeout(telemetriaTimer);
+      if (!document.getElementById('sec-telemetria').classList.contains('hidden')) {
+        telemetriaTimer = setTimeout(loadTelemetria, 10000);
+      }
     }
 
     // Load stats

@@ -77,6 +77,14 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;ba
 </style>
 </head>
 <body>
+<div id="standbyOverlay" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;z-index:9998;background:#000;flex-direction:column;align-items:center;justify-content:center;cursor:pointer" onclick="wakeFromStandby()">
+<div style="text-align:center;opacity:0.15">
+<svg style="width:80px;height:80px;margin-bottom:24px" viewBox="0 0 24 24" fill="none" stroke="#6b7280" stroke-width="1.5"><path d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z"/></svg>
+<h2 style="color:#6b7280;font-size:28px;letter-spacing:6px;margin:0 0 8px">PILI TECH</h2>
+<div style="width:40px;height:1px;background:#374151;margin:0 auto 12px"></div>
+<p style="color:#374151;font-size:10px;letter-spacing:2px">MODO STANDBY</p>
+</div>
+</div>
 <div id="offlineOverlay" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;z-index:9999;background:#111827;flex-direction:column;align-items:center;justify-content:center;transition:background 15s ease;">
 <div style="text-align:center">
 <svg style="width:80px;height:80px;opacity:0.3;margin-bottom:24px" viewBox="0 0 24 24" fill="none" stroke="#9ca3af" stroke-width="1.5"><path d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z"/></svg>
@@ -493,6 +501,57 @@ var CONFIG_PASS='pilitech2025';
 var ws=null,data={},logs=[],lastMaint=null;
 var lastMoegaFosso=false;
 var configDirty=false;
+// Standby: 30min sem mudanca em nenhum sensor habilitado → tela escurece
+var STANDBY_TIMEOUT=30*60*1000;
+var lastSensorChange=Date.now();
+var isStandby=false;
+var prevSensorState=[null,null,null,null,null,null,null,null];
+// Sensor travado: 24h sem mudanca → alerta
+var SENSOR_STUCK_TIMEOUT=24*60*60*1000;
+var sensorLastChange=[Date.now(),Date.now(),Date.now(),Date.now(),Date.now(),Date.now(),Date.now(),Date.now()];
+var sensorStuckAlerted=[false,false,false,false,false,false,false,false];
+function checkSensorChanges(){
+var seCfg=data.se||[true,true,true,true,true,true,true,true];
+var vals=[data.s0!==undefined?data.s0:data.sensor_0_graus,data.s40!==undefined?data.s40:data.sensor_40_graus,data.tr!==undefined?data.tr:data.trava_roda,data.tc!==undefined?data.tc:data.trava_chassi,data.tpe!==undefined?data.tpe:data.trava_pino_e,data.tpd!==undefined?data.tpd:data.trava_pino_d,data.mf!==undefined?data.mf:data.moega_fosso,data.pt!==undefined?data.pt:data.portao_fechado];
+var anyChanged=false;
+for(var i=0;i<8;i++){
+if(!seCfg[i])continue;
+if(prevSensorState[i]!==null&&vals[i]!==prevSensorState[i]){
+anyChanged=true;
+sensorLastChange[i]=Date.now();
+sensorStuckAlerted[i]=false;
+}
+prevSensorState[i]=vals[i];
+}
+if(anyChanged){lastSensorChange=Date.now();if(isStandby)wakeFromStandby();}
+// Check standby
+if(!isStandby&&(Date.now()-lastSensorChange)>STANDBY_TIMEOUT){enterStandby();}
+// Check sensor stuck 24h
+var now=Date.now();
+var sIds=['si0','si1','si2','si3','si4','si5','si6','si7'];
+for(var i=0;i<8;i++){
+if(!seCfg[i])continue;
+if((now-sensorLastChange[i])>SENSOR_STUCK_TIMEOUT&&!sensorStuckAlerted[i]){
+sensorStuckAlerted[i]=true;
+var names=['Sensor 0°','Sensor 40°','Trava Roda','Trava Chassi','Trava Pino E','Trava Pino D','Moega/Fosso','Portão'];
+addLog('ALERTA: '+names[i]+' sem mudanca ha 24h - verificar equipamento!');
+var el=document.getElementById(sIds[i]);
+if(el){el.style.border='3px solid #f59e0b';el.style.boxShadow='0 0 12px rgba(245,158,11,0.5)';}
+if(ws&&ws.readyState===1){ws.send(JSON.stringify({cmd:'SENSOR_STUCK',sensor:i,name:names[i]}));}
+}
+}
+}
+function enterStandby(){
+isStandby=true;
+document.getElementById('standbyOverlay').style.display='flex';
+addLog('Modo standby ativado (30min sem atividade)');
+}
+function wakeFromStandby(){
+isStandby=false;
+lastSensorChange=Date.now();
+document.getElementById('standbyOverlay').style.display='none';
+addLog('Tela reativada por atividade de sensor');
+}
 try{logs=JSON.parse(localStorage.getItem('pilitech_logs')||'[]');}catch(e){logs=[];}
 function switchTab(n){
 var tabs=document.querySelectorAll('.tab');
@@ -719,6 +778,7 @@ timer.textContent=ttMin+'min';
 timer.style.color='#6b7280';label.textContent='ULTIMO CICLO';label.style.color='#6b7280';
 }
 updateSistemaStatus();
+checkSensorChanges();
 }
 function updateSistemaStatus(){
 var status=document.getElementById('sistemaStatus');
