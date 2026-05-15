@@ -1366,11 +1366,8 @@
 
     async function deleteFirmware(version) {
       if (!confirm(`Excluir firmware ${version}?`)) return;
-      const token = localStorage.getItem('token');
-      await fetch('/api/admin/firmware/' + encodeURIComponent(version), {
-        method: 'DELETE',
-        headers: { 'Authorization': 'Bearer ' + token }
-      });
+      const result = await api('/api/admin/firmware/' + encodeURIComponent(version), { method: 'DELETE' });
+      if (result && result.error) alert('Erro ao excluir: ' + result.error);
       await loadFirmwareList();
     }
 

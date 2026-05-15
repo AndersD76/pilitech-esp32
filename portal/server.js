@@ -1343,88 +1343,124 @@ app.get('/api/admin/device-details/:serial', authenticateToken, requireSuperAdmi
     dbInfo = r.rows[0] || null;
   } catch (e) { /* ignore */ }
 
+  let availableFirmware = [];
+  try {
+    const fws = await pool.query('SELECT version FROM firmwares ORDER BY uploaded_at DESC');
+    availableFirmware = fws.rows.map(r => r.version);
+  } catch (e) { /* ignore */ }
+
   res.json({
     serial_number: serial,
     online: !!live && (Date.now() - new Date(live.timestamp).getTime() < 30000),
     live: live || null,
     dbInfo,
     pendingCommands: pending,
-    availableFirmware: Array.from(firmwareStore.keys()),
+    availableFirmware,
   });
 });
 
-// Upload firmware — client sends JSON with base64 data
-app.post('/api/admin/firmware/upload', authenticateToken, requireSuperAdmin, (req, res) => {
-  const { version, filename, data } = req.body;
-  if (!version || !data) return res.status(400).json({ error: 'version e data (base64) obrigatorios' });
-
-  const buffer = Buffer.from(data, 'base64');
-  if (buffer.length > 4 * 1024 * 1024) return res.status(400).json({ error: 'Firmware excede 4MB' });
-
-  firmwareStore.set(version, {
-    filename: filename || 'firmware.bin',
-    size: buffer.length,
-    data: buffer,
-    uploadedAt: new Date().toISOString(),
-    uploadedBy: req.user.email || 'admin',
-  });
-  console.log(`[FIRMWARE] Upload: ${version} (${filename || 'firmware.bin'}, ${(buffer.length/1024).toFixed(1)}KB)`);
-  res.json({ success: true, version, filename: filename || 'firmware.bin', size: buffer.length });
+// Upload firmware — client sends JSON with base64 data (persistido em Postgres)
+app.post('/api/admin/firmware/upload', authenticateToken, requireSuperAdmin, async (req, res) => {
+  try {
+    const { version, filename, data } = req.body;
+    if (!version || !data) return res.status(400).json({ error: 'version e data (base64) obrigatorios' });
+    const buffer = Buffer.from(data, 'base64');
+    if (buffer.length > 4 * 1024 * 1024) return res.status(400).json({ error: 'Firmware excede 4MB' });
+    const fname = filename || 'firmware.bin';
+    await pool.query(`
+      INSERT INTO firmwares (version, filename, size, data, uploaded_by)
+      VALUES ($1, $2, $3, $4, $5)
+      ON CONFLICT (version) DO UPDATE SET
+        filename = EXCLUDED.filename, size = EXCLUDED.size, data = EXCLUDED.data,
+        uploaded_by = EXCLUDED.uploaded_by, uploaded_at = CURRENT_TIMESTAMP
+    `, [version, fname, buffer.length, buffer, req.user.email || 'admin']);
+    console.log(`[FIRMWARE] Upload: ${version} (${fname}, ${(buffer.length/1024).toFixed(1)}KB)`);
+    res.json({ success: true, version, filename: fname, size: buffer.length });
+  } catch (e) {
+    console.error('[FIRMWARE upload]', e.message);
+    res.status(500).json({ error: 'Erro ao salvar firmware: ' + e.message });
+  }
 });
 
 // Listar firmware disponivel
-app.get('/api/admin/firmware/list', authenticateToken, requireSuperAdmin, (req, res) => {
-  const list = [];
-  firmwareStore.forEach((fw, version) => {
-    list.push({ version, filename: fw.filename, size: fw.size, uploadedAt: fw.uploadedAt, uploadedBy: fw.uploadedBy });
-  });
-  list.sort((a, b) => b.uploadedAt.localeCompare(a.uploadedAt));
-  res.json(list);
+app.get('/api/admin/firmware/list', authenticateToken, requireSuperAdmin, async (req, res) => {
+  try {
+    const r = await pool.query(`
+      SELECT version, filename, size,
+             uploaded_at AS "uploadedAt",
+             uploaded_by AS "uploadedBy"
+      FROM firmwares ORDER BY uploaded_at DESC
+    `);
+    res.json(r.rows);
+  } catch (e) {
+    console.error('[FIRMWARE list]', e.message);
+    res.status(500).json([]);
+  }
 });
 
 // Deletar firmware
-app.delete('/api/admin/firmware/:version', authenticateToken, requireSuperAdmin, (req, res) => {
-  const version = req.params.version;
-  if (!firmwareStore.has(version)) return res.status(404).json({ error: 'Versao nao encontrada' });
-  firmwareStore.delete(version);
-  res.json({ success: true });
+app.delete('/api/admin/firmware/:version', authenticateToken, requireSuperAdmin, async (req, res) => {
+  try {
+    const r = await pool.query('DELETE FROM firmwares WHERE version = $1 RETURNING version', [req.params.version]);
+    if (r.rowCount === 0) return res.status(404).json({ error: 'Versao nao encontrada' });
+    console.log(`[FIRMWARE] Delete: ${req.params.version}`);
+    res.json({ success: true });
+  } catch (e) {
+    console.error('[FIRMWARE delete]', e.message);
+    res.status(500).json({ error: 'Erro ao excluir firmware' });
+  }
 });
 
 // ESP32 verifica se ha atualizacao disponivel
-app.get('/api/firmware/check', validateApiKey, (req, res) => {
-  const currentVersion = req.query.version || 'v0';
-  const versions = Array.from(firmwareStore.keys()).sort();
-  const latest = versions[versions.length - 1];
-  if (latest && latest !== currentVersion) {
-    const fw = firmwareStore.get(latest);
-    return res.json({ update: true, version: latest, size: fw.size });
+app.get('/api/firmware/check', validateApiKey, async (req, res) => {
+  try {
+    const currentVersion = req.query.version || 'v0';
+    const r = await pool.query('SELECT version, size FROM firmwares ORDER BY version DESC LIMIT 1');
+    if (r.rows.length === 0) return res.json({ update: false });
+    const latest = r.rows[0];
+    if (latest.version !== currentVersion) return res.json({ update: true, version: latest.version, size: latest.size });
+    res.json({ update: false });
+  } catch (e) {
+    console.error('[FIRMWARE check]', e.message);
+    res.json({ update: false });
   }
-  res.json({ update: false });
 });
 
 // ESP32 baixa firmware
-app.get('/api/firmware/download/:version', validateApiKey, (req, res) => {
-  const fw = firmwareStore.get(req.params.version);
-  if (!fw) return res.status(404).json({ error: 'Firmware nao encontrado' });
-  res.setHeader('Content-Type', 'application/octet-stream');
-  res.setHeader('Content-Disposition', `attachment; filename="${fw.filename}"`);
-  res.setHeader('Content-Length', fw.size);
-  res.send(fw.data);
+app.get('/api/firmware/download/:version', validateApiKey, async (req, res) => {
+  try {
+    const r = await pool.query('SELECT filename, size, data FROM firmwares WHERE version = $1', [req.params.version]);
+    if (r.rows.length === 0) return res.status(404).json({ error: 'Firmware nao encontrado' });
+    const fw = r.rows[0];
+    res.setHeader('Content-Type', 'application/octet-stream');
+    res.setHeader('Content-Disposition', `attachment; filename="${fw.filename}"`);
+    res.setHeader('Content-Length', fw.size);
+    res.send(fw.data);
+  } catch (e) {
+    console.error('[FIRMWARE download]', e.message);
+    res.status(500).json({ error: 'Erro ao baixar firmware' });
+  }
 });
 
 // Enviar OTA para dispositivo especifico (enfileira comando)
-app.post('/api/admin/firmware/push', authenticateToken, requireSuperAdmin, (req, res) => {
-  const { serial_number, version } = req.body;
-  if (!serial_number || !version) return res.status(400).json({ error: 'serial_number e version obrigatorios' });
-  if (!firmwareStore.has(version)) return res.status(404).json({ error: 'Versao de firmware nao encontrada' });
+app.post('/api/admin/firmware/push', authenticateToken, requireSuperAdmin, async (req, res) => {
+  try {
+    const { serial_number, version } = req.body;
+    if (!serial_number || !version) return res.status(400).json({ error: 'serial_number e version obrigatorios' });
+    const r = await pool.query('SELECT 1 FROM firmwares WHERE version = $1', [version]);
+    if (r.rows.length === 0) return res.status(404).json({ error: 'Versao de firmware nao encontrada' });
 
-  const command = { cmd: 'OTA_UPDATE', version, timestamp: new Date().toISOString(), from: 'admin' };
-  const queue = pendingCommands.get(serial_number) || [];
-  queue.push(command);
-  pendingCommands.set(serial_number, queue);
+    const command = { cmd: 'OTA_UPDATE', version, timestamp: new Date().toISOString(), from: 'admin' };
+    const queue = pendingCommands.get(serial_number) || [];
+    queue.push(command);
+    pendingCommands.set(serial_number, queue);
 
-  console.log(`[OTA] Push ${version} para ${serial_number}`);
-  res.json({ success: true, message: `OTA ${version} enfileirado para ${serial_number}` });
+    console.log(`[OTA] Push ${version} para ${serial_number}`);
+    res.json({ success: true, message: `OTA ${version} enfileirado para ${serial_number}` });
+  } catch (e) {
+    console.error('[FIRMWARE push]', e.message);
+    res.status(500).json({ error: 'Erro ao enfileirar OTA' });
+  }
 });
 
 app.get('/api/stats', authenticateToken, checkSubscription, async (req, res) => {
@@ -2182,7 +2218,6 @@ const liveDeviceStatus = new Map(); // serial_number -> { data, timestamp }
 
 // ============ COMMAND QUEUE & FIRMWARE (CONTROLE REMOTO) ============
 const pendingCommands = new Map(); // serial_number -> [{ cmd, params, timestamp }]
-const firmwareStore = new Map(); // version -> { filename, size, data (Buffer), uploadedAt, uploadedBy }
 
 // ESP32 envia status ao vivo a cada 10 segundos (sem gravar no banco)
 // Resposta inclui comandos pendentes para o dispositivo
@@ -2790,6 +2825,19 @@ async function initDatabase() {
       ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS unidade_id INTEGER REFERENCES unidades(id)
     `).catch(() => {});
     console.log('✅ Colunas device_id e unidade_id verificadas em subscriptions');
+
+    // Tabela de firmwares (persiste binarios OTA atraves de redeploys)
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS firmwares (
+        version VARCHAR(50) PRIMARY KEY,
+        filename VARCHAR(255) NOT NULL,
+        size INTEGER NOT NULL,
+        data BYTEA NOT NULL,
+        uploaded_by VARCHAR(100),
+        uploaded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    console.log('✅ Tabela firmwares verificada');
 
     // Apagar assinaturas pendentes antigas (limpeza)
     await pool.query(`DELETE FROM subscriptions WHERE status = 'pending' AND created_at < NOW() - INTERVAL '7 days'`);
