@@ -7,6 +7,35 @@
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script>
+    // ===== Horarios: o banco grava em UTC (timestamp without time zone).
+    // Sem marcar o fuso, o navegador lia como hora local e mostrava +3h.
+    // fmtDataBR() marca como UTC e converte para o horario de Brasilia.
+    function _paraDataUTC(v) {
+      if (v === null || v === undefined || v === '') return null;
+      if (v instanceof Date) return v;
+      var s = String(v);
+      if (s.indexOf(' ') > -1 && s.indexOf('T') === -1) s = s.replace(' ', 'T');
+      if (!/[Zz]$|[+-]\d{2}:?\d{2}$/.test(s)) s += 'Z';
+      var d = new Date(s);
+      return isNaN(d.getTime()) ? null : d;
+    }
+    function fmtDataBR(v, opts) {
+      var d = _paraDataUTC(v);
+      if (!d) return '-';
+      var o = { timeZone: 'America/Sao_Paulo' };
+      if (opts) for (var k in opts) o[k] = opts[k];
+      return d.toLocaleString('pt-BR', o);
+    }
+    function fmtSoDataBR(v) {
+      var d = _paraDataUTC(v);
+      if (!d) return '-';
+      return d.toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' });
+    }
+    function msDesde(v) {           // idade do dado, em ms (para "online/offline")
+      var d = _paraDataUTC(v);
+      return d ? (Date.now() - d.getTime()) : Infinity;
+    }
+
     tailwind.config = {
       theme: {
         extend: {
@@ -893,7 +922,7 @@
         const statusClass = isOnline ? 'bg-green-100 text-green-700' : isIdle ? 'bg-yellow-100 text-yellow-700' : 'bg-red-100 text-red-700';
         const statusText = isOnline ? 'Online' : isIdle ? 'Idle' : 'Offline';
         const statusDot = isOnline ? 'bg-green-500' : isIdle ? 'bg-yellow-500' : 'bg-red-500';
-        const lastSeen = d.last_seen ? new Date(d.last_seen).toLocaleString('pt-BR') : 'Nunca';
+        const lastSeen = d.last_seen ? fmtDataBR(d.last_seen) : 'Nunca';
 
         // Helper para status do sensor (verde/vermelho)
         const sensorStatus = (val, activeLabel = 'Ativo', inactiveLabel = 'Inativo') => {
@@ -1136,7 +1165,7 @@
           </div>
           <div class="flex-1">
             <p class="font-medium text-gray-800">${a.message}</p>
-            <p class="text-sm text-gray-500">${new Date(a.timestamp).toLocaleString('pt-BR')}</p>
+            <p class="text-sm text-gray-500">${fmtDataBR(a.timestamp)}</p>
           </div>
         </div>
       `).join('');
@@ -1145,7 +1174,7 @@
     // Check if timestamp is recent (< 10 min)
     function isRecent(timestamp) {
       if (!timestamp) return false;
-      const diff = Date.now() - new Date(timestamp).getTime();
+      const diff = msDesde(timestamp);
       return diff < 10 * 60 * 1000;
     }
 
@@ -2000,7 +2029,7 @@
 
         return `
           <tr class="hover:bg-gray-50 border-b">
-            <td class="px-4 py-3 text-xs text-gray-600">${c.timestamp ? new Date(c.timestamp).toLocaleString('pt-BR') : '-'}</td>
+            <td class="px-4 py-3 text-xs text-gray-600">${fmtDataBR(c.timestamp)}</td>
             <td class="px-4 py-3 text-center font-bold text-gray-800">#${c.ciclo_numero || '-'}</td>
             <td class="px-4 py-3 text-center font-medium">${Math.round((c.tempo_total || 0) / 60)} min</td>
             <td class="px-4 py-3 text-center">

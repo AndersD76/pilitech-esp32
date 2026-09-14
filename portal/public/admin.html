@@ -6,6 +6,35 @@
   <title>PILI TECH - Portal Administrativo</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
+    // ===== Horarios: o banco grava em UTC (timestamp without time zone).
+    // Sem marcar o fuso, o navegador lia como hora local e mostrava +3h.
+    // fmtDataBR() marca como UTC e converte para o horario de Brasilia.
+    function _paraDataUTC(v) {
+      if (v === null || v === undefined || v === '') return null;
+      if (v instanceof Date) return v;
+      var s = String(v);
+      if (s.indexOf(' ') > -1 && s.indexOf('T') === -1) s = s.replace(' ', 'T');
+      if (!/[Zz]$|[+-]\d{2}:?\d{2}$/.test(s)) s += 'Z';
+      var d = new Date(s);
+      return isNaN(d.getTime()) ? null : d;
+    }
+    function fmtDataBR(v, opts) {
+      var d = _paraDataUTC(v);
+      if (!d) return '-';
+      var o = { timeZone: 'America/Sao_Paulo' };
+      if (opts) for (var k in opts) o[k] = opts[k];
+      return d.toLocaleString('pt-BR', o);
+    }
+    function fmtSoDataBR(v) {
+      var d = _paraDataUTC(v);
+      if (!d) return '-';
+      return d.toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' });
+    }
+    function msDesde(v) {           // idade do dado, em ms (para "online/offline")
+      var d = _paraDataUTC(v);
+      return d ? (Date.now() - d.getTime()) : Infinity;
+    }
+
     tailwind.config = {
       theme: {
         extend: {
@@ -1062,7 +1091,7 @@
             const isAlert = ['ALERT', 'moega_cheia', 'alerta_critico', 'parada_emergencia', 'sensor_falha'].includes(a.event_type);
             const bgClass = isAlert ? 'bg-red-50 border-red-200' : a.event_type === 'WARNING' ? 'bg-yellow-50 border-yellow-200' : 'bg-gray-50 border-gray-200';
             const textClass = isAlert ? 'text-red-700' : a.event_type === 'WARNING' ? 'text-yellow-700' : 'text-gray-700';
-            const time = new Date(a.timestamp).toLocaleString('pt-BR');
+            const time = fmtDataBR(a.timestamp);
             return `<div class="p-3 rounded-lg border ${bgClass} flex items-start gap-3">
               <div class="flex-1">
                 <div class="flex items-center gap-2">
@@ -1135,7 +1164,7 @@
               <th class="text-right py-2 px-3 text-gray-500 font-medium">Horimetro</th>
             </tr></thead>
             <tbody>${data.manutencoes.map(m => `<tr class="border-b hover:bg-gray-50">
-              <td class="py-2 px-3 text-xs">${new Date(m.timestamp).toLocaleDateString('pt-BR')}</td>
+              <td class="py-2 px-3 text-xs">${fmtSoDataBR(m.timestamp)}</td>
               <td class="py-2 px-3 font-medium">${m.serial_number}</td>
               <td class="py-2 px-3 text-xs text-gray-500">${m.empresa_name || 'N/A'}</td>
               <td class="py-2 px-3">${m.technician || '-'}</td>
