@@ -60,7 +60,11 @@ const SUPER_ADMIN = {
 
 // Middleware
 app.use(cors());
-app.use(express.json({ limit: '6mb' }));
+app.use(express.json({
+  limit: '6mb',
+  // /api/batch confere um CRC calculado sobre os bytes brutos do corpo
+  verify: (req, res, buf) => { if (req.originalUrl === '/api/batch') req.rawBody = buf; }
+}));
 app.use((req, res, next) => {
   if (req.path.endsWith('.html') || req.path === '/') {
     res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
@@ -999,8 +1003,8 @@ app.get('/api/devices', authenticateToken, checkSubscription, async (req, res) =
         u.nome as unidade_nome, u.cidade as unidade_cidade,
         e.id as empresa_id, e.razao_social as empresa_nome,
         CASE
-          WHEN d.last_seen > CURRENT_TIMESTAMP - INTERVAL '5 minutes' THEN 'online'
-          WHEN d.last_seen > CURRENT_TIMESTAMP - INTERVAL '10 minutes' THEN 'idle'
+          WHEN d.last_seen > CURRENT_TIMESTAMP - INTERVAL '35 minutes' THEN 'online'
+          WHEN d.last_seen > CURRENT_TIMESTAMP - INTERVAL '7 hours' THEN 'idle'
           ELSE 'offline'
         END as status_conexao,
         (
@@ -1496,7 +1500,7 @@ app.get('/api/stats', authenticateToken, checkSubscription, async (req, res) => 
     const onlineResult = await pool.query(`
       SELECT COUNT(DISTINCT d.id) as online
       FROM devices d ${deviceJoin}
-      ${deviceWhere ? deviceWhere + ' AND' : 'WHERE'} d.last_seen > CURRENT_TIMESTAMP - INTERVAL '10 minutes'
+      ${deviceWhere ? deviceWhere + ' AND' : 'WHERE'} d.last_seen > CURRENT_TIMESTAMP - INTERVAL '35 minutes'
     `, params);
 
     // Total de ciclos e horimetro (filtrando por empresa)
@@ -2447,6 +2451,119 @@ app.post('/api/cycle-data', validateApiKey, async (req, res) => {
   }
 });
 
+// ============ LOTE COMPACTO PELO 4G (chip de 20 MB/mes) ============
+// O equipamento junta leituras, eventos, ciclos e manutencoes e manda tudo numa
+// requisicao so (um handshake HTTPS por lote em vez de um por mensagem):
+//   {"sn":"001430","kb":123,"it":[[tipo,idade_s,...campos],...],"crc":"xxxxxxxx"}
+// crc = CRC-32 (IEEE) dos bytes do corpo ANTES de ,"crc":" - a UART IoT<->modem
+// troca ~1 byte em 2000 e o JSON corrompido dentro de um texto passaria calado.
+// idade_s = ha quantos segundos o item aconteceu (-1 = desconhecido -> agora).
+//   r: [s0,s40,tr,tc,tpe,tpd,mf,pt, ciclos_hoje,ciclos_total,horas,minutos, sistema_ativo, uptime]
+//   e: [event_type, message, sensor_name, sensor_value(0/1/null)]
+//   c: [ciclo_numero, tempo_total, portao, moega, tr, tc, tpe, tpd, tempo_padrao, eficiencia]
+//   m: [technician, description, horas_operacao]
+const CRC32_TABLE = (() => {
+  const t = new Uint32Array(256);
+  for (let n = 0; n < 256; n++) {
+    let c = n;
+    for (let k = 0; k < 8; k++) c = (c & 1) ? (0xEDB88320 ^ (c >>> 1)) : (c >>> 1);
+    t[n] = c >>> 0;
+  }
+  return t;
+})();
+function crc32(buf) {
+  let c = 0xFFFFFFFF;
+  for (let i = 0; i < buf.length; i++) c = CRC32_TABLE[(c ^ buf[i]) & 0xFF] ^ (c >>> 8);
+  return ((c ^ 0xFFFFFFFF) >>> 0).toString(16).padStart(8, '0');
+}
+const dataUsage = new Map();   // serial -> { kb, at } (consumo 4G informado pelo equipamento)
+
+app.post('/api/batch', validateApiKey, async (req, res) => {
+  try {
+    const raw = req.rawBody;
+    const marca = Buffer.from(',"crc":"');
+    const idx = raw ? raw.lastIndexOf(marca) : -1;
+    if (idx < 0) return res.status(400).json({ error: 'crc ausente' });
+    const crcRecebido = raw.subarray(idx + marca.length, idx + marca.length + 8).toString();
+    if (crc32(raw.subarray(0, idx)) !== crcRecebido) {
+      console.warn(`[BATCH] CRC nao confere (${req.body && req.body.sn}) - lote rejeitado`);
+      return res.status(400).json({ error: 'crc invalido' });
+    }
+
+    const { sn, kb, it } = req.body;
+    if (!sn || !Array.isArray(it)) return res.status(400).json({ error: 'sn e it obrigatorios' });
+
+    let dev = await pool.query('SELECT id FROM devices WHERE serial_number = $1', [sn]);
+    let deviceId;
+    if (dev.rows.length === 0) {
+      const ins = await pool.query(
+        `INSERT INTO devices (serial_number, name, first_seen, last_seen, api_key)
+         VALUES ($1, $2, NOW(), NOW(), $3) RETURNING id`,
+        [sn, `Tombador ${sn}`, req.headers['x-api-key']]
+      );
+      deviceId = ins.rows[0].id;
+      console.log(`🆕 Novo dispositivo detectado (lote): ${sn}`);
+    } else {
+      deviceId = dev.rows[0].id;
+      await pool.query('UPDATE devices SET last_seen = NOW() WHERE id = $1', [deviceId]);
+    }
+
+    const b = v => (v === null || v === undefined) ? null : !!v;
+    const quando = idade => (typeof idade === 'number' && idade >= 0) ? Math.min(idade, 30 * 86400) : 0;
+    const alertTypes = ['moega_cheia', 'moega_fosso', 'alerta_critico', 'parada_emergencia', 'sensor_falha'];
+    let gravados = 0;
+    for (const item of it) {
+      if (!Array.isArray(item) || item.length < 2) continue;
+      const [tipo, idade, ...f] = item;
+      const seg = quando(idade);
+      if (tipo === 'r') {
+        await pool.query(`
+          INSERT INTO sensor_readings (
+            device_id, timestamp, sensor_0_graus, sensor_40_graus, trava_roda, trava_chassi,
+            trava_pino_e, trava_pino_d, moega_fosso, portao_fechado,
+            ciclos_hoje, ciclos_total, horas_operacao, minutos_operacao,
+            uptime_seconds, wifi_connected, sistema_ativo
+          ) VALUES ($1, NOW() - ($2 * INTERVAL '1 second'), $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, false, $16)
+        `, [deviceId, seg, b(f[0]), b(f[1]), b(f[2]), b(f[3]), b(f[4]), b(f[5]), b(f[6]), b(f[7]),
+            f[8], f[9], f[10], f[11], f[13], b(f[12]) || false]);
+      } else if (tipo === 'e') {
+        await pool.query(`
+          INSERT INTO event_logs (device_id, timestamp, event_type, message, sensor_name, sensor_value)
+          VALUES ($1, NOW() - ($2 * INTERVAL '1 second'), $3, $4, $5, $6)
+        `, [deviceId, seg, f[0], f[1], f[2] || null, b(f[3])]);
+        if (alertTypes.includes(f[0])) {
+          sendAlertPush(sn, f[0], f[1] || `Alerta: ${f[0]}`).catch(e => console.error('Push error:', e));
+        }
+      } else if (tipo === 'c') {
+        await pool.query(`
+          INSERT INTO cycle_data (
+            device_id, created_at, ciclo_numero, tempo_total, sensor0, sensor40,
+            trava_roda, trava_chassi, trava_pino_e, trava_pino_d, tempo_padrao, eficiencia
+          ) VALUES ($1, NOW() - ($2 * INTERVAL '1 second'), $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+        `, [deviceId, seg, f[0], f[1], f[2], f[3], f[4], f[5], f[6], f[7], f[8], f[9]]);
+      } else if (tipo === 'm') {
+        await pool.query(`
+          INSERT INTO maintenances (device_id, timestamp, technician, description, horas_operacao)
+          VALUES ($1, NOW() - ($2 * INTERVAL '1 second'), $3, $4, $5)
+        `, [deviceId, seg, f[0] || 'Técnico', f[1] || 'Manutenção registrada', f[2] || 0]);
+      } else {
+        continue;
+      }
+      gravados++;
+    }
+
+    if (typeof kb === 'number') dataUsage.set(sn, { kb, at: new Date().toISOString() });
+    console.log(`📦 Lote de ${sn}: ${gravados}/${it.length} itens gravados, consumo 4G ${kb} KB no mes`);
+
+    const cmds = pendingCommands.get(sn) || [];
+    if (cmds.length > 0) pendingCommands.delete(sn);
+    res.json(cmds.length > 0 ? { success: true, n: gravados, commands: cmds } : { success: true, n: gravados });
+  } catch (err) {
+    console.error('Erro ao gravar lote:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // Estatísticas do dispositivo (para gráficos de produtividade)
 app.get('/api/device-stats/:serialNumber', authenticateToken, checkSubscription, async (req, res) => {
   try {
@@ -2688,8 +2805,8 @@ app.get('/api/compare', authenticateToken, checkSubscription, async (req, res) =
       // Última leitura (online status)
       const lastReading = await pool.query(`
         SELECT ciclos_hoje, ciclos_total, horas_operacao, last_seen,
-          CASE WHEN last_seen > CURRENT_TIMESTAMP - INTERVAL '5 minutes' THEN 'online'
-               WHEN last_seen > CURRENT_TIMESTAMP - INTERVAL '10 minutes' THEN 'idle'
+          CASE WHEN last_seen > CURRENT_TIMESTAMP - INTERVAL '35 minutes' THEN 'online'
+               WHEN last_seen > CURRENT_TIMESTAMP - INTERVAL '7 hours' THEN 'idle'
                ELSE 'offline' END as status
         FROM (
           SELECT sr.ciclos_hoje, sr.ciclos_total, sr.horas_operacao, d.last_seen
