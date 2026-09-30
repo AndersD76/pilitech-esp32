@@ -1249,7 +1249,7 @@ app.get('/api/admin/telemetria', authenticateToken, requireSuperAdmin, async (re
   try {
     const alertas = await pool.query(`
       SELECT el.*, d.serial_number, d.name as device_name,
-        u.name as unidade_name, e.name as empresa_name
+        u.nome as unidade_name, e.razao_social as empresa_name
       FROM event_logs el
       JOIN devices d ON el.device_id = d.id
       LEFT JOIN unidades u ON d.unidade_id = u.id
@@ -1260,7 +1260,7 @@ app.get('/api/admin/telemetria', authenticateToken, requireSuperAdmin, async (re
 
     const manutencoes = await pool.query(`
       SELECT m.*, d.serial_number, d.name as device_name,
-        u.name as unidade_name, e.name as empresa_name
+        u.nome as unidade_name, e.razao_social as empresa_name
       FROM maintenances m
       JOIN devices d ON m.device_id = d.id
       LEFT JOIN unidades u ON d.unidade_id = u.id
@@ -1277,7 +1277,7 @@ app.get('/api/admin/telemetria', authenticateToken, requireSuperAdmin, async (re
 
     const devices = await pool.query(`
       SELECT d.id, d.serial_number, d.name, d.last_seen,
-        u.name as unidade_name, e.name as empresa_name,
+        u.nome as unidade_name, e.razao_social as empresa_name,
         (SELECT COUNT(*) FROM cycle_data cd WHERE cd.device_id = d.id AND DATE(cd.created_at) = CURRENT_DATE) as ciclos_hoje,
         (SELECT ciclos_total FROM sensor_readings sr WHERE sr.device_id = d.id ORDER BY sr.timestamp DESC LIMIT 1) as ciclos_total,
         (SELECT horas_operacao FROM sensor_readings sr WHERE sr.device_id = d.id ORDER BY sr.timestamp DESC LIMIT 1) as horas_operacao
@@ -1332,9 +1332,9 @@ app.get('/api/admin/device-details/:serial', authenticateToken, requireSuperAdmi
   let dbInfo = null;
   try {
     const r = await pool.query(`
-      SELECT d.*, u.name as unidade_name, e.name as empresa_name,
+      SELECT d.*, u.nome as unidade_name, e.razao_social as empresa_name,
         (SELECT sensor_config FROM sensor_readings WHERE device_id = d.id ORDER BY timestamp DESC LIMIT 1) as last_sensor_config,
-        (SELECT firmware_version FROM sensor_readings WHERE device_id = d.id AND firmware_version IS NOT NULL ORDER BY timestamp DESC LIMIT 1) as last_firmware
+        NULL::text as last_firmware   -- sensor_readings nao guarda firmware_version (a coluna nao existe)
       FROM devices d
       LEFT JOIN unidades u ON d.unidade_id = u.id
       LEFT JOIN empresas e ON u.empresa_id = e.id
@@ -1351,7 +1351,7 @@ app.get('/api/admin/device-details/:serial', authenticateToken, requireSuperAdmi
 
   res.json({
     serial_number: serial,
-    online: !!live && (Date.now() - new Date(live.timestamp).getTime() < 30000),
+    online: !!live && (Date.now() - new Date(live.timestamp).getTime() < LIVE_MAX_AGE_MS),
     live: live || null,
     dbInfo,
     pendingCommands: pending,
