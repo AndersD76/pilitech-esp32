@@ -1290,7 +1290,7 @@ app.get('/api/admin/telemetria', authenticateToken, requireSuperAdmin, async (re
     const liveData = {};
     liveDeviceStatus.forEach((data, serial) => {
       const age = Date.now() - new Date(data.timestamp).getTime();
-      if (age < 30000) liveData[serial] = data;
+      if (age < LIVE_MAX_AGE_MS) liveData[serial] = data;
     });
 
     res.json({
@@ -2215,6 +2215,10 @@ function validateApiKey(req, res, next) {
 
 // ============ LIVE STATUS (IN-MEMORY, TEMPO REAL) ============
 const liveDeviceStatus = new Map(); // serial_number -> { data, timestamp }
+// Validade do status ao vivo. Pelo 4G o equipamento manda live-status a cada
+// 60 s (mais repeticoes quando o envio falha); com 20-30 s ele aparecia
+// "Offline" na maior parte do tempo.
+const LIVE_MAX_AGE_MS = 150000;
 
 // ============ COMMAND QUEUE & FIRMWARE (CONTROLE REMOTO) ============
 const pendingCommands = new Map(); // serial_number -> [{ cmd, params, timestamp }]
@@ -2250,9 +2254,9 @@ app.get('/api/subscription-status', authenticateToken, checkSubscription, (req, 
 app.get('/api/live-status', authenticateToken, (req, res) => {
   const devices = {};
   liveDeviceStatus.forEach((data, serial) => {
-    // Considerar offline se não atualizou há mais de 20 segundos
+    // Considerar offline se não atualizou dentro de LIVE_MAX_AGE_MS
     const age = Date.now() - new Date(data.timestamp).getTime();
-    if (age < 20000) {
+    if (age < LIVE_MAX_AGE_MS) {
       devices[serial] = data;
     }
   });
@@ -2263,7 +2267,7 @@ app.get('/api/live-status', authenticateToken, (req, res) => {
 setInterval(() => {
   const now = Date.now();
   liveDeviceStatus.forEach((data, serial) => {
-    if (now - new Date(data.timestamp).getTime() > 60000) {
+    if (now - new Date(data.timestamp).getTime() > LIVE_MAX_AGE_MS) {
       liveDeviceStatus.delete(serial);
     }
   });
