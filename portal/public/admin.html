@@ -1273,8 +1273,11 @@
 
     function renderDeviceCard(d) {
       const isOnline = d.status_conexao === 'online';
-      const statusClass = isOnline ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700';
-      const statusText = isOnline ? 'Online' : 'Offline';
+      // idle = sem contato ha mais de 35 min e menos de 7 h: equipamento adormecido
+      // (sem atividade nos sensores ele nao envia pelo 4G, so 1 "estou vivo" a cada 6 h)
+      const isIdle = d.status_conexao === 'idle';
+      const statusClass = isOnline ? 'bg-green-100 text-green-700' : isIdle ? 'bg-yellow-100 text-yellow-700' : 'bg-red-100 text-red-700';
+      const statusText = isOnline ? 'Online' : isIdle ? 'Adormecido' : 'Offline';
 
       return `
         <div class="border rounded-xl p-4 hover:shadow-md transition-shadow">
@@ -1302,8 +1305,9 @@
 
     function renderDeviceCardFull(d) {
       const isOnline = d.status_conexao === 'online';
-      const statusClass = isOnline ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700';
-      const statusText = isOnline ? 'Online' : d.status_conexao === 'idle' ? 'Idle' : 'Offline';
+      const isIdle = d.status_conexao === 'idle';
+      const statusClass = isOnline ? 'bg-green-100 text-green-700' : isIdle ? 'bg-yellow-100 text-yellow-700' : 'bg-red-100 text-red-700';
+      const statusText = isOnline ? 'Online' : isIdle ? 'Adormecido' : 'Offline';
 
       // Tag de assinatura
       let subscriptionTag = '';

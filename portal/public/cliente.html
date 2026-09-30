@@ -920,7 +920,7 @@
         const isOnline = d.status_conexao === 'online';
         const isIdle = d.status_conexao === 'idle';
         const statusClass = isOnline ? 'bg-green-100 text-green-700' : isIdle ? 'bg-yellow-100 text-yellow-700' : 'bg-red-100 text-red-700';
-        const statusText = isOnline ? 'Online' : isIdle ? 'Idle' : 'Offline';
+        const statusText = isOnline ? 'Online' : isIdle ? 'Adormecido' : 'Offline';
         const statusDot = isOnline ? 'bg-green-500' : isIdle ? 'bg-yellow-500' : 'bg-red-500';
         const lastSeen = d.last_seen ? fmtDataBR(d.last_seen) : 'Nunca';
 
@@ -1526,7 +1526,7 @@
       grid.innerHTML = devices.map(d => {
         const t = telemetryMap[d.serial_number] || {};
         const isOnline = d.status_conexao === 'online';
-        const statusDot = isOnline ? 'bg-green-500 animate-pulse' : 'bg-red-500';
+        const statusDot = isOnline ? 'bg-green-500 animate-pulse' : d.status_conexao === 'idle' ? 'bg-yellow-500' : 'bg-red-500';
         const borderClass = isOnline ? 'border-green-500' : 'border-gray-600';
 
         // Status dos sensores (compacto)
@@ -2063,7 +2063,7 @@
           <input type="checkbox" class="compare-check w-4 h-4 accent-pili-red" value="${d.serial_number}" ${devices.length <= 3 ? 'checked' : (i < 3 ? 'checked' : '')}>
           <span class="w-3 h-3 rounded-full" style="background:${COMPARE_COLORS[i % COMPARE_COLORS.length]}"></span>
           <span class="text-sm font-medium text-gray-700">${d.name || d.serial_number}</span>
-          <span class="text-xs px-2 py-0.5 rounded-full ${d.status_conexao === 'online' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}">${d.status_conexao === 'online' ? 'ON' : 'OFF'}</span>
+          <span class="text-xs px-2 py-0.5 rounded-full ${d.status_conexao === 'online' ? 'bg-green-100 text-green-700' : d.status_conexao === 'idle' ? 'bg-yellow-100 text-yellow-700' : 'bg-gray-100 text-gray-500'}">${d.status_conexao === 'online' ? 'ON' : d.status_conexao === 'idle' ? 'ZZZ' : 'OFF'}</span>
         </label>
       `).join('');
 
