@@ -2228,6 +2228,11 @@ app.post('/api/live-status', validateApiKey, (req, res) => {
     ...req.body,
     timestamp: new Date().toISOString()
   });
+  // live-status e o "batimento" do equipamento (60 s no 4G): mantem last_seen
+  // em dia. Antes so o sensor-reading (a cada 5 min) atualizava, e o status
+  // "online" (last_seen < 5 min) ficava no limite e caia para offline.
+  pool.query('UPDATE devices SET last_seen = NOW() WHERE serial_number = $1', [serial_number])
+    .catch(err => console.error('live-status last_seen:', err.message));
   const cmds = pendingCommands.get(serial_number) || [];
   if (cmds.length > 0) {
     pendingCommands.delete(serial_number);
