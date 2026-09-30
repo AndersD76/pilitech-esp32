@@ -1041,7 +1041,8 @@ app.get('/api/devices', authenticateToken, checkSubscription, async (req, res) =
     const result = await pool.query(query, params);
 
     res.json({
-      devices: result.rows,
+      // consumo 4G do mes informado pelo equipamento no ultimo lote (/api/batch)
+      devices: result.rows.map(r => ({ ...r, consumo_4g: dataUsage.get(r.serial_number) || null })),
       subscription: req.subscriptionStatus
     });
   } catch (err) {
