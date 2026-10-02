@@ -2808,17 +2808,19 @@
       } else {
         tbody.innerHTML = dmDocsCache.map(d => {
           const tipo = d.tipo === 'link'
-            ? `<span class="px-2 py-0.5 rounded bg-gray-800 text-white text-[10px] font-bold">LINK</span><div class="text-[11px] text-gray-400 truncate max-w-[180px]" title="${dmEsc(d.url)}">${dmEsc(d.url)}</div>`
+            ? `<span class="px-2 py-0.5 rounded bg-gray-800 text-white text-[10px] font-bold">LINK</span><div class="text-[11px] text-gray-400 truncate max-w-[120px]" title="${dmEsc(d.url)}">${dmEsc(d.url)}</div>`
             : `<span class="px-2 py-0.5 rounded ${d.mime === 'application/pdf' ? 'bg-pili-red' : 'bg-blue-600'} text-white text-[10px] font-bold">${d.mime === 'application/pdf' ? 'PDF' : 'IMAGEM'}</span><div class="text-[11px] text-gray-400">${dmTamanho(d.tamanho)}</div>`;
           return `<tr class="border-b hover:bg-gray-50 align-top">
             <td class="py-2 px-3 font-medium text-gray-800">${dmEsc(d.titulo)}${d.nome_arquivo ? `<div class="text-[11px] text-gray-400 font-normal">${dmEsc(d.nome_arquivo)}</div>` : ''}</td>
             <td class="py-2 px-3">${tipo}</td>
             <td class="py-2 px-3 text-xs text-gray-600">${dmEscopoTexto(d)}</td>
             <td class="py-2 px-3 text-right text-gray-600">${d.ordem === null || d.ordem === undefined ? '-' : Number(d.ordem)}</td>
-            <td class="py-2 px-3 text-xs text-gray-500 whitespace-nowrap">${fmtSoDataBR(d.criado_em)}<div class="text-gray-400">${dmEsc(d.criado_por || '')}</div></td>
-            <td class="py-2 px-3 text-right whitespace-nowrap">
-              <a href="/docs/arquivo/${Number(d.id)}" target="_blank" rel="noopener" class="px-2 py-1 text-xs border rounded-lg hover:bg-gray-50">Abrir</a>
-              <button onclick="dmExcluirDoc(${Number(d.id)})" class="px-2 py-1 text-xs border border-red-300 text-red-600 rounded-lg hover:bg-red-50">Excluir</button>
+            <td class="py-2 px-3 text-xs text-gray-500 whitespace-nowrap">${fmtSoDataBR(d.criado_em)}<div class="text-gray-400 max-w-[110px] truncate" title="${dmEsc(d.criado_por || '')}">${dmEsc(d.criado_por || '')}</div></td>
+            <td class="py-2 px-3">
+              <div class="flex flex-col items-end gap-1">
+                <a href="/docs/arquivo/${Number(d.id)}" target="_blank" rel="noopener" class="px-2 py-1 text-xs border rounded-lg hover:bg-gray-50">Abrir</a>
+                <button onclick="dmExcluirDoc(${Number(d.id)})" class="px-2 py-1 text-xs border border-red-300 text-red-600 rounded-lg hover:bg-red-50">Excluir</button>
+              </div>
             </td>
           </tr>`;
         }).join('');
