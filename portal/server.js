@@ -25,6 +25,7 @@ webpush.setVapidDetails('mailto:contato@pilitech.com.br', VAPID_PUBLIC, VAPID_PR
 
 // In-memory push subscriptions (per user)
 const pushSubscriptions = new Map();
+const pushEscopo = new Map();   // userId -> { role, empresa_id, unidade_id } (filtra os alertas por empresa)
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -1305,7 +1306,7 @@ app.get('/api/admin/telemetria', authenticateToken, requireSuperAdmin, async (re
                   sr.trava_pino_e, sr.trava_pino_d, sr.moega_fosso, sr.portao_fechado
            FROM sensor_readings sr WHERE sr.device_id = d.id ORDER BY sr.timestamp DESC LIMIT 1) x
         ) as ultima_leitura,
-        (SELECT COUNT(*) FROM cycle_data cd WHERE cd.device_id = d.id AND DATE(cd.created_at) = CURRENT_DATE) as ciclos_hoje,
+        (SELECT COUNT(*) FROM cycle_data cd WHERE cd.device_id = d.id AND (cd.created_at AT TIME ZONE 'UTC' AT TIME ZONE 'America/Sao_Paulo')::date = (NOW() AT TIME ZONE 'America/Sao_Paulo')::date) as ciclos_hoje,
         (SELECT ciclos_total FROM sensor_readings sr WHERE sr.device_id = d.id ORDER BY sr.timestamp DESC LIMIT 1) as ciclos_total,
         (SELECT horas_operacao FROM sensor_readings sr WHERE sr.device_id = d.id ORDER BY sr.timestamp DESC LIMIT 1) as horas_operacao
       FROM devices d
@@ -2170,9 +2171,14 @@ app.post('/api/cupons/apply', authenticateToken, async (req, res) => {
 // ============ API ENDPOINTS PARA ESP32 ============
 
 // Validar API Key do ESP32
+// Chaves aceitas dos equipamentos: a do firmware atual + as de API_KEY/API_KEYS (env,
+// separadas por virgula). Antes bastava comecar com "pilitech_" e qualquer pessoa podia
+// gravar leituras, eventos e manutencoes para qualquer numero de serie.
+const API_KEYS_VALIDAS = new Set(['pilitech_00002025_secret_key',
+  ...String(process.env.API_KEYS || process.env.API_KEY || '').split(',').map(k => k.trim()).filter(Boolean)]);
 function validateApiKey(req, res, next) {
   const apiKey = req.headers['x-api-key'];
-  if (!apiKey || !apiKey.startsWith('pilitech_')) {
+  if (!apiKey || !API_KEYS_VALIDAS.has(apiKey)) {
     return res.status(401).json({ error: 'API Key inválida' });
   }
   next();
@@ -2586,12 +2592,12 @@ app.get('/api/device-stats/:serialNumber', authenticateToken, checkSubscription,
     // Ciclos por dia (últimos 7 dias)
     const ciclosDiariosResult = await pool.query(`
       SELECT
-        DATE(created_at) as dia,
+        (created_at AT TIME ZONE 'UTC' AT TIME ZONE 'America/Sao_Paulo')::date as dia,
         COUNT(*) as ciclos,
         AVG(tempo_total) as tempo_medio_ciclo
       FROM cycle_data
       WHERE device_id = $1 AND created_at > NOW() - INTERVAL '7 days'
-      GROUP BY DATE(created_at)
+      GROUP BY (created_at AT TIME ZONE 'UTC' AT TIME ZONE 'America/Sao_Paulo')::date
       ORDER BY dia ASC
     `, [deviceId]);
 
@@ -2599,7 +2605,7 @@ app.get('/api/device-stats/:serialNumber', authenticateToken, checkSubscription,
     const ciclosHojeResult = await pool.query(`
       SELECT COUNT(*) as total
       FROM cycle_data
-      WHERE device_id = $1 AND DATE(created_at) = CURRENT_DATE
+      WHERE device_id = $1 AND (created_at AT TIME ZONE 'UTC' AT TIME ZONE 'America/Sao_Paulo')::date = (NOW() AT TIME ZONE 'America/Sao_Paulo')::date
     `, [deviceId]);
 
     // Tempo médio geral
@@ -2774,15 +2780,15 @@ app.get('/api/compare', authenticateToken, checkSubscription, async (req, res) =
       const hojeResult = await pool.query(`
         SELECT COUNT(*) as ciclos_hoje
         FROM cycle_data
-        WHERE device_id = $1 AND DATE(created_at) = CURRENT_DATE
+        WHERE device_id = $1 AND (created_at AT TIME ZONE 'UTC' AT TIME ZONE 'America/Sao_Paulo')::date = (NOW() AT TIME ZONE 'America/Sao_Paulo')::date
       `, [deviceId]);
 
       // Ciclos por dia
       const dailyResult = await pool.query(`
-        SELECT DATE(created_at) as dia, COUNT(*) as ciclos, AVG(tempo_total) as tempo_medio
+        SELECT (created_at AT TIME ZONE 'UTC' AT TIME ZONE 'America/Sao_Paulo')::date as dia, COUNT(*) as ciclos, AVG(tempo_total) as tempo_medio
         FROM cycle_data
         WHERE device_id = $1 AND created_at >= NOW() - INTERVAL '${days} days'
-        GROUP BY DATE(created_at) ORDER BY dia ASC
+        GROUP BY (created_at AT TIME ZONE 'UTC' AT TIME ZONE 'America/Sao_Paulo')::date ORDER BY dia ASC
       `, [deviceId]);
 
       // Tempo médio por sensor
@@ -2992,7 +2998,7 @@ async function initDatabase() {
 // ==================== IN-APP ALERTS ====================
 const recentAlerts = [];
 
-app.post('/api/alerts/send', (req, res) => {
+app.post('/api/alerts/send', authenticateToken, requireSuperAdmin, (req, res) => {   // so o super admin dispara
   const { title, message, type } = req.body;
   const alert = { title, message, type: type || 'critical', timestamp: new Date().toISOString(), id: Date.now() };
   recentAlerts.unshift(alert);
@@ -3018,6 +3024,7 @@ app.post('/api/push/subscribe', authenticateToken, async (req, res) => {
 
   const userId = req.user.id || req.user.email;
   pushSubscriptions.set(userId, subscription);
+  pushEscopo.set(userId, { role: req.user.role, empresa_id: req.user.empresa_id, unidade_id: req.user.unidade_id });
   console.log(`🔔 Push subscription registered for ${userId}`);
   res.json({ success: true, message: 'Push notification ativada' });
 });
@@ -3026,12 +3033,13 @@ app.post('/api/push/subscribe', authenticateToken, async (req, res) => {
 app.post('/api/push/unsubscribe', authenticateToken, (req, res) => {
   const userId = req.user.id || req.user.email;
   pushSubscriptions.delete(userId);
+  pushEscopo.delete(userId);
   console.log(`🔕 Push subscription removed for ${userId}`);
   res.json({ success: true });
 });
 
 // Send push notification (admin or system)
-app.post('/api/push/send', async (req, res) => {
+app.post('/api/push/send', authenticateToken, requireSuperAdmin, async (req, res) => {   // so o super admin dispara
   const { title, body, icon, tag, empresa_id } = req.body;
   const payload = JSON.stringify({
     title: title || 'PILI TECH',
@@ -3064,11 +3072,30 @@ async function sendAlertPush(deviceSerial, alertType, message) {
     data: { url: '/cliente.html' }
   });
 
+  // Alerta de um tombador so vai para quem pode ver esse tombador (antes ia para os
+  // inscritos de todas as empresas): super admin, a empresa dele ou a unidade dele.
+  let dono = null;
+  try {
+    const r = await pool.query(`
+      SELECT d.unidade_id, COALESCE(u.empresa_id, d.empresa_id) AS empresa_id
+      FROM devices d LEFT JOIN unidades u ON d.unidade_id = u.id
+      WHERE d.serial_number = $1`, [deviceSerial]);
+    dono = r.rows[0] || null;
+  } catch (e) { /* sem o dono, so o super admin recebe */ }
+  const podeVer = (esc) => {
+    if (!esc) return false;
+    if (esc.role === 'super_admin') return true;
+    if (!dono) return false;
+    if (esc.role === 'admin_empresa') return esc.empresa_id != null && esc.empresa_id === dono.empresa_id;
+    return esc.unidade_id != null && esc.unidade_id === dono.unidade_id;
+  };
+
   for (const [userId, sub] of pushSubscriptions) {
+    if (!podeVer(pushEscopo.get(userId))) continue;
     try {
       await webpush.sendNotification(sub, payload);
     } catch (err) {
-      if (err.statusCode === 410) pushSubscriptions.delete(userId);
+      if (err.statusCode === 410) { pushSubscriptions.delete(userId); pushEscopo.delete(userId); }
     }
   }
 }

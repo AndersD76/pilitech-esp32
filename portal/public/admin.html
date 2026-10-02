@@ -452,7 +452,7 @@
                 <div><label class="text-xs text-gray-500">Versao</label>
                   <select id="fwVersaoEnviar" class="w-full px-3 py-2 border rounded-lg text-sm"></select></div>
                 <button onclick="fwEnviar()" class="w-full px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 text-sm font-bold">Enviar atualizacao</button>
-                <p class="text-[11px] text-gray-400">A atualizacao chega no proximo contato do equipamento (pelo 4G, ate 30 min; adormecido, ate 6 h). A IoT baixa ~1,3 MB do chip, confere cada bloco e o MD5, e volta sozinha para a versao anterior se a nova nao falar com o portal em 30 min. Display: em breve (repasse pela IoT).</p>
+                <p class="text-[11px] text-gray-400">A atualizacao chega no proximo contato do equipamento (pelo 4G, ate 30 min; adormecido, ate 6 h). A IoT baixa ~1,3 MB do chip, confere cada bloco e o MD5, e volta sozinha para a versao anterior se a nova nao falar com o portal em 30 min. Display: a IoT baixa e repassa pelo ESP-NOW (display ligado e perto da IoT); o display confere o MD5 e reinicia.</p>
                 <p id="fwEnviarMsg" class="text-xs text-center"></p>
               </div>
             </div>
@@ -1511,8 +1511,8 @@
              <td class="py-2 px-2 text-xs">${fmtDataBR(f.uploadedAt)}</td>
              <td class="py-2 px-2 text-right"><button onclick="fwExcluir('${f.version}')" class="text-xs text-red-600 hover:underline">Excluir</button></td>
            </tr>`).join('')}</tbody></table>`;
-      document.getElementById('fwVersaoEnviar').innerHTML = fws.filter(f => f.tipo !== 'display')
-        .map(f => `<option value="${f.version}">${f.version} (IoT)</option>`).join('') || '<option value="">Nenhum firmware de IoT</option>';
+      document.getElementById('fwVersaoEnviar').innerHTML = fws
+        .map(f => `<option value="${f.version}">${f.version} (${f.tipo === 'display' ? 'Display' : 'IoT'})</option>`).join('') || '<option value="">Nenhum firmware cadastrado</option>';
       const eqs = Array.isArray(status) ? status : [];
       document.getElementById('fwEquip').innerHTML = eqs.map(d => `<option value="${d.serial_number}">${d.serial_number} - ${d.name || 'Tombador'}</option>`).join('');
       document.getElementById('fwStatus').innerHTML = eqs.length === 0 ? '<p class="text-gray-400 text-center py-4">Nenhum equipamento</p>'

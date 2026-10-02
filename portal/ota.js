@@ -5,8 +5,8 @@
 // firmware rele do modem so o bloco com erro (ver executarOta4G() no firmware da IoT).
 //   GET /api/fw/<versao>/info  -> "<tamanho> <md5> <pedaco> <tipo> <crc32 do texto antes>"
 //   GET /api/fw/<versao>/c/<n> -> [nBlocos u16][crc u32 x nBlocos][crc do cabecalho u32][dados]
-// O display nao tem internet: a IoT baixa o firmware dele e repassa pelo ESP-NOW
-// (o display v1.2 ja recebe; o repasse na IoT vem numa proxima versao, por OTA).
+// O display nao tem internet: a IoT (v10.41+) baixa o firmware dele e repassa pelo
+// ESP-NOW em blocos confirmados; o display (v1.2+) confere o MD5, grava e reinicia.
 
 const crypto = require('crypto');
 
@@ -112,9 +112,7 @@ function setupOta(app, pool, { authenticateToken, requireSuperAdmin, validateApi
       if (!serial_number || !version) return res.status(400).json({ error: 'equipamento e versao obrigatorios' });
       const r = await pool.query('SELECT COALESCE(tipo, \'iot\') AS tipo FROM firmwares WHERE version = $1', [version]);
       if (r.rows.length === 0) return res.status(404).json({ error: 'Versao de firmware nao encontrada' });
-      if (r.rows[0].tipo !== 'iot') {
-        return res.status(400).json({ error: 'Atualizacao do display pelo portal ainda nao disponivel: o repasse IoT -> display chega numa proxima versao do firmware da IoT' });
-      }
+      // tipo display: a IoT (v10.41+) baixa e repassa ao display pelo ESP-NOW
       const fila = (pendingCommands.get(serial_number) || []).filter(c => c.cmd !== 'OTA_UPDATE');
       fila.push({ cmd: 'OTA_UPDATE', version, timestamp: new Date().toISOString(), from: req.user.email || 'admin' });
       pendingCommands.set(serial_number, fila);
