@@ -108,6 +108,24 @@
           </li>
         </ul>
 
+        <!-- Equipamentos: manutencoes e documentos (docs-manutencao) -->
+        <p class="text-xs text-gray-500 uppercase mb-2 px-4">Equipamentos</p>
+        <ul class="space-y-1 mb-4">
+          <li>
+            <a href="#" id="nav-manutencoes" onclick="abrirSecaoDM('manutencoes'); return false;" class="nav-link flex items-center gap-3 px-4 py-3 rounded-lg text-gray-300 hover:bg-gray-700">
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.7 6.3a1 1 0 000 1.4l1.6 1.6a1 1 0 001.4 0l3.77-3.77a6 6 0 01-7.94 7.94l-6.91 6.91a2.12 2.12 0 01-3-3l6.91-6.91a6 6 0 017.94-7.94l-3.76 3.76z"/></svg>
+              Manutenções
+              <span id="navManutBadge" class="hidden ml-auto px-2 py-0.5 rounded-full text-[10px] font-bold bg-red-600 text-white">0</span>
+            </a>
+          </li>
+          <li>
+            <a href="#" id="nav-documentos" onclick="abrirSecaoDM('documentos'); return false;" class="nav-link flex items-center gap-3 px-4 py-3 rounded-lg text-gray-300 hover:bg-gray-700">
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+              Documentos
+            </a>
+          </li>
+        </ul>
+
         <p class="text-xs text-gray-500 uppercase mb-2 px-4">Gestao</p>
         <ul class="space-y-1 mb-4">
           <li>
@@ -185,6 +203,9 @@
 
         <!-- Dashboard Section -->
         <section id="sec-dashboard" class="section">
+          <!-- Aviso de manutencao preventiva (preenchido pelo script docs-manutencao) -->
+          <div id="dashManutAviso" class="hidden mb-4"></div>
+
           <!-- Stats Cards -->
           <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
             <div class="bg-white rounded-xl shadow-sm p-5">
@@ -415,6 +436,205 @@
             </div>
             <div id="allDevicesGrid" class="space-y-4">
               <div class="text-center py-8 text-gray-500">Carregando...</div>
+            </div>
+          </div>
+        </section>
+
+        <!-- Manutencoes Section (docs-manutencao) -->
+        <section id="sec-manutencoes" class="section hidden">
+          <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+            <div class="bg-white rounded-xl shadow-sm p-5 border-l-4 border-red-500">
+              <p class="text-xs text-gray-500 font-medium">Vencidas (≥ 2000 h)</p>
+              <p class="text-2xl font-bold text-red-600" id="manutResVencidas">-</p>
+            </div>
+            <div class="bg-white rounded-xl shadow-sm p-5 border-l-4 border-yellow-400">
+              <p class="text-xs text-gray-500 font-medium">Atenção (≥ 1800 h)</p>
+              <p class="text-2xl font-bold text-yellow-600" id="manutResAtencao">-</p>
+            </div>
+            <div class="bg-white rounded-xl shadow-sm p-5 border-l-4 border-green-500">
+              <p class="text-xs text-gray-500 font-medium">Em dia</p>
+              <p class="text-2xl font-bold text-green-600" id="manutResOk">-</p>
+            </div>
+            <div class="bg-white rounded-xl shadow-sm p-5 border-l-4 border-gray-300">
+              <p class="text-xs text-gray-500 font-medium">Sem leitura do horímetro</p>
+              <p class="text-2xl font-bold text-gray-500" id="manutResSemDados">-</p>
+            </div>
+          </div>
+
+          <div class="bg-white rounded-xl shadow-sm p-6 mb-6">
+            <div class="flex flex-col md:flex-row md:items-center justify-between gap-3 mb-4">
+              <div>
+                <h3 class="text-lg font-bold text-gray-800">Próximas manutenções</h3>
+                <p class="text-xs text-gray-500">Preventiva a cada 2000 h de operação (horímetro). Horas desde a última = horímetro atual − horímetro registrado na última manutenção (sem registro, conta desde 0).</p>
+              </div>
+              <select id="manutFiltroEmpresa" onchange="dmCarregarManutencoes()" class="px-3 py-2 border rounded-lg text-sm">
+                <option value="">Todas Empresas</option>
+              </select>
+            </div>
+            <div class="overflow-x-auto">
+              <table class="w-full text-sm">
+                <thead>
+                  <tr class="border-b">
+                    <th class="text-left py-3 px-3 font-medium text-gray-600">Tombador</th>
+                    <th class="text-left py-3 px-3 font-medium text-gray-600">Empresa / Unidade</th>
+                    <th class="text-right py-3 px-3 font-medium text-gray-600">Horímetro</th>
+                    <th class="text-right py-3 px-3 font-medium text-gray-600">Desde a última</th>
+                    <th class="text-right py-3 px-3 font-medium text-gray-600">Faltam</th>
+                    <th class="text-left py-3 px-3 font-medium text-gray-600">Última manutenção</th>
+                    <th class="text-left py-3 px-3 font-medium text-gray-600">Status</th>
+                  </tr>
+                </thead>
+                <tbody id="manutStatusBody">
+                  <tr><td colspan="7" class="text-center py-8 text-gray-500">Carregando...</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <div class="bg-white rounded-xl shadow-sm p-6">
+            <div class="flex flex-col md:flex-row md:items-center justify-between gap-3 mb-4">
+              <div>
+                <h3 class="text-lg font-bold text-gray-800">Histórico de manutenções</h3>
+                <p class="text-xs text-gray-500">Registradas no display do tombador (aba Manutenção → + Nova Manutenção).</p>
+              </div>
+              <div class="flex gap-2">
+                <select id="manutHistEmpresa" onchange="dmCarregarHistorico()" class="px-3 py-2 border rounded-lg text-sm">
+                  <option value="">Todas Empresas</option>
+                </select>
+                <select id="manutHistTombador" onchange="dmCarregarHistorico()" class="px-3 py-2 border rounded-lg text-sm">
+                  <option value="">Todos os Tombadores</option>
+                </select>
+              </div>
+            </div>
+            <div class="overflow-x-auto">
+              <table class="w-full text-sm">
+                <thead>
+                  <tr class="border-b">
+                    <th class="text-left py-3 px-3 font-medium text-gray-600">Data</th>
+                    <th class="text-left py-3 px-3 font-medium text-gray-600">Tombador</th>
+                    <th class="text-left py-3 px-3 font-medium text-gray-600">Empresa / Unidade</th>
+                    <th class="text-left py-3 px-3 font-medium text-gray-600">Técnico</th>
+                    <th class="text-left py-3 px-3 font-medium text-gray-600">Descrição</th>
+                    <th class="text-right py-3 px-3 font-medium text-gray-600">Horímetro</th>
+                  </tr>
+                </thead>
+                <tbody id="manutHistBody">
+                  <tr><td colspan="6" class="text-center py-8 text-gray-500">Carregando...</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <!-- Documentos Section (docs-manutencao) -->
+        <section id="sec-documentos" class="section hidden">
+          <div class="grid grid-cols-1 xl:grid-cols-3 gap-6 mb-6">
+            <!-- Novo documento -->
+            <div class="bg-white rounded-xl shadow-sm p-6">
+              <h3 class="text-lg font-bold text-gray-800 mb-1">Novo documento</h3>
+              <p class="text-xs text-gray-500 mb-4">Aparece na página aberta pelo QR code do display do tombador.</p>
+              <form id="docForm" class="space-y-4" onsubmit="dmSalvarDoc(); return false;">
+                <div>
+                  <label class="block text-sm font-medium text-gray-700 mb-1">Título *</label>
+                  <input type="text" id="docTitulo" maxlength="200" class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-pili-red focus:border-transparent" placeholder="Ex.: Manual de operação">
+                </div>
+                <div>
+                  <label class="block text-sm font-medium text-gray-700 mb-1">Tipo</label>
+                  <div class="flex gap-4 text-sm">
+                    <label class="flex items-center gap-2 cursor-pointer"><input type="radio" name="docTipo" value="arquivo" checked onchange="dmTipoDocChange()" class="accent-red-600"> Arquivo (PDF)</label>
+                    <label class="flex items-center gap-2 cursor-pointer"><input type="radio" name="docTipo" value="link" onchange="dmTipoDocChange()" class="accent-red-600"> Link</label>
+                  </div>
+                </div>
+                <div id="docArquivoBox">
+                  <label class="block text-sm font-medium text-gray-700 mb-1">Arquivo *</label>
+                  <input type="file" id="docArquivo" accept="application/pdf,.pdf,image/png,image/jpeg,image/webp" class="w-full text-sm file:mr-3 file:px-3 file:py-2 file:rounded-lg file:border-0 file:bg-gray-100 file:text-gray-700">
+                  <p class="text-xs text-gray-500 mt-1">PDF (ou imagem PNG/JPG), até 12 MB.</p>
+                </div>
+                <div id="docLinkBox" class="hidden">
+                  <label class="block text-sm font-medium text-gray-700 mb-1">Link *</label>
+                  <input type="url" id="docUrl" maxlength="2000" class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-pili-red focus:border-transparent" placeholder="https://...">
+                  <p class="text-xs text-gray-500 mt-1">Precisa abrir sem login (ex.: vídeo público). Links do Google Drive que pedem login não funcionam para o operador.</p>
+                </div>
+                <div>
+                  <label class="block text-sm font-medium text-gray-700 mb-1">Vale para</label>
+                  <select id="docEscopo" onchange="dmEscopoChange()" class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-pili-red focus:border-transparent">
+                    <option value="todos">Todos os tombadores</option>
+                    <option value="empresa">Uma empresa</option>
+                    <option value="unidade">Uma unidade</option>
+                    <option value="tombador">Um tombador</option>
+                  </select>
+                </div>
+                <div id="docEmpresaBox" class="hidden">
+                  <label class="block text-sm font-medium text-gray-700 mb-1">Empresa *</label>
+                  <select id="docEmpresa" onchange="dmDocEmpresaChange()" class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-pili-red focus:border-transparent">
+                    <option value="">Selecione...</option>
+                  </select>
+                </div>
+                <div id="docUnidadeBox" class="hidden">
+                  <label class="block text-sm font-medium text-gray-700 mb-1">Unidade *</label>
+                  <select id="docUnidade" class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-pili-red focus:border-transparent">
+                    <option value="">Selecione a empresa primeiro</option>
+                  </select>
+                </div>
+                <div id="docTombadorBox" class="hidden">
+                  <label class="block text-sm font-medium text-gray-700 mb-1">Tombador *</label>
+                  <select id="docTombador" class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-pili-red focus:border-transparent">
+                    <option value="">Selecione...</option>
+                  </select>
+                </div>
+                <div>
+                  <label class="block text-sm font-medium text-gray-700 mb-1">Ordem <span class="text-gray-400 font-normal">(opcional, menor aparece primeiro)</span></label>
+                  <input type="number" id="docOrdem" class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-pili-red focus:border-transparent" placeholder="Ex.: 1">
+                </div>
+                <div class="flex items-center gap-3">
+                  <button type="submit" id="docSalvarBtn" class="px-4 py-2 bg-pili-red text-white rounded-lg hover:bg-pili-darkred font-medium">Salvar documento</button>
+                  <span id="docMsg" class="text-xs"></span>
+                </div>
+              </form>
+            </div>
+
+            <!-- Documentos cadastrados -->
+            <div class="xl:col-span-2 bg-white rounded-xl shadow-sm p-6">
+              <h3 class="text-lg font-bold text-gray-800 mb-4">Documentos cadastrados</h3>
+              <div class="overflow-x-auto">
+                <table class="w-full text-sm">
+                  <thead>
+                    <tr class="border-b">
+                      <th class="text-left py-3 px-3 font-medium text-gray-600">Título</th>
+                      <th class="text-left py-3 px-3 font-medium text-gray-600">Tipo</th>
+                      <th class="text-left py-3 px-3 font-medium text-gray-600">Vale para</th>
+                      <th class="text-right py-3 px-3 font-medium text-gray-600">Ordem</th>
+                      <th class="text-left py-3 px-3 font-medium text-gray-600">Enviado</th>
+                      <th class="text-right py-3 px-3 font-medium text-gray-600">Ações</th>
+                    </tr>
+                  </thead>
+                  <tbody id="docsTableBody">
+                    <tr><td colspan="6" class="text-center py-8 text-gray-500">Carregando...</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+
+          <!-- Links publicos (QR do display) -->
+          <div class="bg-white rounded-xl shadow-sm p-6">
+            <h3 class="text-lg font-bold text-gray-800 mb-1">Link público de cada tombador</h3>
+            <p class="text-xs text-gray-500 mb-4">É o endereço do QR code fixo do display. Abre sem login e lista os documentos do tombador, da unidade, da empresa e os gerais.</p>
+            <div class="overflow-x-auto">
+              <table class="w-full text-sm">
+                <thead>
+                  <tr class="border-b">
+                    <th class="text-left py-3 px-3 font-medium text-gray-600">Tombador</th>
+                    <th class="text-left py-3 px-3 font-medium text-gray-600">Empresa / Unidade</th>
+                    <th class="text-right py-3 px-3 font-medium text-gray-600">Documentos</th>
+                    <th class="text-left py-3 px-3 font-medium text-gray-600">Link</th>
+                    <th class="text-right py-3 px-3 font-medium text-gray-600">Ações</th>
+                  </tr>
+                </thead>
+                <tbody id="docsLinksBody">
+                  <tr><td colspan="5" class="text-center py-8 text-gray-500">Carregando...</td></tr>
+                </tbody>
+              </table>
             </div>
           </div>
         </section>
@@ -2308,6 +2528,393 @@
     }
 
     init();
+  </script>
+
+  <!-- ============ MANUTENCOES E DOCUMENTOS (rotas em docs-manutencao.js) ============
+       Script proprio, separado do principal: abre as secoes novas sem mexer no showSection(). -->
+  <script>
+    const DM_URL_DOCS = 'https://www.pilitech.com.br/docs/';
+    const DM_MAX_ARQUIVO = 12 * 1024 * 1024;
+    const DM_TITULOS = {
+      manutencoes: ['Manutenções', 'Manutenção preventiva a cada 2000 h de operação (horímetro)'],
+      documentos: ['Documentos', 'Manuais e links abertos pelo QR code do display']
+    };
+    let dmManutCache = null;    // ultimo /api/manutencoes/status sem filtro (indicador do dashboard)
+    let dmDocsCache = [];
+    let dmDevicesCache = [];
+
+    function dmEsc(v) {
+      return String(v === null || v === undefined ? '' : v)
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+    }
+
+    // Requisicao com o token do admin; nunca lanca excecao (o erro vem em .error)
+    async function dmReq(url, opts = {}) {
+      try {
+        const headers = { 'Authorization': 'Bearer ' + token };
+        if (opts.body) headers['Content-Type'] = 'application/json';
+        const res = await fetch(url, { ...opts, headers });
+        if (res.status === 401) { logout(); return { ok: false, status: 401, data: null, error: 'Sessão expirada' }; }
+        let data = null;
+        try { data = await res.json(); } catch (e) { data = null; }
+        return { ok: res.ok, status: res.status, data, error: res.ok ? null : ((data && data.error) || ('Erro ' + res.status)) };
+      } catch (e) {
+        return { ok: false, status: 0, data: null, error: 'Falha de conexão: ' + e.message };
+      }
+    }
+
+    // Mesma mecanica do showSection(), sem depender do "event" global
+    function abrirSecaoDM(nome) {
+      document.querySelectorAll('.section').forEach(s => s.classList.add('hidden'));
+      document.getElementById('sec-' + nome).classList.remove('hidden');
+      document.querySelectorAll('.nav-link').forEach(l => {
+        l.classList.remove('active', 'bg-pili-red', 'text-white');
+        l.classList.add('text-gray-300', 'hover:bg-gray-700');
+      });
+      const link = document.getElementById('nav-' + nome);
+      if (link) {
+        link.classList.add('active', 'bg-pili-red', 'text-white');
+        link.classList.remove('text-gray-300', 'hover:bg-gray-700');
+      }
+      document.getElementById('pageTitle').textContent = DM_TITULOS[nome][0];
+      document.getElementById('pageSubtitle').textContent = DM_TITULOS[nome][1];
+      if (nome === 'manutencoes') dmCarregarManutencoes();
+      if (nome === 'documentos') dmCarregarDocs();
+    }
+
+    async function dmEmpresas() {
+      if (Array.isArray(empresasList) && empresasList.length) return empresasList;
+      const r = await dmReq('/api/empresas');
+      return (r.ok && Array.isArray(r.data)) ? r.data : [];
+    }
+
+    function dmPreencherSelect(id, primeiro, itens, valor, rotulo) {
+      const sel = document.getElementById(id);
+      if (!sel) return;
+      const atual = sel.value;
+      sel.innerHTML = `<option value="">${dmEsc(primeiro)}</option>` +
+        itens.map(i => `<option value="${dmEsc(valor(i))}">${dmEsc(rotulo(i))}</option>`).join('');
+      if (atual && itens.some(i => String(valor(i)) === atual)) sel.value = atual;
+    }
+
+    // ---------- Manutencoes ----------
+
+    function dmStatusManut(s) {
+      if (s === 'vencida') return { texto: 'Vencida', badge: 'bg-red-100 text-red-700', barra: 'bg-red-500' };
+      if (s === 'atencao') return { texto: 'Atenção', badge: 'bg-yellow-100 text-yellow-700', barra: 'bg-yellow-400' };
+      if (s === 'ok') return { texto: 'Em dia', badge: 'bg-green-100 text-green-700', barra: 'bg-green-500' };
+      return { texto: 'Sem leitura', badge: 'bg-gray-100 text-gray-500', barra: 'bg-gray-300' };
+    }
+    function dmFmtH(n) {
+      return (n === null || n === undefined) ? '-' : Number(n).toLocaleString('pt-BR') + ' h';
+    }
+    function dmFaltam(e) {
+      if (e.faltam_horas === null || e.faltam_horas === undefined) return '<span class="text-gray-400">-</span>';
+      if (e.faltam_horas <= 0) return `<span class="font-bold text-red-600">vencida há ${dmFmtH(-e.faltam_horas)}</span>`;
+      const cor = e.status === 'atencao' ? 'text-yellow-700 font-bold' : 'text-gray-700';
+      return `<span class="${cor}">${dmFmtH(e.faltam_horas)}</span>`;
+    }
+    function dmEmpresaUnidade(empresa, unidade) {
+      if (!empresa && !unidade) return '<span class="text-orange-500">Sem vínculo</span>';
+      return `${dmEsc(empresa || '-')}${unidade ? `<div class="text-gray-400">${dmEsc(unidade)}</div>` : ''}`;
+    }
+
+    function dmPreencherTombadoresHistorico(equipamentos) {
+      dmPreencherSelect('manutHistTombador', 'Todos os Tombadores', equipamentos || [],
+        e => e.serial_number, e => e.serial_number + (e.name ? ' — ' + e.name : ''));
+    }
+
+    async function dmCarregarManutencoes() {
+      const empresas = await dmEmpresas();
+      dmPreencherSelect('manutFiltroEmpresa', 'Todas Empresas', empresas, e => e.id, e => e.razao_social);
+      dmPreencherSelect('manutHistEmpresa', 'Todas Empresas', empresas, e => e.id, e => e.razao_social);
+
+      const emp = document.getElementById('manutFiltroEmpresa').value;
+      const tbody = document.getElementById('manutStatusBody');
+      const r = await dmReq('/api/manutencoes/status' + (emp ? '?empresa_id=' + encodeURIComponent(emp) : ''));
+      if (!r.ok || !r.data || !Array.isArray(r.data.equipamentos)) {
+        tbody.innerHTML = `<tr><td colspan="7" class="text-center py-8 text-red-500">${dmEsc(r.error || 'Erro ao carregar')}</td></tr>`;
+        dmCarregarHistorico();
+        return;
+      }
+      const d = r.data;
+      if (!emp) { dmManutCache = d; dmAtualizarIndicador(d); }
+      dmPreencherTombadoresHistorico((dmManutCache || d).equipamentos);
+
+      document.getElementById('manutResVencidas').textContent = d.resumo.vencidas;
+      document.getElementById('manutResAtencao').textContent = d.resumo.atencao;
+      document.getElementById('manutResOk').textContent = d.resumo.ok;
+      document.getElementById('manutResSemDados').textContent = d.resumo.sem_dados;
+
+      if (d.equipamentos.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="7" class="text-center py-8 text-gray-500">Nenhum tombador encontrado</td></tr>';
+      } else {
+        tbody.innerHTML = d.equipamentos.map(e => {
+          const st = dmStatusManut(e.status);
+          const pct = e.horas_desde_manutencao === null ? 0 : Math.min(100, Math.round(e.horas_desde_manutencao * 100 / d.intervalo_h));
+          const um = e.ultima_manutencao;
+          return `<tr class="border-b hover:bg-gray-50 align-top">
+            <td class="py-3 px-3"><div class="font-medium text-gray-800">${dmEsc(e.serial_number)}</div><div class="text-xs text-gray-500">${dmEsc(e.name || 'Tombador')}</div></td>
+            <td class="py-3 px-3 text-xs text-gray-600">${dmEmpresaUnidade(e.empresa_nome, e.unidade_nome)}</td>
+            <td class="py-3 px-3 text-right whitespace-nowrap">${e.horimetro === null ? '<span class="text-gray-400">-</span>' : dmFmtH(e.horimetro)}
+              ${e.leitura_em ? `<div class="text-[10px] text-gray-400">leitura ${fmtDataBR(e.leitura_em, { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' })}</div>` : ''}</td>
+            <td class="py-3 px-3 text-right whitespace-nowrap">${dmFmtH(e.horas_desde_manutencao)}
+              <div class="w-24 h-1.5 bg-gray-200 rounded-full overflow-hidden ml-auto mt-1"><div class="h-full ${st.barra}" style="width:${pct}%"></div></div></td>
+            <td class="py-3 px-3 text-right whitespace-nowrap">${dmFaltam(e)}</td>
+            <td class="py-3 px-3 text-xs text-gray-600">${um
+              ? `${fmtSoDataBR(um.em)} · ${dmFmtH(um.horas_operacao)}<div class="text-gray-400">${dmEsc(um.tecnico || '')}</div>`
+              : '<span class="text-gray-400">Nunca registrada</span>'}</td>
+            <td class="py-3 px-3"><span class="px-2 py-1 rounded-full text-xs font-bold ${st.badge}">${st.texto}</span></td>
+          </tr>`;
+        }).join('');
+      }
+      dmCarregarHistorico();
+    }
+
+    async function dmCarregarHistorico() {
+      const tbody = document.getElementById('manutHistBody');
+      const qs = new URLSearchParams({ limit: '300' });
+      const emp = document.getElementById('manutHistEmpresa').value;
+      const serial = document.getElementById('manutHistTombador').value;
+      if (emp) qs.set('empresa_id', emp);
+      if (serial) qs.set('serial', serial);
+      const r = await dmReq('/api/manutencoes/historico?' + qs.toString());
+      if (!r.ok || !r.data || !Array.isArray(r.data.manutencoes)) {
+        tbody.innerHTML = `<tr><td colspan="6" class="text-center py-8 text-red-500">${dmEsc(r.error || 'Erro ao carregar')}</td></tr>`;
+        return;
+      }
+      const lista = r.data.manutencoes;
+      if (lista.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="6" class="text-center py-8 text-gray-500">Nenhuma manutenção registrada' +
+          (emp || serial ? ' com este filtro' : ' ainda') + '. Elas chegam do display do tombador (aba Manutenção → + Nova Manutenção).</td></tr>';
+        return;
+      }
+      tbody.innerHTML = lista.map(m => `<tr class="border-b hover:bg-gray-50 align-top">
+        <td class="py-2 px-3 text-xs whitespace-nowrap">${fmtDataBR(m.timestamp, { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</td>
+        <td class="py-2 px-3"><div class="font-medium">${dmEsc(m.serial_number)}</div><div class="text-xs text-gray-500">${dmEsc(m.name || '')}</div></td>
+        <td class="py-2 px-3 text-xs text-gray-600">${dmEmpresaUnidade(m.empresa_nome, m.unidade_nome)}</td>
+        <td class="py-2 px-3">${dmEsc(m.technician || '-')}</td>
+        <td class="py-2 px-3 text-xs text-gray-600">${dmEsc(m.description || '-')}</td>
+        <td class="py-2 px-3 text-right font-bold whitespace-nowrap">${dmFmtH(m.horas_operacao || 0)}</td>
+      </tr>`).join('');
+    }
+
+    // Indicador no Dashboard + contador no menu
+    function dmAtualizarIndicador(d) {
+      const { vencidas, atencao, sem_dados, total } = d.resumo;
+      const badge = document.getElementById('navManutBadge');
+      if (vencidas + atencao > 0) {
+        badge.textContent = vencidas + atencao;
+        badge.className = 'ml-auto px-2 py-0.5 rounded-full text-[10px] font-bold text-white ' + (vencidas ? 'bg-red-600' : 'bg-yellow-500');
+      } else {
+        badge.className = 'hidden';
+      }
+
+      const box = document.getElementById('dashManutAviso');
+      box.classList.remove('hidden');
+      const botao = '<button onclick="abrirSecaoDM(\'manutencoes\')" class="px-3 py-1.5 bg-white border rounded-lg text-sm font-medium hover:bg-gray-50 whitespace-nowrap">Ver manutenções →</button>';
+      if (vencidas + atencao > 0) {
+        const criticos = d.equipamentos.filter(e => e.status === 'vencida' || e.status === 'atencao').slice(0, 4)
+          .map(e => `${dmEsc(e.serial_number)} (${e.status === 'vencida' ? 'vencida' : 'faltam ' + dmFmtH(e.faltam_horas)})`).join(' · ');
+        const cor = vencidas ? 'bg-red-50 border-red-200 text-red-800' : 'bg-yellow-50 border-yellow-200 text-yellow-800';
+        box.innerHTML = `<div class="rounded-xl border ${cor} p-4 flex flex-col md:flex-row md:items-center justify-between gap-3">
+          <div class="flex items-center gap-3">
+            <svg class="w-6 h-6 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z"/></svg>
+            <div>
+              <p class="font-bold text-sm">Manutenção preventiva: ${vencidas} vencida${vencidas === 1 ? '' : 's'} · ${atencao} em atenção</p>
+              <p class="text-xs opacity-80">${criticos}</p>
+            </div>
+          </div>${botao}</div>`;
+      } else {
+        box.innerHTML = `<div class="rounded-xl border bg-white p-3 px-4 flex items-center justify-between gap-3 text-sm text-gray-600">
+          <span><span class="inline-block w-2 h-2 rounded-full bg-green-500 mr-2"></span>Manutenção preventiva: ${total - sem_dados} de ${total} tombador${total === 1 ? '' : 'es'} em dia${sem_dados ? ` · ${sem_dados} sem leitura do horímetro` : ''}</span>${botao}</div>`;
+      }
+    }
+
+    async function dmCarregarIndicador() {
+      const r = await dmReq('/api/manutencoes/status');
+      if (!r.ok || !r.data || !r.data.resumo) return;
+      dmManutCache = r.data;
+      dmAtualizarIndicador(r.data);
+    }
+    setTimeout(dmCarregarIndicador, 1500);
+    setInterval(dmCarregarIndicador, 60000);
+
+    // ---------- Documentos ----------
+
+    function dmTipoDoc() {
+      const r = document.querySelector('input[name="docTipo"]:checked');
+      return r ? r.value : 'arquivo';
+    }
+    function dmTipoDocChange() {
+      const link = dmTipoDoc() === 'link';
+      document.getElementById('docArquivoBox').classList.toggle('hidden', link);
+      document.getElementById('docLinkBox').classList.toggle('hidden', !link);
+    }
+    function dmEscopoChange() {
+      const e = document.getElementById('docEscopo').value;
+      document.getElementById('docEmpresaBox').classList.toggle('hidden', !(e === 'empresa' || e === 'unidade'));
+      document.getElementById('docUnidadeBox').classList.toggle('hidden', e !== 'unidade');
+      document.getElementById('docTombadorBox').classList.toggle('hidden', e !== 'tombador');
+      if (e === 'unidade') dmDocEmpresaChange();
+    }
+    async function dmDocEmpresaChange() {
+      if (document.getElementById('docEscopo').value !== 'unidade') return;
+      const emp = document.getElementById('docEmpresa').value;
+      const sel = document.getElementById('docUnidade');
+      if (!emp) { sel.innerHTML = '<option value="">Selecione a empresa primeiro</option>'; return; }
+      sel.innerHTML = '<option value="">Carregando...</option>';
+      const r = await dmReq('/api/unidades?empresa_id=' + encodeURIComponent(emp));
+      const unidades = (r.ok && Array.isArray(r.data)) ? r.data : [];
+      sel.innerHTML = unidades.length
+        ? '<option value="">Selecione a unidade</option>' + unidades.map(u => `<option value="${Number(u.id)}">${dmEsc(u.nome)}${u.cidade ? ' — ' + dmEsc(u.cidade) : ''}</option>`).join('')
+        : '<option value="">Nenhuma unidade nesta empresa</option>';
+    }
+
+    function dmDocsDoTombador(dev) {
+      return dmDocsCache.filter(doc =>
+        (doc.device_id && doc.device_id === dev.id) ||
+        (doc.unidade_id && doc.unidade_id === dev.unidade_id) ||
+        (doc.empresa_id && doc.empresa_id === dev.empresa_id) ||
+        (!doc.device_id && !doc.unidade_id && !doc.empresa_id));
+    }
+    function dmEscopoTexto(d) {
+      if (d.device_id) return 'Tombador ' + dmEsc(d.device_serial) + (d.device_nome ? ' — ' + dmEsc(d.device_nome) : '');
+      if (d.unidade_id) return 'Unidade ' + dmEsc(d.unidade_nome) + (d.unidade_empresa_nome ? ` <span class="text-gray-400">(${dmEsc(d.unidade_empresa_nome)})</span>` : '');
+      if (d.empresa_id) return 'Empresa ' + dmEsc(d.empresa_nome);
+      return '<span class="font-medium">Todos os tombadores</span>';
+    }
+    function dmTamanho(b) {
+      const n = Number(b) || 0;
+      if (n >= 1048576) return (n / 1048576).toFixed(1).replace('.', ',') + ' MB';
+      return Math.max(1, Math.round(n / 1024)) + ' KB';
+    }
+
+    async function dmCarregarDocs() {
+      const [docsR, devR, empresas] = await Promise.all([dmReq('/api/admin/docs'), dmReq('/api/devices'), dmEmpresas()]);
+      dmDocsCache = (docsR.ok && Array.isArray(docsR.data)) ? docsR.data : [];
+      dmDevicesCache = (devR.ok && devR.data && Array.isArray(devR.data.devices)) ? devR.data.devices : [];
+
+      dmPreencherSelect('docEmpresa', 'Selecione...', empresas, e => e.id, e => e.razao_social);
+      dmPreencherSelect('docTombador', 'Selecione...', dmDevicesCache, d => d.id,
+        d => d.serial_number + ' — ' + (d.name || 'Tombador') + (d.empresa_nome ? ' (' + d.empresa_nome + ')' : ''));
+
+      const tbody = document.getElementById('docsTableBody');
+      if (!docsR.ok) {
+        tbody.innerHTML = `<tr><td colspan="6" class="text-center py-8 text-red-500">${dmEsc(docsR.error)}</td></tr>`;
+      } else if (dmDocsCache.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="6" class="text-center py-8 text-gray-500">Nenhum documento cadastrado ainda</td></tr>';
+      } else {
+        tbody.innerHTML = dmDocsCache.map(d => {
+          const tipo = d.tipo === 'link'
+            ? `<span class="px-2 py-0.5 rounded bg-gray-800 text-white text-[10px] font-bold">LINK</span><div class="text-[11px] text-gray-400 truncate max-w-[180px]" title="${dmEsc(d.url)}">${dmEsc(d.url)}</div>`
+            : `<span class="px-2 py-0.5 rounded ${d.mime === 'application/pdf' ? 'bg-pili-red' : 'bg-blue-600'} text-white text-[10px] font-bold">${d.mime === 'application/pdf' ? 'PDF' : 'IMAGEM'}</span><div class="text-[11px] text-gray-400">${dmTamanho(d.tamanho)}</div>`;
+          return `<tr class="border-b hover:bg-gray-50 align-top">
+            <td class="py-2 px-3 font-medium text-gray-800">${dmEsc(d.titulo)}${d.nome_arquivo ? `<div class="text-[11px] text-gray-400 font-normal">${dmEsc(d.nome_arquivo)}</div>` : ''}</td>
+            <td class="py-2 px-3">${tipo}</td>
+            <td class="py-2 px-3 text-xs text-gray-600">${dmEscopoTexto(d)}</td>
+            <td class="py-2 px-3 text-right text-gray-600">${d.ordem === null || d.ordem === undefined ? '-' : Number(d.ordem)}</td>
+            <td class="py-2 px-3 text-xs text-gray-500 whitespace-nowrap">${fmtSoDataBR(d.criado_em)}<div class="text-gray-400">${dmEsc(d.criado_por || '')}</div></td>
+            <td class="py-2 px-3 text-right whitespace-nowrap">
+              <a href="/docs/arquivo/${Number(d.id)}" target="_blank" rel="noopener" class="px-2 py-1 text-xs border rounded-lg hover:bg-gray-50">Abrir</a>
+              <button onclick="dmExcluirDoc(${Number(d.id)})" class="px-2 py-1 text-xs border border-red-300 text-red-600 rounded-lg hover:bg-red-50">Excluir</button>
+            </td>
+          </tr>`;
+        }).join('');
+      }
+
+      const links = document.getElementById('docsLinksBody');
+      if (dmDevicesCache.length === 0) {
+        links.innerHTML = `<tr><td colspan="5" class="text-center py-8 text-gray-500">${devR.ok ? 'Nenhum tombador cadastrado' : dmEsc(devR.error)}</td></tr>`;
+      } else {
+        links.innerHTML = dmDevicesCache.map(dev => {
+          const n = dmDocsDoTombador(dev).length;
+          const url = DM_URL_DOCS + encodeURIComponent(dev.serial_number);
+          return `<tr class="border-b hover:bg-gray-50">
+            <td class="py-2 px-3"><div class="font-medium">${dmEsc(dev.serial_number)}</div><div class="text-xs text-gray-500">${dmEsc(dev.name || 'Tombador')}</div></td>
+            <td class="py-2 px-3 text-xs text-gray-600">${dmEmpresaUnidade(dev.empresa_nome, dev.unidade_nome)}</td>
+            <td class="py-2 px-3 text-right ${n ? 'font-bold text-gray-800' : 'text-orange-500'}">${n}</td>
+            <td class="py-2 px-3 font-mono text-xs text-gray-700">${dmEsc(url)}</td>
+            <td class="py-2 px-3 text-right whitespace-nowrap">
+              <a href="/docs/${encodeURIComponent(dev.serial_number)}" target="_blank" rel="noopener" class="px-2 py-1 text-xs border rounded-lg hover:bg-gray-50">Abrir</a>
+              <button data-url="${dmEsc(url)}" onclick="dmCopiarLink(this)" class="px-2 py-1 text-xs border border-blue-300 text-blue-600 rounded-lg hover:bg-blue-50">Copiar</button>
+            </td>
+          </tr>`;
+        }).join('');
+      }
+    }
+
+    function dmMsgDoc(texto, erro) {
+      const el = document.getElementById('docMsg');
+      el.textContent = texto;
+      el.className = 'text-xs ' + (erro ? 'text-red-600' : 'text-green-600');
+    }
+
+    function dmLerArquivoBase64(file) {
+      return new Promise((resolve, reject) => {
+        const fr = new FileReader();
+        fr.onload = () => { const s = String(fr.result); resolve(s.slice(s.indexOf(',') + 1)); };
+        fr.onerror = () => reject(fr.error);
+        fr.readAsDataURL(file);
+      });
+    }
+
+    async function dmSalvarDoc() {
+      const titulo = document.getElementById('docTitulo').value.trim();
+      if (!titulo) return dmMsgDoc('Informe o título.', true);
+      const tipo = dmTipoDoc();
+      const escopo = document.getElementById('docEscopo').value;
+      const campoEscopo = { empresa: 'docEmpresa', unidade: 'docUnidade', tombador: 'docTombador' }[escopo];
+      const escopoId = campoEscopo ? document.getElementById(campoEscopo).value : null;
+      if (campoEscopo && !escopoId) return dmMsgDoc('Selecione ' + ({ empresa: 'a empresa', unidade: 'a unidade', tombador: 'o tombador' })[escopo] + '.', true);
+
+      const body = { titulo, tipo, escopo, escopo_id: escopoId, ordem: document.getElementById('docOrdem').value };
+      if (tipo === 'link') {
+        body.url = document.getElementById('docUrl').value.trim();
+        if (!/^https?:\/\/\S+$/i.test(body.url)) return dmMsgDoc('Informe um link começando com https://', true);
+      } else {
+        const f = document.getElementById('docArquivo').files[0];
+        if (!f) return dmMsgDoc('Selecione o arquivo PDF.', true);
+        if (f.size > DM_MAX_ARQUIVO) return dmMsgDoc('Arquivo grande demais (máximo 12 MB).', true);
+        body.nome_arquivo = f.name;
+        try { body.arquivo_base64 = await dmLerArquivoBase64(f); }
+        catch (e) { return dmMsgDoc('Não foi possível ler o arquivo.', true); }
+      }
+
+      const btn = document.getElementById('docSalvarBtn');
+      btn.disabled = true; btn.textContent = 'Enviando...';
+      dmMsgDoc('', false);
+      const r = await dmReq('/api/admin/docs', { method: 'POST', body: JSON.stringify(body) });
+      btn.disabled = false; btn.textContent = 'Salvar documento';
+      if (!r.ok) return dmMsgDoc(r.error, true);
+
+      document.getElementById('docTitulo').value = '';
+      document.getElementById('docArquivo').value = '';
+      document.getElementById('docUrl').value = '';
+      document.getElementById('docOrdem').value = '';
+      dmMsgDoc('Documento salvo. Já aparece na página do QR code.', false);
+      dmCarregarDocs();
+    }
+
+    async function dmExcluirDoc(id) {
+      const doc = dmDocsCache.find(d => d.id === id);
+      if (!confirm(`Excluir o documento "${doc ? doc.titulo : id}"?\n\nEle some da página do QR code de todos os tombadores em que aparece.`)) return;
+      const r = await dmReq('/api/admin/docs/' + id, { method: 'DELETE' });
+      if (!r.ok) return alert('Erro: ' + r.error);
+      dmCarregarDocs();
+    }
+
+    async function dmCopiarLink(btn) {
+      const url = btn.getAttribute('data-url');
+      try {
+        await navigator.clipboard.writeText(url);
+        btn.textContent = 'Copiado!';
+        setTimeout(() => { btn.textContent = 'Copiar'; }, 1500);
+      } catch (e) {
+        prompt('Copie o link:', url);
+      }
+    }
   </script>
 </body>
 </html>
