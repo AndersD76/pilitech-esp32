@@ -1210,10 +1210,17 @@ app.get('/api/latest-readings', authenticateToken, checkSubscription, async (req
         l.ciclos_hoje, l.ciclos_total, l.horas_operacao, l.minutos_operacao,
         l.free_heap, l.uptime_seconds, l.wifi_connected,
         COALESCE(le.evt_started, l.sistema_ativo, false) as sistema_ativo,
+        cfg.sensor_config,
         un.nome as unidade_nome, COALESCE(e.razao_social, e2.razao_social) as empresa_nome
       FROM devices d
       LEFT JOIN latest l ON l.device_id = d.id
       LEFT JOIN latest_event le ON le.device_id = d.id
+      -- sensores habilitados: ultima leitura que trouxe a configuracao (o lote do 4G nao manda em toda leitura)
+      LEFT JOIN LATERAL (
+        SELECT sr.sensor_config FROM sensor_readings sr
+        WHERE sr.device_id = d.id AND sr.sensor_config IS NOT NULL
+        ORDER BY sr.timestamp DESC LIMIT 1
+      ) cfg ON true
       LEFT JOIN unidades un ON d.unidade_id = un.id
       LEFT JOIN empresas e ON un.empresa_id = e.id
       LEFT JOIN empresas e2 ON d.empresa_id = e2.id
@@ -2525,10 +2532,12 @@ app.post('/api/batch', validateApiKey, async (req, res) => {
             device_id, timestamp, sensor_0_graus, sensor_40_graus, trava_roda, trava_chassi,
             trava_pino_e, trava_pino_d, moega_fosso, portao_fechado,
             ciclos_hoje, ciclos_total, horas_operacao, minutos_operacao,
-            uptime_seconds, wifi_connected, sistema_ativo
-          ) VALUES ($1, NOW() - ($2 * INTERVAL '1 second'), $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, false, $16)
+            uptime_seconds, wifi_connected, sistema_ativo, sensor_config
+          ) VALUES ($1, NOW() - ($2 * INTERVAL '1 second'), $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, false, $16, $17)
         `, [deviceId, seg, b(f[0]), b(f[1]), b(f[2]), b(f[3]), b(f[4]), b(f[5]), b(f[6]), b(f[7]),
-            f[8], f[9], f[10], f[11], f[13], b(f[12]) || false]);
+            f[8], f[9], f[10], f[11], f[13], b(f[12]) || false,
+            // f[14] (IoT v10.41+): sensores habilitados em bits -> [true, false, ...]
+            Number.isInteger(f[14]) ? JSON.stringify([0, 1, 2, 3, 4, 5, 6, 7].map(i => ((f[14] >> i) & 1) === 1)) : null]);
       } else if (tipo === 'e') {
         await pool.query(`
           INSERT INTO event_logs (device_id, timestamp, event_type, message, sensor_name, sensor_value)
@@ -2755,7 +2764,7 @@ app.get('/api/compare', authenticateToken, checkSubscription, async (req, res) =
       return res.status(400).json({ error: 'Selecione entre 2 e 5 dispositivos' });
     }
 
-    const days = parseInt(req.query.days) || 7;
+    const days = Math.min(Math.max(parseInt(req.query.days) || 7, 1), 365);   // vai direto no SQL
     const results = [];
 
     for (const serial of serials) {
@@ -2804,18 +2813,18 @@ app.get('/api/compare', authenticateToken, checkSubscription, async (req, res) =
         WHERE device_id = $1 AND created_at >= NOW() - INTERVAL '${days} days'
       `, [deviceId]);
 
-      // Última leitura (online status)
+      // Última leitura + status (o status vem do last_seen do equipamento, igual ao resto do
+      // portal, mesmo que ainda nao exista leitura gravada)
       const lastReading = await pool.query(`
-        SELECT ciclos_hoje, ciclos_total, horas_operacao, last_seen,
-          ${STATUS_CONEXAO_SQL('last_seen')} as status
-        FROM (
-          SELECT sr.ciclos_hoje, sr.ciclos_total, sr.horas_operacao, d.last_seen
-          FROM sensor_readings sr
-          JOIN devices d ON sr.device_id = d.id
-          WHERE d.serial_number = $1
-          ORDER BY sr.timestamp DESC LIMIT 1
-        ) sub
-      `, [serial]);
+        SELECT sr.ciclos_hoje, sr.ciclos_total, sr.horas_operacao, d.last_seen,
+          ${STATUS_CONEXAO_SQL('d.last_seen')} as status
+        FROM devices d
+        LEFT JOIN LATERAL (
+          SELECT ciclos_hoje, ciclos_total, horas_operacao FROM sensor_readings
+          WHERE device_id = d.id ORDER BY timestamp DESC LIMIT 1
+        ) sr ON true
+        WHERE d.id = $1
+      `, [deviceId]);
 
       const stats = statsResult.rows[0];
       const TEMPO_PADRAO = 1200;
@@ -2981,13 +2990,37 @@ async function initDatabase() {
     // Apagar assinaturas pendentes antigas (limpeza)
     await pool.query(`DELETE FROM subscriptions WHERE status = 'pending' AND created_at < NOW() - INTERVAL '7 days'`);
 
-    // Limpar ciclos com tempo absurdamente curto (dados de bug da logica invertida)
-    const cleaned = await pool.query(`DELETE FROM cycle_data WHERE tempo_total < 60 RETURNING id`);
+    // Limpar ciclos com tempo absurdamente curto (dados de bug da logica invertida) ou sem tempo
+    const cleaned = await pool.query(`DELETE FROM cycle_data WHERE tempo_total < 60 OR tempo_total IS NULL RETURNING id`);
     if (cleaned.rowCount > 0) {
-      console.log(`🧹 Limpeza: ${cleaned.rowCount} ciclos invalidos removidos (tempo_total < 60s)`);
+      console.log(`🧹 Limpeza: ${cleaned.rowCount} ciclos invalidos removidos (tempo_total < 60s ou vazio)`);
     }
   } catch (err) {
     console.error('Erro ao inicializar banco:', err.message);
+  }
+
+  // Inscricoes de notificacao push: no banco para sobreviver a reinicio/publicacao do portal
+  // (antes so em memoria: a cada deploy ninguem recebia alerta ate reabrir o app). Tabela
+  // propria: "push_subscriptions" neste banco e de outro sistema.
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS pilitech_push_inscricoes (
+        user_key VARCHAR(255) PRIMARY KEY,
+        subscription JSONB NOT NULL,
+        role VARCHAR(50),
+        empresa_id INTEGER,
+        unidade_id INTEGER,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    const inscritos = await pool.query('SELECT user_key, subscription, role, empresa_id, unidade_id FROM pilitech_push_inscricoes');
+    inscritos.rows.forEach(r => {
+      pushSubscriptions.set(r.user_key, r.subscription);
+      pushEscopo.set(r.user_key, { role: r.role, empresa_id: r.empresa_id, unidade_id: r.unidade_id });
+    });
+    console.log(`✅ Push: ${inscritos.rows.length} inscrição(ões) carregada(s)`);
+  } catch (err) {
+    console.error('Push: erro ao carregar inscrições:', err.message);
   }
 
   // Documentos do equipamento (QR do display -> /docs/<serial>). Fora do try acima:
@@ -3022,18 +3055,24 @@ app.post('/api/push/subscribe', authenticateToken, async (req, res) => {
   const { subscription } = req.body;
   if (!subscription) return res.status(400).json({ error: 'Subscription required' });
 
-  const userId = req.user.id || req.user.email;
+  const userId = String(req.user.id || req.user.email);
+  const escopo = { role: req.user.role, empresa_id: req.user.empresa_id || null, unidade_id: req.user.unidade_id || null };
   pushSubscriptions.set(userId, subscription);
-  pushEscopo.set(userId, { role: req.user.role, empresa_id: req.user.empresa_id, unidade_id: req.user.unidade_id });
+  pushEscopo.set(userId, escopo);
+  await pool.query(`
+    INSERT INTO pilitech_push_inscricoes (user_key, subscription, role, empresa_id, unidade_id, updated_at)
+    VALUES ($1, $2, $3, $4, $5, NOW())
+    ON CONFLICT (user_key) DO UPDATE SET subscription = $2, role = $3, empresa_id = $4, unidade_id = $5, updated_at = NOW()
+  `, [userId, JSON.stringify(subscription), escopo.role, escopo.empresa_id, escopo.unidade_id])
+    .catch(e => console.error('Push: erro ao gravar inscrição:', e.message));
   console.log(`🔔 Push subscription registered for ${userId}`);
   res.json({ success: true, message: 'Push notification ativada' });
 });
 
 // Unsubscribe from push
 app.post('/api/push/unsubscribe', authenticateToken, (req, res) => {
-  const userId = req.user.id || req.user.email;
-  pushSubscriptions.delete(userId);
-  pushEscopo.delete(userId);
+  const userId = String(req.user.id || req.user.email);
+  removerInscricaoPush(userId);
   console.log(`🔕 Push subscription removed for ${userId}`);
   res.json({ success: true });
 });
@@ -3055,12 +3094,19 @@ app.post('/api/push/send', authenticateToken, requireSuperAdmin, async (req, res
       await webpush.sendNotification(sub, payload);
       sent++;
     } catch (err) {
-      if (err.statusCode === 410) pushSubscriptions.delete(userId);
+      if (err.statusCode === 410 || err.statusCode === 404) removerInscricaoPush(userId);
     }
   }
   console.log(`📨 Push enviado para ${sent} usuários`);
   res.json({ success: true, sent });
 });
+
+function removerInscricaoPush(userId) {
+  pushSubscriptions.delete(userId);
+  pushEscopo.delete(userId);
+  pool.query('DELETE FROM pilitech_push_inscricoes WHERE user_key = $1', [userId])
+    .catch(e => console.error('Push: erro ao apagar inscrição:', e.message));
+}
 
 // Send alert push (called internally when events are inserted)
 async function sendAlertPush(deviceSerial, alertType, message) {
@@ -3095,14 +3141,14 @@ async function sendAlertPush(deviceSerial, alertType, message) {
     try {
       await webpush.sendNotification(sub, payload);
     } catch (err) {
-      if (err.statusCode === 410) { pushSubscriptions.delete(userId); pushEscopo.delete(userId); }
+      if (err.statusCode === 410 || err.statusCode === 404) removerInscricaoPush(userId);   // inscricao expirada
     }
   }
 }
 
 // Test push endpoint
 app.post('/api/push/test', authenticateToken, async (req, res) => {
-  const userId = req.user.id || req.user.email;
+  const userId = String(req.user.id || req.user.email);
   const sub = pushSubscriptions.get(userId);
   if (!sub) return res.status(404).json({ error: 'Nenhuma subscription encontrada. Ative as notificações primeiro.' });
 

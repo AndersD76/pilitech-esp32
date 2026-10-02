@@ -682,13 +682,8 @@
       to { opacity: 1; transform: scale(1); }
     }
     .animate-fade-in { animation: fadeIn 0.3s ease-out; }
-    @keyframes fadeToBlack {
-      0%, 50% { background: #111827; }
-      100% { background: #000000; }
-    }
-    .offline-screen {
-      animation: fadeToBlack 15s ease forwards;
-    }
+    /* Fundo escuro fixo (antes ia ao preto e o texto cinza sumia no celular ao sol) */
+    .offline-screen { background: #1f2937; }
     @keyframes barRun {
       0% { background-position: 0 0; }
       100% { background-position: 30px 0; }
@@ -898,8 +893,13 @@
       const res = await fetch(endpoint, {
         headers: { 'Authorization': 'Bearer ' + token }
       });
-      if (res.status === 401 || res.status === 403) {
-        logout();
+      // 401 = sem token; 403 "Token inválido" = sessao vencida -> sai. Outro 403 e so falta de
+      // permissao numa rota (ex.: um equipamento de outra unidade): nao derruba a sessao inteira.
+      if (res.status === 401) { logout(); return null; }
+      if (res.status === 403) {
+        const corpo = await res.json().catch(() => ({}));
+        if (!corpo.error || /token/i.test(corpo.error)) logout();
+        else console.warn('Sem permissão em', endpoint, corpo.error);
         return null;
       }
       return res.json();
@@ -1050,6 +1050,9 @@
       const tPinoD = sensorStatus(t.trava_pino_d);
       const moega = alertStatus(t.moega_fosso, 'CHEIO!', 'OK');
       const portao = sensorStatus(t.portao_fechado, 'Fechado', 'Aberto');
+      // Sensores desabilitados na configuracao da IoT (sensor_config da ultima leitura) nao aparecem
+      const hab = Array.isArray(t.sensor_config) ? t.sensor_config : null;
+      const oculto = i => (hab && hab[i] === false) ? 'style="display:none"' : '';
 
       // Subscription tag - só mostrar se NÃO ativo
       let subTag = '';
@@ -1101,17 +1104,17 @@
             <!-- EQUIPAMENTO OFFLINE -->
             <div class="offline-screen rounded-b-xl p-6 text-center" style="min-height: 280px;">
               <div class="flex flex-col items-center justify-center h-full py-8">
-                <div class="mb-6 opacity-30">
+                <div class="mb-6 opacity-60">
                   <svg class="w-20 h-20 text-gray-400 mx-auto" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
                     <path d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z"/>
                   </svg>
                 </div>
-                <h3 class="text-xl font-bold text-gray-500 tracking-widest mb-2">PILI TECH</h3>
-                <div class="w-16 h-0.5 bg-gray-700 mx-auto mb-4"></div>
-                <h4 class="text-sm font-bold text-gray-500 tracking-wider mb-2">EQUIPAMENTO OFFLINE</h4>
-                <p class="text-xs text-gray-600">Sem energia ou sem conexao</p>
-                <p class="text-[10px] text-gray-700 mt-6">Ultimo sinal: ${lastSeen}</p>
-                ${leituraEm ? `<p class="text-[10px] text-gray-700 mt-1">Última leitura: ${leituraEm} · Horímetro ${fmtHorimetro(t.horas_operacao, t.minutos_operacao)}</p>` : ''}
+                <h3 class="text-xl font-bold text-gray-200 tracking-widest mb-2">PILI TECH</h3>
+                <div class="w-16 h-0.5 bg-gray-500 mx-auto mb-4"></div>
+                <h4 class="text-sm font-bold text-red-300 tracking-wider mb-2">EQUIPAMENTO OFFLINE</h4>
+                <p class="text-xs text-gray-300">Sem energia ou sem conexão</p>
+                <p class="text-xs text-gray-300 mt-6">Último sinal: ${lastSeen}</p>
+                ${leituraEm ? `<p class="text-xs text-gray-400 mt-1">Última leitura: ${leituraEm} · Horímetro ${fmtHorimetro(t.horas_operacao, t.minutos_operacao)}</p>` : ''}
               </div>
             </div>
             <div class="p-4">${rodape}</div>
@@ -1136,37 +1139,37 @@
                   <div class="text-xs font-bold text-gray-500">SENSORES DO SISTEMA</div>
                   <span class="live-fonte text-[10px] text-gray-400">${leituraEm ? 'Leitura de ' + leituraEm : 'Sem leitura gravada'}</span>
                 </div>
-                <div class="grid grid-cols-4 gap-2">
-                  <div class="live-sensor text-center p-2 ${s0.class} rounded-lg border-2 ${s0.text === 'Ativo' ? 'border-green-300' : 'border-gray-200'}">
-                    <div class="text-[10px] text-gray-500 uppercase">Sensor 0°</div>
+                <div class="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                  <div ${oculto(0)} class="live-sensor text-center p-2 ${s0.class} rounded-lg border-2 ${s0.text === 'Ativo' ? 'border-green-300' : 'border-gray-200'}">
+                    <div class="text-[10px] text-gray-500 uppercase leading-tight break-words">Sensor 0°</div>
                     <div class="live-val text-sm font-bold">${s0.text}</div>
                   </div>
-                  <div class="live-sensor text-center p-2 ${s40.class} rounded-lg border-2 ${s40.text === 'Ativo' ? 'border-green-300' : 'border-gray-200'}">
-                    <div class="text-[10px] text-gray-500 uppercase">Sensor 40°</div>
+                  <div ${oculto(1)} class="live-sensor text-center p-2 ${s40.class} rounded-lg border-2 ${s40.text === 'Ativo' ? 'border-green-300' : 'border-gray-200'}">
+                    <div class="text-[10px] text-gray-500 uppercase leading-tight break-words">Sensor 40°</div>
                     <div class="live-val text-sm font-bold">${s40.text}</div>
                   </div>
-                  <div class="live-sensor text-center p-2 ${tRoda.class} rounded-lg border-2 ${tRoda.text === 'Ativo' ? 'border-green-300' : 'border-gray-200'}">
-                    <div class="text-[10px] text-gray-500 uppercase">Trava Rodas</div>
+                  <div ${oculto(2)} class="live-sensor text-center p-2 ${tRoda.class} rounded-lg border-2 ${tRoda.text === 'Ativo' ? 'border-green-300' : 'border-gray-200'}">
+                    <div class="text-[10px] text-gray-500 uppercase leading-tight break-words">Trava Rodas</div>
                     <div class="live-val text-sm font-bold">${tRoda.text}</div>
                   </div>
-                  <div class="live-sensor text-center p-2 ${tChassi.class} rounded-lg border-2 ${tChassi.text === 'Ativo' ? 'border-green-300' : 'border-gray-200'}">
-                    <div class="text-[10px] text-gray-500 uppercase">Trava Chassi</div>
+                  <div ${oculto(3)} class="live-sensor text-center p-2 ${tChassi.class} rounded-lg border-2 ${tChassi.text === 'Ativo' ? 'border-green-300' : 'border-gray-200'}">
+                    <div class="text-[10px] text-gray-500 uppercase leading-tight break-words">Trava Chassi</div>
                     <div class="live-val text-sm font-bold">${tChassi.text}</div>
                   </div>
-                  <div class="live-sensor text-center p-2 ${tPinoE.class} rounded-lg border-2 ${tPinoE.text === 'Ativo' ? 'border-green-300' : 'border-gray-200'}">
-                    <div class="text-[10px] text-gray-500 uppercase">Trava Pino E</div>
+                  <div ${oculto(4)} class="live-sensor text-center p-2 ${tPinoE.class} rounded-lg border-2 ${tPinoE.text === 'Ativo' ? 'border-green-300' : 'border-gray-200'}">
+                    <div class="text-[10px] text-gray-500 uppercase leading-tight break-words">Trava Pino E</div>
                     <div class="live-val text-sm font-bold">${tPinoE.text}</div>
                   </div>
-                  <div class="live-sensor text-center p-2 ${tPinoD.class} rounded-lg border-2 ${tPinoD.text === 'Ativo' ? 'border-green-300' : 'border-gray-200'}">
-                    <div class="text-[10px] text-gray-500 uppercase">Trava Pino D</div>
+                  <div ${oculto(5)} class="live-sensor text-center p-2 ${tPinoD.class} rounded-lg border-2 ${tPinoD.text === 'Ativo' ? 'border-green-300' : 'border-gray-200'}">
+                    <div class="text-[10px] text-gray-500 uppercase leading-tight break-words">Trava Pino D</div>
                     <div class="live-val text-sm font-bold">${tPinoD.text}</div>
                   </div>
-                  <div class="live-sensor text-center p-2 ${moega.class} rounded-lg border-2 ${moega.text === 'CHEIO!' ? 'border-red-400' : 'border-gray-200'}">
-                    <div class="text-[10px] text-gray-500 uppercase">Moega/Fosso</div>
+                  <div ${oculto(6)} class="live-sensor text-center p-2 ${moega.class} rounded-lg border-2 ${moega.text === 'CHEIO!' ? 'border-red-400' : 'border-gray-200'}">
+                    <div class="text-[10px] text-gray-500 uppercase leading-tight break-words">Moega/Fosso</div>
                     <div class="live-val text-sm font-bold">${moega.text}</div>
                   </div>
-                  <div class="live-sensor text-center p-2 ${portao.class} rounded-lg border-2 ${portao.text === 'Fechado' ? 'border-green-300' : 'border-gray-200'}">
-                    <div class="text-[10px] text-gray-500 uppercase">Portao</div>
+                  <div ${oculto(7)} class="live-sensor text-center p-2 ${portao.class} rounded-lg border-2 ${portao.text === 'Fechado' ? 'border-green-300' : 'border-gray-200'}">
+                    <div class="text-[10px] text-gray-500 uppercase leading-tight break-words">Portao</div>
                     <div class="live-val text-sm font-bold">${portao.text}</div>
                   </div>
                 </div>
@@ -1678,8 +1681,8 @@
           [sensorDot(t.sensor_0_graus), '0°'], [sensorDot(t.sensor_40_graus), '40°'],
           [sensorDot(t.trava_roda), 'Roda'], [sensorDot(t.trava_chassi), 'Chassi'],
           [sensorDot(t.trava_pino_e), 'Pin.E'], [sensorDot(t.trava_pino_d), 'Pin.D'],
-          [moegaDot(t.moega_fosso), 'Moega'], [sensorDot(t.portao_fechado), 'Portao']
-        ];
+          [moegaDot(t.moega_fosso), 'Moega'], [sensorDot(t.portao_fechado), 'Portão']
+        ].filter((_, i) => !(Array.isArray(t.sensor_config) && t.sensor_config[i] === false));   // desabilitados na IoT
 
         return `
           <div class="bg-gray-800 border-2 ${st.borda} rounded-xl overflow-hidden transition-all hover:scale-[1.02]">
