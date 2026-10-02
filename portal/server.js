@@ -2248,7 +2248,37 @@ const liveDeviceStatus = new Map(); // serial_number -> { data, timestamp }
 const LIVE_MAX_AGE_MS = 150000;
 
 // ============ COMMAND QUEUE & FIRMWARE (CONTROLE REMOTO) ============
-const pendingCommands = new Map(); // serial_number -> [{ cmd, params, timestamp }]
+// serial_number -> [{ cmd, params, timestamp }]. Em memoria e gravada no banco a cada
+// mudanca: pelo 4G o equipamento so busca os comandos no proximo contato (lote de
+// 30 min ou ate 6 h adormecido) e antes a fila se perdia a cada reinicio do portal.
+class FilaComandos extends Map {
+  set(serial, cmds) {
+    super.set(serial, cmds);
+    pool.query(`INSERT INTO device_command_queue (serial_number, commands, updated_at)
+                VALUES ($1, $2, NOW())
+                ON CONFLICT (serial_number) DO UPDATE SET commands = EXCLUDED.commands, updated_at = NOW()`,
+               [serial, JSON.stringify(cmds)])
+      .catch(e => console.error('fila de comandos (gravar):', e.message));
+    return this;
+  }
+  delete(serial) {
+    const tinha = super.delete(serial);
+    pool.query('DELETE FROM device_command_queue WHERE serial_number = $1', [serial])
+      .catch(e => console.error('fila de comandos (apagar):', e.message));
+    return tinha;
+  }
+  // Retira os comandos para entregar ao equipamento. Comando com mais de 24 h e
+  // descartado: um "Reiniciar" esquecido nao pode ser executado dias depois.
+  retirar(serial) {
+    const cmds = this.get(serial) || [];
+    if (cmds.length === 0) return [];
+    this.delete(serial);
+    const validos = cmds.filter(c => !c.timestamp || Date.now() - new Date(c.timestamp).getTime() < 24 * 3600 * 1000);
+    if (validos.length < cmds.length) console.log(`[CMD] ${serial}: ${cmds.length - validos.length} comando(s) vencido(s) descartado(s)`);
+    return validos;
+  }
+}
+const pendingCommands = new FilaComandos();
 
 // ESP32 envia status ao vivo a cada 10 segundos (sem gravar no banco)
 // Resposta inclui comandos pendentes para o dispositivo
@@ -2264,11 +2294,8 @@ app.post('/api/live-status', validateApiKey, (req, res) => {
   // "online" (last_seen < 5 min) ficava no limite e caia para offline.
   pool.query('UPDATE devices SET last_seen = NOW() WHERE serial_number = $1', [serial_number])
     .catch(err => console.error('live-status last_seen:', err.message));
-  const cmds = pendingCommands.get(serial_number) || [];
-  if (cmds.length > 0) {
-    pendingCommands.delete(serial_number);
-    return res.json({ success: true, commands: cmds });
-  }
+  const cmds = pendingCommands.retirar(serial_number);
+  if (cmds.length > 0) return res.json({ success: true, commands: cmds });
   res.json({ success: true });
 });
 
@@ -2578,8 +2605,7 @@ app.post('/api/batch', validateApiKey, async (req, res) => {
     if (typeof kb === 'number') dataUsage.set(sn, { kb, at: new Date().toISOString() });
     console.log(`📦 Lote de ${sn}: ${gravados}/${it.length} itens gravados, consumo 4G ${kb} KB no mes`);
 
-    const cmds = pendingCommands.get(sn) || [];
-    if (cmds.length > 0) pendingCommands.delete(sn);
+    const cmds = pendingCommands.retirar(sn);
     res.json(cmds.length > 0 ? { success: true, n: gravados, commands: cmds } : { success: true, n: gravados });
   } catch (err) {
     console.error('Erro ao gravar lote:', err);
@@ -2985,6 +3011,18 @@ async function initDatabase() {
       )
     `);
     console.log('✅ Tabela firmwares verificada');
+
+    // Fila de comandos do Controle Remoto (sobrevive a reinicio/publicacao do portal)
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS device_command_queue (
+        serial_number VARCHAR(50) PRIMARY KEY,
+        commands JSONB NOT NULL,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    const filas = await pool.query('SELECT serial_number, commands FROM device_command_queue');
+    filas.rows.forEach(r => Map.prototype.set.call(pendingCommands, r.serial_number, r.commands));
+    console.log(`✅ Fila de comandos: ${filas.rows.length} dispositivo(s) com comandos pendentes`);
 
     // Apagar assinaturas pendentes antigas (limpeza)
     await pool.query(`DELETE FROM subscriptions WHERE status = 'pending' AND created_at < NOW() - INTERVAL '7 days'`);

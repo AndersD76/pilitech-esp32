@@ -1140,14 +1140,23 @@
         + (data.status_conexao !== 'online' ? '<span class="text-xs text-gray-400 ml-2">comando chega no proximo contato do equipamento</span>' : '');
 
       const sensorConfig = (data.live && data.live.sensor_config) || (data.dbInfo && data.dbInfo.last_sensor_config) || [true,true,true,true,true,true,true,true];
+      // Inversao: sensor NC (sinal sempre presente, atua quando cai a zero). Sem dado ao
+      // vivo (4G), mostra o padrao de fabrica da v10.40: 40° e Moega/Fosso invertidos.
+      const sensorInvert = (data.live && data.live.sensor_invert) || [false,true,false,false,false,false,true,false];
       const configEl = document.getElementById('ctrlSensorConfig');
       configEl.innerHTML = SENSOR_NAMES.map((name, i) => {
         const checked = sensorConfig[i] ? 'checked' : '';
-        return `<label class="flex items-center gap-2 p-3 bg-gray-50 rounded-lg border cursor-pointer hover:bg-gray-100">
-          <input type="checkbox" id="ctrlSensor${i}" ${checked} class="w-4 h-4 accent-green-600">
-          <span class="text-sm font-medium text-gray-700">${name}</span>
-        </label>`;
-      }).join('');
+        const inv = sensorInvert[i] ? 'checked' : '';
+        return `<div class="flex items-center justify-between gap-2 p-3 bg-gray-50 rounded-lg border">
+          <label class="flex items-center gap-2 cursor-pointer">
+            <input type="checkbox" id="ctrlSensor${i}" ${checked} class="w-4 h-4 accent-green-600">
+            <span class="text-sm font-medium text-gray-700">${name}</span>
+          </label>
+          <label class="flex items-center gap-1 cursor-pointer text-xs text-gray-500" title="Sensor NC: sinal sempre presente, atua quando cai a zero">
+            <input type="checkbox" id="ctrlInvert${i}" ${inv} class="w-3.5 h-3.5 accent-orange-500">Invertido (NC)
+          </label>
+        </div>`;
+      }).join('') + (data.live ? '' : '<p class="text-[11px] text-gray-400 col-span-full">Sem dado ao vivo (4G): "Invertido" mostra o padrao de fabrica. A configuracao chega ao equipamento no proximo contato.</p>');
 
       const db = data.dbInfo || {};
       // ao vivo (WiFi) ou, sem ele, a ultima leitura gravada (o 4G manda em lote a cada 30 min)
@@ -1172,18 +1181,19 @@
     async function sendSensorConfig() {
       const serial = document.getElementById('ctrlDeviceSelect').value;
       if (!serial) return alert('Selecione um dispositivo');
-      const sensors = [];
+      const sensors = [], invert = [];
       for (let i = 0; i < 8; i++) {
         sensors.push(document.getElementById('ctrlSensor' + i).checked);
+        invert.push(document.getElementById('ctrlInvert' + i).checked);
       }
       const result = await api('/api/admin/device-command', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ serial_number: serial, cmd: 'SAVE_CONFIG', params: { sensors } })
+        body: JSON.stringify({ serial_number: serial, cmd: 'SAVE_CONFIG', params: { sensors, invert } })
       });
       const msg = document.getElementById('ctrlConfigMsg');
       if (result && result.success) {
-        msg.textContent = 'Config enviada! Aguarde o dispositivo aplicar.';
+        msg.textContent = 'Config na fila: o equipamento aplica no proximo contato (pelo 4G, ate 30 min).';
         msg.className = 'text-xs text-green-600 self-center';
         addCmdLog('SAVE_CONFIG', serial);
       } else {
