@@ -15,6 +15,7 @@ const { Pool } = require('pg');
 const crypto = require('crypto');
 const webpush = require('web-push');
 const { setupDemoMode, startEmbeddedEmulators } = require('./demo-mode');
+const docsManutencao = require('./docs-manutencao');   // documentos do equipamento + manutencoes
 
 // Web Push VAPID config
 const VAPID_PUBLIC = 'BJZkImr6VnfYyQ2iCgW1fksl1jFaQe3jGcvSdYfFuf55wtj5Iv1RySh2kpG3W6YSgT3DvjsmZBdaHbrGQQJa6-M';
@@ -69,6 +70,12 @@ const SUPER_ADMIN = {
   role: 'super_admin',
   nome: 'Super Administrador'
 };
+
+// Documentos/Manutencoes (docs-manutencao.js): registrado ANTES do express.json global.
+// Limite de upload maior so em POST /api/admin/docs (super admin) e escopo do usuario
+// nas rotas por serial do portal do cliente (device-stats, cycle-data, productivity,
+// compare) e no GET /api/live-status (so super admin; o cliente usa /api/cliente/ao-vivo).
+docsManutencao.registrarAntesDasRotas(app, { pool, authenticateToken, requireSuperAdmin });
 
 // Middleware
 app.use(cors());
@@ -3035,6 +3042,10 @@ async function initDatabase() {
   } catch (err) {
     console.error('Erro ao inicializar banco:', err.message);
   }
+
+  // Documentos do equipamento (QR do display -> /docs/<serial>). Fora do try acima:
+  // uma falha em outro passo nao impede criar a tabela (o modulo trata os proprios erros).
+  await docsManutencao.criarTabelas(pool);
 }
 
 // ==================== IN-APP ALERTS ====================
@@ -3142,6 +3153,9 @@ app.post('/api/push/test', authenticateToken, async (req, res) => {
 
 const server = http.createServer(app);
 setupDemoMode(app, server, pool, liveDeviceStatus, pendingCommands);
+docsManutencao.setupDocsManutencao(app, pool, {
+  authenticateToken, requireSuperAdmin, checkSubscription, liveDeviceStatus, LIVE_MAX_AGE_MS
+});
 
 server.listen(PORT, async () => {
   await initDatabase();
