@@ -50,6 +50,18 @@ const pool = new Pool({
   ssl: { rejectUnauthorized: false }
 });
 
+// Status de conexao UNICO para todo o portal (dashboard, dispositivos, telemetria,
+// controle remoto e portal do cliente), sempre pelo ultimo contato gravado:
+//   online  -> contato < 35 min (no 4G o equipamento manda um lote a cada 30 min)
+//   idle    -> "Adormecido": contato < 7 h (sem atividade nos sensores ele so
+//              manda 1 "estou vivo" a cada 6 h, para poupar o chip de 20 MB)
+//   offline -> sem contato ha mais de 7 h
+// O status ao vivo em memoria (live-status) so existe com WiFi e NAO define status.
+const STATUS_CONEXAO_SQL = (col) => `CASE
+          WHEN ${col} > CURRENT_TIMESTAMP - INTERVAL '35 minutes' THEN 'online'
+          WHEN ${col} > CURRENT_TIMESTAMP - INTERVAL '7 hours' THEN 'idle'
+          ELSE 'offline' END`;
+
 // Super admin (hardcoded)
 const SUPER_ADMIN = {
   email: 'admin@pilitech.com',
@@ -1002,11 +1014,7 @@ app.get('/api/devices', authenticateToken, checkSubscription, async (req, res) =
         d.id, d.serial_number, d.name, d.last_seen, d.first_seen, d.unidade_id,
         u.nome as unidade_nome, u.cidade as unidade_cidade,
         e.id as empresa_id, e.razao_social as empresa_nome,
-        CASE
-          WHEN d.last_seen > CURRENT_TIMESTAMP - INTERVAL '35 minutes' THEN 'online'
-          WHEN d.last_seen > CURRENT_TIMESTAMP - INTERVAL '7 hours' THEN 'idle'
-          ELSE 'offline'
-        END as status_conexao,
+        ${STATUS_CONEXAO_SQL('d.last_seen')} as status_conexao,
         (
           SELECT json_build_object(
             'active', s.status IN ('active', 'trial'),
@@ -1283,6 +1291,12 @@ app.get('/api/admin/telemetria', authenticateToken, requireSuperAdmin, async (re
     const devices = await pool.query(`
       SELECT d.id, d.serial_number, d.name, d.last_seen,
         u.nome as unidade_name, e.razao_social as empresa_name,
+        ${STATUS_CONEXAO_SQL('d.last_seen')} as status_conexao,
+        (SELECT row_to_json(x) FROM (
+           SELECT sr.timestamp, sr.sensor_0_graus, sr.sensor_40_graus, sr.trava_roda, sr.trava_chassi,
+                  sr.trava_pino_e, sr.trava_pino_d, sr.moega_fosso, sr.portao_fechado
+           FROM sensor_readings sr WHERE sr.device_id = d.id ORDER BY sr.timestamp DESC LIMIT 1) x
+        ) as ultima_leitura,
         (SELECT COUNT(*) FROM cycle_data cd WHERE cd.device_id = d.id AND DATE(cd.created_at) = CURRENT_DATE) as ciclos_hoje,
         (SELECT ciclos_total FROM sensor_readings sr WHERE sr.device_id = d.id ORDER BY sr.timestamp DESC LIMIT 1) as ciclos_total,
         (SELECT horas_operacao FROM sensor_readings sr WHERE sr.device_id = d.id ORDER BY sr.timestamp DESC LIMIT 1) as horas_operacao
@@ -1338,7 +1352,13 @@ app.get('/api/admin/device-details/:serial', authenticateToken, requireSuperAdmi
   try {
     const r = await pool.query(`
       SELECT d.*, u.nome as unidade_name, e.razao_social as empresa_name,
-        (SELECT sensor_config FROM sensor_readings WHERE device_id = d.id ORDER BY timestamp DESC LIMIT 1) as last_sensor_config,
+        ${STATUS_CONEXAO_SQL('d.last_seen')} as status_conexao,
+        (SELECT sensor_config FROM sensor_readings WHERE device_id = d.id AND sensor_config IS NOT NULL ORDER BY timestamp DESC LIMIT 1) as last_sensor_config,
+        (SELECT row_to_json(x) FROM (
+           SELECT sr.timestamp, sr.ciclos_hoje, sr.ciclos_total, sr.horas_operacao, sr.minutos_operacao,
+                  sr.uptime_seconds, sr.free_heap
+           FROM sensor_readings sr WHERE sr.device_id = d.id ORDER BY sr.timestamp DESC LIMIT 1) x
+        ) as ultima_leitura,
         NULL::text as last_firmware   -- sensor_readings nao guarda firmware_version (a coluna nao existe)
       FROM devices d
       LEFT JOIN unidades u ON d.unidade_id = u.id
@@ -1354,9 +1374,11 @@ app.get('/api/admin/device-details/:serial', authenticateToken, requireSuperAdmi
     availableFirmware = fws.rows.map(r => r.version);
   } catch (e) { /* ignore */ }
 
+  const status = (dbInfo && dbInfo.status_conexao) || 'offline';
   res.json({
     serial_number: serial,
-    online: !!live && (Date.now() - new Date(live.timestamp).getTime() < LIVE_MAX_AGE_MS),
+    status_conexao: status,                 // mesma regra do resto do portal (ultimo contato)
+    online: status === 'online',
     live: live || null,
     dbInfo,
     pendingCommands: pending,
@@ -2806,9 +2828,7 @@ app.get('/api/compare', authenticateToken, checkSubscription, async (req, res) =
       // Última leitura (online status)
       const lastReading = await pool.query(`
         SELECT ciclos_hoje, ciclos_total, horas_operacao, last_seen,
-          CASE WHEN last_seen > CURRENT_TIMESTAMP - INTERVAL '35 minutes' THEN 'online'
-               WHEN last_seen > CURRENT_TIMESTAMP - INTERVAL '7 hours' THEN 'idle'
-               ELSE 'offline' END as status
+          ${STATUS_CONEXAO_SQL('last_seen')} as status
         FROM (
           SELECT sr.ciclos_hoje, sr.ciclos_total, sr.horas_operacao, d.last_seen
           FROM sensor_readings sr

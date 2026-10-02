@@ -993,7 +993,8 @@
         if (!data) return;
 
         // Stats
-        const onlineCount = Object.keys(data.liveData || {}).length;
+        // mesma regra do Dashboard (status_conexao do servidor), nao o ao vivo (so existe com WiFi)
+        const onlineCount = (data.devices || []).filter(d => d.status_conexao === 'online').length;
         const ciclosHoje = (data.devices || []).reduce((sum, d) => sum + (parseInt(d.ciclos_hoje) || 0), 0);
         document.getElementById('telOnline').textContent = onlineCount;
         document.getElementById('telCiclosHoje').textContent = ciclosHoje;
@@ -1027,19 +1028,23 @@
         const devicesEl = document.getElementById('telDevicesLive');
         if (data.devices && data.devices.length > 0) {
           devicesEl.innerHTML = data.devices.map(d => {
-            const live = data.liveData[d.serial_number];
-            const isOnline = !!live;
-            const statusColor = isOnline ? 'bg-green-500' : 'bg-gray-400';
-            const statusText = isOnline ? 'Online' : 'Offline';
-            const sensorsHtml = live ? [
-              { n: '0°', v: live.sensor_0_graus }, { n: '40°', v: live.sensor_40_graus },
-              { n: 'TR', v: live.trava_roda }, { n: 'TC', v: live.trava_chassi },
-              { n: 'PE', v: live.trava_pino_e }, { n: 'PD', v: live.trava_pino_d },
-              { n: 'MG', v: live.moega_fosso }, { n: 'PT', v: live.portao_fechado }
+            const live = (data.liveData || {})[d.serial_number];   // ao vivo: so com WiFi
+            const st = statusConexao(d.status_conexao);
+            const isOnline = d.status_conexao === 'online';
+            const statusColor = st.dot;
+            const statusText = st.texto;
+            // sensores: ao vivo (WiFi) ou a ultima leitura gravada (4G manda em lote)
+            const sens = live || d.ultima_leitura;
+            const sensorsHtml = sens ? [
+              { n: '0°', v: sens.sensor_0_graus }, { n: '40°', v: sens.sensor_40_graus },
+              { n: 'TR', v: sens.trava_roda }, { n: 'TC', v: sens.trava_chassi },
+              { n: 'PE', v: sens.trava_pino_e }, { n: 'PD', v: sens.trava_pino_d },
+              { n: 'MG', v: sens.moega_fosso }, { n: 'PT', v: sens.portao_fechado }
             ].map(s => {
               const cls = s.n === 'MG' ? (s.v ? 'bg-red-500 text-white' : 'bg-gray-100 text-gray-400') : (s.v ? 'bg-green-500 text-white' : 'bg-gray-100 text-gray-400');
               return `<span class="px-1.5 py-0.5 rounded text-[10px] font-bold ${cls}">${s.n}</span>`;
-            }).join('') : '<span class="text-xs text-gray-400">Sem dados</span>';
+            }).join('') + (live ? '' : `<span class="text-[10px] text-gray-400 ml-1 self-center">ultima leitura ${fmtDataBR(sens.timestamp, { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}</span>`)
+              : '<span class="text-xs text-gray-400">Nenhuma leitura recebida</span>';
 
             const ciclosHoje = live ? (live.ciclos_hoje || 0) : (d.ciclos_hoje || 0);
             const ciclosTotal = live ? (live.ciclos_total || 0) : (d.ciclos_total || 0);
@@ -1052,8 +1057,8 @@
                   <p class="font-bold text-sm text-gray-800">${d.name || d.serial_number}</p>
                   <p class="text-[10px] text-gray-400">${d.serial_number} — ${d.empresa_name || 'N/A'} / ${d.unidade_name || 'N/A'}</p>
                 </div>
-                <span class="flex items-center gap-1 text-xs font-bold ${isOnline ? 'text-green-600' : 'text-gray-400'}">
-                  <span class="w-2 h-2 rounded-full ${statusColor} ${isOnline ? 'animate-pulse' : ''}"></span>${statusText}
+                <span class="flex items-center gap-1 text-xs font-bold ${st.cor}">
+                  <span class="w-2 h-2 rounded-full ${statusColor}"></span>${statusText}
                 </span>
               </div>
               <div class="flex gap-1 mb-2 flex-wrap">${sensorsHtml}</div>
@@ -1130,9 +1135,9 @@
       if (!data) return;
 
       const statusEl = document.getElementById('ctrlDeviceStatus');
-      statusEl.innerHTML = data.online
-        ? '<span class="w-3 h-3 rounded-full bg-green-500 animate-pulse"></span><span class="text-sm font-bold text-green-600">Online</span>'
-        : '<span class="w-3 h-3 rounded-full bg-gray-400"></span><span class="text-sm font-bold text-gray-500">Offline</span>';
+      const st = statusConexao(data.status_conexao);
+      statusEl.innerHTML = `<span class="w-3 h-3 rounded-full ${st.dot}"></span><span class="text-sm font-bold ${st.cor}">${st.texto}</span>`
+        + (data.status_conexao !== 'online' ? '<span class="text-xs text-gray-400 ml-2">comando chega no proximo contato do equipamento</span>' : '');
 
       const sensorConfig = (data.live && data.live.sensor_config) || (data.dbInfo && data.dbInfo.last_sensor_config) || [true,true,true,true,true,true,true,true];
       const configEl = document.getElementById('ctrlSensorConfig');
@@ -1144,8 +1149,9 @@
         </label>`;
       }).join('');
 
-      const live = data.live || {};
       const db = data.dbInfo || {};
+      // ao vivo (WiFi) ou, sem ele, a ultima leitura gravada (o 4G manda em lote a cada 30 min)
+      const live = data.live || db.ultima_leitura || {};
       const infoEl = document.getElementById('ctrlDeviceInfo');
       infoEl.innerHTML = `
         <div class="bg-gray-50 rounded-lg p-3"><p class="text-[10px] text-gray-400 uppercase">Serial</p><p class="text-sm font-bold">${serial}</p></div>
@@ -1272,12 +1278,9 @@
     }
 
     function renderDeviceCard(d) {
-      const isOnline = d.status_conexao === 'online';
-      // idle = sem contato ha mais de 35 min e menos de 7 h: equipamento adormecido
-      // (sem atividade nos sensores ele nao envia pelo 4G, so 1 "estou vivo" a cada 6 h)
-      const isIdle = d.status_conexao === 'idle';
-      const statusClass = isOnline ? 'bg-green-100 text-green-700' : isIdle ? 'bg-yellow-100 text-yellow-700' : 'bg-red-100 text-red-700';
-      const statusText = isOnline ? 'Online' : isIdle ? 'Adormecido' : 'Offline';
+      const st = statusConexao(d.status_conexao);
+      const statusClass = st.badge;
+      const statusText = st.texto;
 
       return `
         <div class="border rounded-xl p-4 hover:shadow-md transition-shadow">
@@ -1293,6 +1296,14 @@
       `;
     }
 
+    // Status de conexao: UMA regra para todas as telas (vem do servidor em status_conexao,
+    // pelo ultimo contato): online < 35 min, idle = "Adormecido" < 7 h, senao offline.
+    function statusConexao(s) {
+      if (s === 'online') return { texto: 'Online',     badge: 'bg-green-100 text-green-700',   dot: 'bg-green-500 animate-pulse', cor: 'text-green-600' };
+      if (s === 'idle')   return { texto: 'Adormecido', badge: 'bg-yellow-100 text-yellow-700', dot: 'bg-yellow-500',             cor: 'text-yellow-600' };
+      return                     { texto: 'Offline',    badge: 'bg-red-100 text-red-700',       dot: 'bg-red-500',                cor: 'text-red-600' };
+    }
+
     // Consumo do chip 4G no mes (plano de 20 MB), informado pelo equipamento a cada lote
     function consumo4gTag(c) {
       if (!c || typeof c.kb !== 'number') return '';
@@ -1304,10 +1315,9 @@
     }
 
     function renderDeviceCardFull(d) {
-      const isOnline = d.status_conexao === 'online';
-      const isIdle = d.status_conexao === 'idle';
-      const statusClass = isOnline ? 'bg-green-100 text-green-700' : isIdle ? 'bg-yellow-100 text-yellow-700' : 'bg-red-100 text-red-700';
-      const statusText = isOnline ? 'Online' : isIdle ? 'Adormecido' : 'Offline';
+      const st = statusConexao(d.status_conexao);
+      const statusClass = st.badge;
+      const statusText = st.texto;
 
       // Tag de assinatura
       let subscriptionTag = '';
