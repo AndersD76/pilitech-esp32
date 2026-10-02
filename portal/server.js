@@ -13,6 +13,7 @@ const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
 const { Pool } = require('pg');
 const crypto = require('crypto');
+const { setupOta, criarTabelasOta } = require('./ota');
 const webpush = require('web-push');
 const { setupDemoMode, startEmbeddedEmulators } = require('./demo-mode');
 
@@ -1386,57 +1387,7 @@ app.get('/api/admin/device-details/:serial', authenticateToken, requireSuperAdmi
   });
 });
 
-// Upload firmware — client sends JSON with base64 data (persistido em Postgres)
-app.post('/api/admin/firmware/upload', authenticateToken, requireSuperAdmin, async (req, res) => {
-  try {
-    const { version, filename, data } = req.body;
-    if (!version || !data) return res.status(400).json({ error: 'version e data (base64) obrigatorios' });
-    const buffer = Buffer.from(data, 'base64');
-    if (buffer.length > 4 * 1024 * 1024) return res.status(400).json({ error: 'Firmware excede 4MB' });
-    const fname = filename || 'firmware.bin';
-    await pool.query(`
-      INSERT INTO firmwares (version, filename, size, data, uploaded_by)
-      VALUES ($1, $2, $3, $4, $5)
-      ON CONFLICT (version) DO UPDATE SET
-        filename = EXCLUDED.filename, size = EXCLUDED.size, data = EXCLUDED.data,
-        uploaded_by = EXCLUDED.uploaded_by, uploaded_at = CURRENT_TIMESTAMP
-    `, [version, fname, buffer.length, buffer, req.user.email || 'admin']);
-    console.log(`[FIRMWARE] Upload: ${version} (${fname}, ${(buffer.length/1024).toFixed(1)}KB)`);
-    res.json({ success: true, version, filename: fname, size: buffer.length });
-  } catch (e) {
-    console.error('[FIRMWARE upload]', e.message);
-    res.status(500).json({ error: 'Erro ao salvar firmware: ' + e.message });
-  }
-});
-
-// Listar firmware disponivel
-app.get('/api/admin/firmware/list', authenticateToken, requireSuperAdmin, async (req, res) => {
-  try {
-    const r = await pool.query(`
-      SELECT version, filename, size,
-             uploaded_at AS "uploadedAt",
-             uploaded_by AS "uploadedBy"
-      FROM firmwares ORDER BY uploaded_at DESC
-    `);
-    res.json(r.rows);
-  } catch (e) {
-    console.error('[FIRMWARE list]', e.message);
-    res.status(500).json([]);
-  }
-});
-
-// Deletar firmware
-app.delete('/api/admin/firmware/:version', authenticateToken, requireSuperAdmin, async (req, res) => {
-  try {
-    const r = await pool.query('DELETE FROM firmwares WHERE version = $1 RETURNING version', [req.params.version]);
-    if (r.rowCount === 0) return res.status(404).json({ error: 'Versao nao encontrada' });
-    console.log(`[FIRMWARE] Delete: ${req.params.version}`);
-    res.json({ success: true });
-  } catch (e) {
-    console.error('[FIRMWARE delete]', e.message);
-    res.status(500).json({ error: 'Erro ao excluir firmware' });
-  }
-});
+// Cadastro, lista, exclusao e envio de firmware: portal/ota.js (setupOta)
 
 // ESP32 verifica se ha atualizacao disponivel
 app.get('/api/firmware/check', validateApiKey, async (req, res) => {
@@ -1469,26 +1420,6 @@ app.get('/api/firmware/download/:version', validateApiKey, async (req, res) => {
   }
 });
 
-// Enviar OTA para dispositivo especifico (enfileira comando)
-app.post('/api/admin/firmware/push', authenticateToken, requireSuperAdmin, async (req, res) => {
-  try {
-    const { serial_number, version } = req.body;
-    if (!serial_number || !version) return res.status(400).json({ error: 'serial_number e version obrigatorios' });
-    const r = await pool.query('SELECT 1 FROM firmwares WHERE version = $1', [version]);
-    if (r.rows.length === 0) return res.status(404).json({ error: 'Versao de firmware nao encontrada' });
-
-    const command = { cmd: 'OTA_UPDATE', version, timestamp: new Date().toISOString(), from: 'admin' };
-    const queue = pendingCommands.get(serial_number) || [];
-    queue.push(command);
-    pendingCommands.set(serial_number, queue);
-
-    console.log(`[OTA] Push ${version} para ${serial_number}`);
-    res.json({ success: true, message: `OTA ${version} enfileirado para ${serial_number}` });
-  } catch (e) {
-    console.error('[FIRMWARE push]', e.message);
-    res.status(500).json({ error: 'Erro ao enfileirar OTA' });
-  }
-});
 
 app.get('/api/stats', authenticateToken, checkSubscription, async (req, res) => {
   try {
@@ -2280,6 +2211,9 @@ class FilaComandos extends Map {
 }
 const pendingCommands = new FilaComandos();
 
+// Firmware a distancia (OTA): cadastro, envio e download pelo equipamento
+setupOta(app, pool, { authenticateToken, requireSuperAdmin, validateApiKey, pendingCommands, statusSql: STATUS_CONEXAO_SQL });
+
 // ESP32 envia status ao vivo a cada 10 segundos (sem gravar no banco)
 // Resposta inclui comandos pendentes para o dispositivo
 app.post('/api/live-status', validateApiKey, (req, res) => {
@@ -2540,7 +2474,7 @@ app.post('/api/batch', validateApiKey, async (req, res) => {
       return res.status(400).json({ error: 'crc invalido' });
     }
 
-    const { sn, kb, it } = req.body;
+    const { sn, kb, it, fw } = req.body;
     if (!sn || !Array.isArray(it)) return res.status(400).json({ error: 'sn e it obrigatorios' });
 
     let dev = await pool.query('SELECT id FROM devices WHERE serial_number = $1', [sn]);
@@ -2556,6 +2490,12 @@ app.post('/api/batch', validateApiKey, async (req, res) => {
     } else {
       deviceId = dev.rows[0].id;
       await pool.query('UPDATE devices SET last_seen = NOW() WHERE id = $1', [deviceId]);
+    }
+    // versao do firmware em uso (o lote traz "fw"): portal mostra e confere a OTA
+    if (typeof fw === 'string' && fw.length <= 20) {
+      await pool.query(`UPDATE devices SET firmware_version = $1, firmware_at = NOW()
+                        WHERE id = $2 AND firmware_version IS DISTINCT FROM $1`, [fw, deviceId])
+        .catch(e => console.error('lote fw:', e.message));
     }
 
     const b = v => (v === null || v === undefined) ? null : !!v;
@@ -3011,6 +2951,7 @@ async function initDatabase() {
       )
     `);
     console.log('✅ Tabela firmwares verificada');
+    await criarTabelasOta(pool);
 
     // Fila de comandos do Controle Remoto (sobrevive a reinicio/publicacao do portal)
     await pool.query(`

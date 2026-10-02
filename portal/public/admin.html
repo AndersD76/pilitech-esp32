@@ -106,6 +106,12 @@
               Controle Remoto
             </a>
           </li>
+          <li>
+            <a href="#" onclick="showSection('firmware')" class="nav-link flex items-center gap-3 px-4 py-3 rounded-lg text-gray-300 hover:bg-gray-700">
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
+              Firmware
+            </a>
+          </li>
         </ul>
 
         <p class="text-xs text-gray-500 uppercase mb-2 px-4">Gestao</p>
@@ -395,6 +401,48 @@
                 </div>
               </div>
             </div>
+          </div>
+        </section>
+
+        <!-- Firmware Section (OTA: atualizacao a distancia) -->
+        <section id="sec-firmware" class="section hidden">
+          <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+            <div class="bg-white rounded-xl shadow-sm p-6">
+              <h3 class="font-bold text-lg text-gray-800 mb-4">Cadastrar firmware</h3>
+              <div class="space-y-3">
+                <div class="grid grid-cols-2 gap-3">
+                  <div><label class="text-xs text-gray-500">Versao</label>
+                    <input type="text" id="fwVersao" placeholder="Ex: 10.42" class="w-full px-3 py-2 border rounded-lg text-sm"></div>
+                  <div><label class="text-xs text-gray-500">Placa</label>
+                    <select id="fwTipo" class="w-full px-3 py-2 border rounded-lg text-sm">
+                      <option value="iot">IoT (sensores)</option><option value="display">Display</option></select></div>
+                </div>
+                <div><label class="text-xs text-gray-500">Arquivo .bin do app (sketch_pilitech.ino.bin / pili_disp7.ino.bin - nao o merged)</label>
+                  <input type="file" id="fwArquivo" accept=".bin" class="w-full px-3 py-2 border rounded-lg text-sm bg-gray-50"></div>
+                <button onclick="fwCadastrar()" class="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-bold">Cadastrar firmware</button>
+                <p id="fwMsg" class="text-xs text-center"></p>
+              </div>
+            </div>
+            <div class="bg-white rounded-xl shadow-sm p-6">
+              <h3 class="font-bold text-lg text-gray-800 mb-4">Atualizar equipamento</h3>
+              <div class="space-y-3">
+                <div><label class="text-xs text-gray-500">Tombador</label>
+                  <select id="fwEquip" class="w-full px-3 py-2 border rounded-lg text-sm"></select></div>
+                <div><label class="text-xs text-gray-500">Versao</label>
+                  <select id="fwVersaoEnviar" class="w-full px-3 py-2 border rounded-lg text-sm"></select></div>
+                <button onclick="fwEnviar()" class="w-full px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 text-sm font-bold">Enviar atualizacao</button>
+                <p class="text-[11px] text-gray-400">A atualizacao chega no proximo contato do equipamento (pelo 4G, ate 30 min; adormecido, ate 6 h). A IoT baixa ~1,3 MB do chip, confere cada bloco e o MD5, e volta sozinha para a versao anterior se a nova nao falar com o portal em 30 min. Display: em breve (repasse pela IoT).</p>
+                <p id="fwEnviarMsg" class="text-xs text-center"></p>
+              </div>
+            </div>
+          </div>
+          <div class="bg-white rounded-xl shadow-sm p-6 mb-6">
+            <h3 class="font-bold text-lg text-gray-800 mb-4">Equipamentos</h3>
+            <div id="fwStatus" class="overflow-x-auto text-sm"><p class="text-gray-400 text-center py-4">Carregando...</p></div>
+          </div>
+          <div class="bg-white rounded-xl shadow-sm p-6">
+            <h3 class="font-bold text-lg text-gray-800 mb-4">Firmwares cadastrados</h3>
+            <div id="fwLista" class="overflow-x-auto text-sm"><p class="text-gray-400 text-center py-4">Carregando...</p></div>
           </div>
         </section>
 
@@ -971,6 +1019,7 @@
         assinaturas: ['Assinaturas', 'Gerenciar assinaturas e pagamentos'],
         cupons: ['Cupons de Desconto', 'Gerenciar cupons promocionais'],
         controle: ['Controle Remoto', 'Configurar sensores e enviar comandos remotamente'],
+        firmware: ['Firmware', 'Atualizacao do firmware a distancia (OTA)'],
       };
       document.getElementById('pageTitle').textContent = titles[name]?.[0] || name;
       document.getElementById('pageSubtitle').textContent = titles[name]?.[1] || '';
@@ -978,6 +1027,7 @@
       // Load section data
       if (name === 'telemetria') loadTelemetria();
       if (name === 'controle') loadControlDevices();
+      if (name === 'firmware') fwCarregar();
       if (name === 'empresas') loadEmpresas();
       if (name === 'unidades') loadUnidades();
       if (name === 'usuarios') loadUsuarios();
@@ -1222,6 +1272,69 @@
       const el = document.getElementById('ctrlCmdLog');
       const time = new Date().toLocaleTimeString('pt-BR');
       el.innerHTML = `<div class="text-green-600">[${time}] ${cmd} → ${serial}</div>` + el.innerHTML;
+    }
+
+    // ============ FIRMWARE (OTA) ============
+    async function fwCarregar() {
+      const [lista, status] = await Promise.all([api('/api/admin/firmware/list'), api('/api/admin/firmware/status')]);
+      const fws = Array.isArray(lista) ? lista : [];
+      document.getElementById('fwLista').innerHTML = fws.length === 0
+        ? '<p class="text-gray-400 text-center py-4">Nenhum firmware cadastrado</p>'
+        : `<table class="w-full"><thead><tr class="border-b text-gray-500 text-left">
+             <th class="py-2 px-2">Versao</th><th class="py-2 px-2">Placa</th><th class="py-2 px-2">Tamanho</th>
+             <th class="py-2 px-2">MD5</th><th class="py-2 px-2">Cadastrado</th><th></th></tr></thead><tbody>
+           ${fws.map(f => `<tr class="border-b">
+             <td class="py-2 px-2 font-bold">${f.version}</td>
+             <td class="py-2 px-2">${f.tipo === 'display' ? 'Display' : 'IoT'}</td>
+             <td class="py-2 px-2">${(f.size / 1024).toFixed(0)} KB</td>
+             <td class="py-2 px-2 font-mono text-[11px] text-gray-500">${f.md5 || '-'}</td>
+             <td class="py-2 px-2 text-xs">${fmtDataBR(f.uploadedAt)}</td>
+             <td class="py-2 px-2 text-right"><button onclick="fwExcluir('${f.version}')" class="text-xs text-red-600 hover:underline">Excluir</button></td>
+           </tr>`).join('')}</tbody></table>`;
+      document.getElementById('fwVersaoEnviar').innerHTML = fws.filter(f => f.tipo !== 'display')
+        .map(f => `<option value="${f.version}">${f.version} (IoT)</option>`).join('') || '<option value="">Nenhum firmware de IoT</option>';
+      const eqs = Array.isArray(status) ? status : [];
+      document.getElementById('fwEquip').innerHTML = eqs.map(d => `<option value="${d.serial_number}">${d.serial_number} - ${d.name || 'Tombador'}</option>`).join('');
+      document.getElementById('fwStatus').innerHTML = eqs.length === 0 ? '<p class="text-gray-400 text-center py-4">Nenhum equipamento</p>'
+        : `<table class="w-full"><thead><tr class="border-b text-gray-500 text-left">
+             <th class="py-2 px-2">Tombador</th><th class="py-2 px-2">Status</th><th class="py-2 px-2">Firmware IoT</th>
+             <th class="py-2 px-2">Atualizacao</th><th class="py-2 px-2">Ultimos eventos de atualizacao</th></tr></thead><tbody>
+           ${eqs.map(d => { const st = statusConexao(d.status_conexao); return `<tr class="border-b align-top">
+             <td class="py-2 px-2"><b>${d.serial_number}</b><br><span class="text-xs text-gray-400">${d.empresa_nome || ''}</span></td>
+             <td class="py-2 px-2"><span class="px-2 py-0.5 rounded-full text-xs font-bold ${st.badge}">${st.texto}</span></td>
+             <td class="py-2 px-2 font-bold">${d.firmware_version || '<span class="text-gray-400 font-normal">nao informado</span>'}</td>
+             <td class="py-2 px-2 text-xs">${d.ota_pendente ? `<span class="text-orange-600 font-bold">${d.ota_pendente} na fila</span>` : '-'}</td>
+             <td class="py-2 px-2 text-xs text-gray-600">${(d.eventos_ota || []).map(e => `${fmtDataBR(e.timestamp)} - ${e.message}`).join('<br>') || '-'}</td>
+           </tr>`; }).join('')}</tbody></table>`;
+    }
+
+    async function fwCadastrar() {
+      const msg = document.getElementById('fwMsg');
+      const versao = document.getElementById('fwVersao').value.trim();
+      const arq = document.getElementById('fwArquivo').files[0];
+      if (!versao || !arq) { msg.textContent = 'Informe a versao e o arquivo'; msg.className = 'text-xs text-center text-red-600'; return; }
+      msg.textContent = 'Enviando...'; msg.className = 'text-xs text-center text-gray-500';
+      const b64 = await new Promise((ok, erro) => { const r = new FileReader(); r.onload = () => ok(String(r.result).split(',')[1]); r.onerror = erro; r.readAsDataURL(arq); });
+      const res = await api('/api/admin/firmware/upload', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ version: versao, tipo: document.getElementById('fwTipo').value, filename: arq.name, data: b64 }) });
+      if (res && res.success) { msg.textContent = `Firmware ${res.version} cadastrado (${(res.size / 1024).toFixed(0)} KB)`; msg.className = 'text-xs text-center text-green-600'; fwCarregar(); }
+      else { msg.textContent = (res && res.error) || 'Erro ao cadastrar'; msg.className = 'text-xs text-center text-red-600'; }
+    }
+
+    async function fwEnviar() {
+      const msg = document.getElementById('fwEnviarMsg');
+      const serial = document.getElementById('fwEquip').value, versao = document.getElementById('fwVersaoEnviar').value;
+      if (!serial || !versao) return;
+      const res = await api('/api/admin/firmware/push', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ serial_number: serial, version: versao }) });
+      msg.textContent = (res && (res.message || res.error)) || 'Erro ao enviar';
+      msg.className = 'text-xs text-center ' + (res && res.success ? 'text-green-600' : 'text-red-600');
+      fwCarregar();
+    }
+
+    async function fwExcluir(versao) {
+      await api('/api/admin/firmware/' + encodeURIComponent(versao), { method: 'DELETE' });
+      fwCarregar();
     }
 
     // Load stats
