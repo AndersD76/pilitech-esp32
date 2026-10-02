@@ -110,8 +110,14 @@ function setupOta(app, pool, { authenticateToken, requireSuperAdmin, validateApi
     try {
       const { serial_number, version } = req.body;
       if (!serial_number || !version) return res.status(400).json({ error: 'equipamento e versao obrigatorios' });
-      const r = await pool.query('SELECT COALESCE(tipo, \'iot\') AS tipo FROM firmwares WHERE version = $1', [version]);
-      if (r.rows.length === 0) return res.status(404).json({ error: 'Versao de firmware nao encontrada' });
+      const fw = await carregar(version);
+      if (!fw) return res.status(404).json({ error: 'Versao de firmware nao encontrada' });
+      // O N/S fica gravado no firmware (SERIAL_NUMBER da IoT e do display): binario gerado para
+      // outra unidade faria este equipamento mandar dados como se fosse a outra.
+      const sn = Buffer.concat([Buffer.from(String(serial_number)), Buffer.from([0])]);
+      if (!fw.buf.includes(sn)) {
+        return res.status(400).json({ error: `Este binário não foi gerado para o N/S ${serial_number}: compile com SERIAL_NUMBER = "${serial_number}" e cadastre como outra versão.` });
+      }
       // tipo display: a IoT (v10.41+) baixa e repassa ao display pelo ESP-NOW
       const fila = (pendingCommands.get(serial_number) || []).filter(c => c.cmd !== 'OTA_UPDATE');
       fila.push({ cmd: 'OTA_UPDATE', version, timestamp: new Date().toISOString(), from: req.user.email || 'admin' });
