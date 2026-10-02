@@ -35,6 +35,37 @@
       var d = _paraDataUTC(v);
       return d ? (Date.now() - d.getTime()) : Infinity;
     }
+    // Dia (aaaa-mm-dd) em Brasilia de um horario do banco
+    function diaBR(v) {
+      var d = _paraDataUTC(v);
+      return d ? d.toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' }) : null;
+    }
+    function ehHojeBR(v) {
+      return !!v && diaBR(v) === new Date().toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' });
+    }
+    // Coluna DATE (ex.: "2026-10-01T00:00:00.000Z"): usar so a data. Com new Date() direto
+    // o navegador converte meia-noite UTC para 21h do dia anterior e o grafico mostrava o dia errado.
+    function fmtDiaBR(v, opts) {
+      var s = String(v || '').slice(0, 10);
+      var p = s.split('-');
+      if (p.length !== 3) return '-';
+      var d = new Date(+p[0], +p[1] - 1, +p[2]);
+      return d.toLocaleDateString('pt-BR', opts || { weekday: 'short', day: 'numeric' });
+    }
+    // Duracao em segundos (o IoT e o banco mandam os tempos de ciclo em SEGUNDOS)
+    function fmtDur(seg) {
+      seg = Math.round(Number(seg) || 0);
+      if (seg <= 0) return '-';
+      if (seg < 60) return seg + 's';
+      var m = Math.floor(seg / 60), s = seg % 60;
+      if (m < 60) return m + 'min' + (s ? ' ' + String(s).padStart(2, '0') + 's' : '');
+      return Math.floor(m / 60) + 'h ' + String(m % 60).padStart(2, '0') + 'min';
+    }
+    function esc(v) {
+      return String(v === null || v === undefined ? '' : v)
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+    }
 
     tailwind.config = {
       theme: {
@@ -299,6 +330,43 @@
       <div id="allIoTsGrid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4">
         <div class="text-center py-8 text-gray-500">Carregando...</div>
       </div>
+    </div>
+
+    <!-- Manutencao preventiva (regra de 2000 h do horimetro, a mesma do display) -->
+    <div class="bg-white rounded-xl shadow-sm p-4 sm:p-6 mb-6 sm:mb-8" id="manutSection">
+      <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mb-4">
+        <div>
+          <h3 class="text-lg sm:text-xl font-bold text-gray-800">Manutenção Preventiva</h3>
+          <p class="text-xs sm:text-sm text-gray-500">A cada 2000 horas de operação (horímetro). Aviso a partir de 1800 h.</p>
+        </div>
+        <div id="manutResumo" class="flex flex-wrap gap-2"></div>
+      </div>
+      <div id="manutCards" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 mb-6">
+        <div class="text-center py-6 text-gray-500 col-span-full">Carregando...</div>
+      </div>
+      <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 mb-3">
+        <h4 class="font-bold text-gray-800">Histórico de manutenções</h4>
+        <select id="manutHistSerial" onchange="loadManutHistorico()" class="w-full sm:w-auto px-3 py-2 border rounded-lg text-sm">
+          <option value="">Todos os tombadores</option>
+        </select>
+      </div>
+      <div class="overflow-x-auto -mx-4 sm:mx-0">
+        <table class="w-full text-xs sm:text-sm min-w-[500px]">
+          <thead class="bg-gray-50">
+            <tr>
+              <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Data</th>
+              <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Tombador</th>
+              <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Técnico</th>
+              <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Descrição</th>
+              <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Horímetro</th>
+            </tr>
+          </thead>
+          <tbody id="manutHistBody" class="divide-y divide-gray-200">
+            <tr><td colspan="5" class="px-4 py-6 text-center text-gray-500">Carregando...</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="text-[11px] text-gray-400 mt-3">A manutenção é registrada no display do tombador: aba Manutenção → + Nova Manutenção.</p>
     </div>
 
     <!-- Telemetria e Produtividade - DASHBOARD PROFISSIONAL -->
@@ -638,6 +706,14 @@
     let subscriptionStatus = null;
     const knownLiveDevices = new Set();
 
+    // Status de conexao: UMA regra para todas as telas, a do servidor (status_conexao,
+    // pelo ultimo contato gravado): online < 35 min, idle = "Adormecido" < 7 h, senao offline.
+    function statusConexao(s) {
+      if (s === 'online') return { texto: 'Online',     badge: 'bg-green-100 text-green-700',   dot: 'bg-green-500 animate-pulse', borda: 'border-green-500' };
+      if (s === 'idle')   return { texto: 'Adormecido', badge: 'bg-yellow-100 text-yellow-700', dot: 'bg-yellow-500',             borda: 'border-yellow-500' };
+      return                     { texto: 'Offline',    badge: 'bg-red-100 text-red-700',       dot: 'bg-red-500',                borda: 'border-gray-600' };
+    }
+
     // Check authentication
     if (!token) {
       window.location.href = '/';
@@ -836,19 +912,18 @@
       window.location.href = '/';
     }
 
-    // Load stats
+    // Load stats (ciclos e horimetro somados da ultima leitura de cada equipamento +
+    // faixa de assinatura). Online/total vem do loadDevices (status_conexao do servidor).
     async function loadStats() {
       try {
         const stats = await api('/api/stats');
         if (stats) {
           if (stats.blocked) {
-            document.getElementById('statTotal').textContent = '-';
-            document.getElementById('statOnline').textContent = '-';
             document.getElementById('statCiclos').textContent = '-';
+            document.getElementById('statHorimetro').textContent = '-';
           } else {
-            document.getElementById('statTotal').textContent = stats.totalDevices || 0;
-            document.getElementById('statOnline').textContent = stats.onlineDevices || 0;
-            document.getElementById('statCiclos').textContent = (stats.totalCiclos || 0).toLocaleString();
+            document.getElementById('statCiclos').textContent = (stats.totalCiclos || 0).toLocaleString('pt-BR');
+            document.getElementById('statHorimetro').textContent = (stats.totalHoras || 0).toLocaleString('pt-BR') + 'h';
           }
 
           // Show subscription banner
@@ -863,14 +938,22 @@
     }
 
     // Load devices
+    let manutPorSerial = {};     // status de manutencao por serial (/api/manutencoes/status)
+    let ultimosCiclos = {};      // ultimo ciclo gravado por serial (/api/cliente/ultimos-ciclos)
+    let telemetriaIniciada = false;
+
     async function loadDevices() {
-      // Buscar dispositivos e telemetria em paralelo
-      const [devResponse, teleResponse] = await Promise.all([
+      // Dispositivos + ultima leitura gravada + ultimo ciclo gravado + manutencao, em paralelo.
+      // Pelo 4G nao existe ao vivo (so lotes a cada 30 min): o card mostra o que esta no banco,
+      // com a hora da leitura, e o ao vivo (WiFi) substitui quando chega.
+      const [devResponse, teleResponse, ciclosResponse, manutResponse] = await Promise.all([
         api('/api/devices'),
-        api('/api/latest-readings')
+        api('/api/latest-readings'),
+        api('/api/cliente/ultimos-ciclos'),
+        api('/api/manutencoes/status')
       ]);
 
-      if (!devResponse) {
+      if (!devResponse || !Array.isArray(devResponse.devices)) {
         document.getElementById('devicesGrid').innerHTML = '<div class="text-center py-8 text-red-500">Erro ao carregar dispositivos</div>';
         return;
       }
@@ -882,97 +965,134 @@
       }
 
       const grid = document.getElementById('devicesGrid');
-      const devices = devResponse.devices || [];
+      const devices = devResponse.devices;
       const telemetryData = (teleResponse && !teleResponse.blocked) ? (teleResponse.data || []) : [];
 
       // Criar mapa de telemetria por serial_number
       const telemetryMap = {};
       telemetryData.forEach(t => { telemetryMap[t.serial_number] = t; });
+      ultimosCiclos = (ciclosResponse && ciclosResponse.ciclos) || {};
+      manutPorSerial = {};
+      ((manutResponse && manutResponse.equipamentos) || []).forEach(e => { manutPorSerial[e.serial_number] = e; });
+      renderManutencaoCliente(manutResponse, devices);
 
       // Update stats
       const onlineCount = devices.filter(d => d.status_conexao === 'online').length;
-      document.getElementById('statOnline').textContent = onlineCount + '/' + devices.length;
+      document.getElementById('statOnline').textContent = onlineCount;
+      document.getElementById('statTotal').textContent = devices.length;
 
       if (devices.length === 0) {
         grid.innerHTML = '<div class="text-center py-8 text-gray-500">Nenhum dispositivo encontrado</div>';
         return;
       }
 
-      // Populate device selector
+      // Seletor do dashboard de produtividade: mantem a escolha do usuario a cada atualizacao
       const selector = document.getElementById('deviceSelector');
+      const escolhido = selector.value;
       selector.innerHTML = '<option value="">Selecione um dispositivo</option>' +
-        devices.map(d => `<option value="${d.serial_number}">${d.name || 'Tombador'} - ${d.serial_number}</option>`).join('');
+        devices.map(d => `<option value="${esc(d.serial_number)}">${esc(d.name || 'Tombador')} - ${esc(d.serial_number)}</option>`).join('');
+      if (escolhido && devices.some(d => d.serial_number === escolhido)) selector.value = escolhido;
+      if (!telemetriaIniciada) {
+        telemetriaIniciada = true;
+        selector.value = devices[0].serial_number;
+        loadTelemetry();
+      }
 
-      // Calcular totais
-      let totalCiclos = 0, totalHoras = 0;
-      devices.forEach(d => {
-        const t = telemetryMap[d.serial_number];
-        if (t) {
-          totalCiclos += (t.ciclos_total || 0);
-          totalHoras += (t.horas_operacao || 0);
-        }
-      });
-      document.getElementById('statCiclos').textContent = totalCiclos.toLocaleString();
-      document.getElementById('statHorimetro').textContent = totalHoras + 'h';
+      grid.innerHTML = devices.map(d => renderDeviceCard(d, telemetryMap[d.serial_number] || {})).join('');
+    }
 
-      grid.innerHTML = devices.map(d => {
-        const t = telemetryMap[d.serial_number] || {};
-        const isOnline = d.status_conexao === 'online';
-        const isIdle = d.status_conexao === 'idle';
-        const statusClass = isOnline ? 'bg-green-100 text-green-700' : isIdle ? 'bg-yellow-100 text-yellow-700' : 'bg-red-100 text-red-700';
-        const statusText = isOnline ? 'Online' : isIdle ? 'Adormecido' : 'Offline';
-        const statusDot = isOnline ? 'bg-green-500' : isIdle ? 'bg-yellow-500' : 'bg-red-500';
-        const lastSeen = d.last_seen ? fmtDataBR(d.last_seen) : 'Nunca';
+    // Etiqueta de manutencao no rodape do card
+    function manutTag(m) {
+      if (!m || m.status === 'sem_dados') return '';
+      if (m.status === 'vencida') return `<span class="px-2 py-1 rounded-full text-xs font-bold bg-red-100 text-red-700" title="${m.horas_desde_manutencao} h desde a última manutenção">Manutenção vencida</span>`;
+      if (m.status === 'atencao') return `<span class="px-2 py-1 rounded-full text-xs font-bold bg-yellow-100 text-yellow-700">Manutenção em ${m.faltam_horas} h</span>`;
+      return `<span class="px-2 py-1 rounded-full text-xs font-medium bg-green-50 text-green-700">Manutenção em dia</span>`;
+    }
 
-        // Helper para status do sensor (verde/vermelho)
-        const sensorStatus = (val, activeLabel = 'Ativo', inactiveLabel = 'Inativo') => {
-          if (val === undefined || val === null) return { class: 'bg-gray-100 text-gray-400', text: '-' };
-          return val
-            ? { class: 'bg-green-100 text-green-700', text: activeLabel }
-            : { class: 'bg-red-100 text-red-700', text: inactiveLabel };
-        };
-        // Alerta invertido: branco normal, VERMELHO quando ativo (cheio/alerta)
-        const alertStatus = (val, alertLabel, normalLabel) => {
-          if (val === undefined || val === null) return { class: 'bg-gray-100 text-gray-400', text: '-' };
-          return val
-            ? { class: 'bg-red-100 text-red-700 font-bold', text: alertLabel }
-            : { class: 'bg-white text-gray-500 border-gray-200', text: normalLabel };
-        };
+    function fmtHorimetro(h, min) {
+      if (h === null || h === undefined) return '-';
+      return Number(h).toLocaleString('pt-BR') + 'h' + String(Number(min) || 0).padStart(2, '0') + 'm';
+    }
 
-        const sistemaAtivo = t.sistema_ativo === true;
-        const s0 = sensorStatus(t.sensor_0_graus);
-        const s40 = sensorStatus(t.sensor_40_graus);
-        const tRoda = sensorStatus(t.trava_roda);
-        const tChassi = sensorStatus(t.trava_chassi);
-        const tPinoE = sensorStatus(t.trava_pino_e);
-        const tPinoD = sensorStatus(t.trava_pino_d);
-        const moega = alertStatus(t.moega_fosso, 'CHEIO!', 'OK');
-        const portao = sensorStatus(t.portao_fechado, 'Fechado', 'Aberto');
+    function renderDeviceCard(d, t) {
+      const st = statusConexao(d.status_conexao);
+      const isOnline = d.status_conexao === 'online';
+      const isIdle = d.status_conexao === 'idle';
+      const lastSeen = d.last_seen ? fmtDataBR(d.last_seen) : 'Nunca';
+      const fmtCurto = v => fmtDataBR(v, { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+      const leituraEm = t.reading_timestamp ? fmtCurto(t.reading_timestamp) : null;
+      const leituraHoje = ehHojeBR(t.reading_timestamp);
+      const ciclo = ultimosCiclos[d.serial_number] || null;
+      const serialUrl = encodeURIComponent(d.serial_number);
 
-        // Subscription tag - só mostrar se NÃO ativo
-        let subTag = '';
-        const subSt = subscriptionStatus || {};
-        const devSub = d.subscription_info || {};
-        const effStatus = subSt.status || devSub.status || (subSt.active ? 'active' : (devSub.active ? 'active' : ''));
-        if (effStatus === 'trial') {
-          const daysLeft = subSt.trialDaysRemaining || Math.max(0, Math.ceil((new Date(devSub.expires_at || subSt.expiresAt) - new Date()) / (1000*60*60*24)));
-          subTag = `<span class="px-2 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-700">Avaliação: ${daysLeft}d</span>`;
-        } else if (effStatus !== 'active') {
-          subTag = `<span class="px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-700">Sem assinatura</span>`;
-        }
+      // Helper para status do sensor (verde/vermelho)
+      const sensorStatus = (val, activeLabel = 'Ativo', inactiveLabel = 'Inativo') => {
+        if (val === undefined || val === null) return { class: 'bg-gray-100 text-gray-400', text: '-' };
+        return val
+          ? { class: 'bg-green-100 text-green-700', text: activeLabel }
+          : { class: 'bg-red-100 text-red-700', text: inactiveLabel };
+      };
+      // Alerta invertido: branco normal, VERMELHO quando ativo (cheio/alerta)
+      const alertStatus = (val, alertLabel, normalLabel) => {
+        if (val === undefined || val === null) return { class: 'bg-gray-100 text-gray-400', text: '-' };
+        return val
+          ? { class: 'bg-red-100 text-red-700 font-bold', text: alertLabel }
+          : { class: 'bg-white text-gray-500 border-gray-200', text: normalLabel };
+      };
 
-        return `
-          <div class="border-2 ${isOnline ? 'border-green-200' : 'border-gray-200'} rounded-xl overflow-hidden" data-serial="${d.serial_number}">
+      const sistemaAtivo = t.sistema_ativo === true;
+      const aguardandoAtivacao = isOnline && !sistemaAtivo;
+      const s0 = sensorStatus(t.sensor_0_graus);
+      const s40 = sensorStatus(t.sensor_40_graus);
+      const tRoda = sensorStatus(t.trava_roda);
+      const tChassi = sensorStatus(t.trava_chassi);
+      const tPinoE = sensorStatus(t.trava_pino_e);
+      const tPinoD = sensorStatus(t.trava_pino_d);
+      const moega = alertStatus(t.moega_fosso, 'CHEIO!', 'OK');
+      const portao = sensorStatus(t.portao_fechado, 'Fechado', 'Aberto');
+
+      // Subscription tag - só mostrar se NÃO ativo
+      let subTag = '';
+      const subSt = subscriptionStatus || {};
+      const devSub = d.subscription_info || {};
+      const effStatus = subSt.status || devSub.status || (subSt.active ? 'active' : (devSub.active ? 'active' : ''));
+      if (effStatus === 'trial') {
+        const daysLeft = subSt.trialDaysRemaining || Math.max(0, Math.ceil((new Date(devSub.expires_at || subSt.expiresAt) - new Date()) / (1000*60*60*24)));
+        subTag = `<span class="px-2 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-700">Avaliação: ${daysLeft}d</span>`;
+      } else if (effStatus !== 'active') {
+        subTag = `<span class="px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-700">Sem assinatura</span>`;
+      }
+
+      // Rodape: assinatura, manutencao, documentos (pagina publica do QR do display) e ultimo contato
+      const rodape = `
+              <div class="flex flex-wrap items-center justify-between gap-2 pt-3 border-t border-gray-100">
+                <div class="flex flex-wrap items-center gap-2">${subTag}${manutTag(manutPorSerial[d.serial_number])}</div>
+                <div class="flex items-center gap-3">
+                  <a href="/docs/${serialUrl}" target="_blank" rel="noopener" class="inline-flex items-center gap-1 px-3 py-1 text-xs font-medium border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50" title="Manuais e documentos deste tombador">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+                    Documentos
+                  </a>
+                  <p class="text-xs text-gray-400">Visto: ${lastSeen}</p>
+                </div>
+              </div>`;
+
+      // Ultimo ciclo gravado no banco (tempos em segundos)
+      const sensorKeys = ['portao','moega','trava_roda','trava_chassi','trava_pino_e','trava_pino_d'];
+      const cicloMax = ciclo ? Math.max(Number(ciclo.tempo_total) || 0, ...sensorKeys.map(k => Number(ciclo[k]) || 0), 1) : 1;
+      const cicloQuando = ciclo && ciclo.created_at ? fmtCurto(ciclo.created_at) : '';
+
+      return `
+          <div class="border-2 ${isOnline ? 'border-green-200' : 'border-gray-200'} rounded-xl overflow-hidden" data-serial="${esc(d.serial_number)}" data-status="${esc(d.status_conexao || 'offline')}">
             <!-- Header -->
             <div class="bg-gradient-to-r from-pili-red to-pili-darkred p-4 text-white">
               <div class="flex items-center justify-between">
                 <div>
-                  <h4 class="font-bold text-lg">${d.name || 'Tombador'}</h4>
-                  <p class="text-sm text-white/80">S/N: ${d.serial_number} | ${d.unidade_nome || 'Sem unidade'}</p>
+                  <h4 class="font-bold text-lg">${esc(d.name || 'Tombador')}</h4>
+                  <p class="text-sm text-white/80">S/N: ${esc(d.serial_number)} | ${esc(d.unidade_nome || 'Sem unidade')}</p>
                 </div>
                 <div class="flex items-center gap-2">
-                  <span class="live-dot w-3 h-3 rounded-full ${statusDot} ${isOnline ? 'animate-pulse' : ''}"></span>
-                  <span class="live-status-label px-3 py-1 rounded-full text-xs font-bold bg-white/20">${statusText}</span>
+                  <span class="live-dot w-3 h-3 rounded-full ${st.dot}"></span>
+                  <span class="live-status-label px-3 py-1 rounded-full text-xs font-bold bg-white/20">${st.texto}</span>
                 </div>
               </div>
             </div>
@@ -991,19 +1111,14 @@
                 <h4 class="text-sm font-bold text-gray-500 tracking-wider mb-2">EQUIPAMENTO OFFLINE</h4>
                 <p class="text-xs text-gray-600">Sem energia ou sem conexao</p>
                 <p class="text-[10px] text-gray-700 mt-6">Ultimo sinal: ${lastSeen}</p>
+                ${leituraEm ? `<p class="text-[10px] text-gray-700 mt-1">Última leitura: ${leituraEm} · Horímetro ${fmtHorimetro(t.horas_operacao, t.minutos_operacao)}</p>` : ''}
               </div>
             </div>
-            <div class="p-4">
-              <div class="flex items-center justify-between">
-                <div>${subTag}</div>
-                <p class="text-xs text-gray-400">Visto: ${lastSeen}</p>
-              </div>
-            </div>
+            <div class="p-4">${rodape}</div>
             ` : `
             <div class="p-4">
-              ${isOnline && !sistemaAtivo ? `
-              <!-- Aguardando Ativação -->
-              <div class="live-activation text-center py-8">
+              <!-- Aguardando Ativação (o ao vivo troca para o conteudo quando o sistema e iniciado) -->
+              <div class="live-activation text-center py-8" style="${aguardandoAtivacao ? '' : 'display:none'}">
                 <div class="inline-flex items-center justify-center w-16 h-16 rounded-full bg-amber-100 mb-4">
                   <svg class="w-8 h-8 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z"/>
@@ -1012,11 +1127,15 @@
                 <h4 class="text-lg font-bold text-amber-600 mb-1">AGUARDANDO ATIVACAO</h4>
                 <p class="text-sm text-gray-500 mb-3">O dispositivo esta online mas o sistema ainda nao foi iniciado pelo tecnico.</p>
                 <p class="text-xs text-gray-400">Acesse o IoT (192.168.4.1) → Aba Sistema → Digite a senha → START</p>
+                <p class="live-fonte text-[10px] text-gray-400 mt-2">${leituraEm ? 'Conforme a leitura de ' + leituraEm : 'Sem leitura gravada'}</p>
               </div>
-              ` : `
+              <div class="live-content" style="${aguardandoAtivacao ? 'display:none' : ''}">
               <!-- 8 Sensores -->
-              <div class="live-content mb-3">
-                <div class="text-xs font-bold text-gray-500 mb-2">SENSORES DO SISTEMA</div>
+              <div class="mb-3">
+                <div class="flex items-center justify-between mb-2">
+                  <div class="text-xs font-bold text-gray-500">SENSORES DO SISTEMA</div>
+                  <span class="live-fonte text-[10px] text-gray-400">${leituraEm ? 'Leitura de ' + leituraEm : 'Sem leitura gravada'}</span>
+                </div>
                 <div class="grid grid-cols-4 gap-2">
                   <div class="live-sensor text-center p-2 ${s0.class} rounded-lg border-2 ${s0.text === 'Ativo' ? 'border-green-300' : 'border-gray-200'}">
                     <div class="text-[10px] text-gray-500 uppercase">Sensor 0°</div>
@@ -1059,95 +1178,160 @@
                 <div class="text-xs text-red-200">Aguardando esvaziamento para retomar ciclos</div>
               </div>
 
-              <!-- Ciclo + Plataforma -->
+              <!-- Ciclo + Plataforma (ao vivo so com WiFi; sem ele, o ultimo ciclo gravado) -->
               <div class="live-cycle-box mb-3 p-3 bg-gray-50 rounded-lg">
                 <div class="flex justify-between items-center">
-                  <span class="live-cycle-label text-xs font-bold text-gray-500">CICLO PARADO</span>
-                  <span class="live-cycle-timer text-lg font-bold text-gray-400 font-mono">--:--</span>
+                  <span class="live-cycle-label text-xs font-bold text-gray-500">${ciclo ? 'ÚLTIMO CICLO GRAVADO' : 'SEM CICLO GRAVADO'}</span>
+                  <span class="live-cycle-timer text-lg font-bold text-gray-400 font-mono">${ciclo ? fmtDur(ciclo.tempo_total) : '--:--'}</span>
                 </div>
                 <div class="flex justify-between items-center mt-1 pt-1 border-t border-gray-200">
-                  <span class="live-platform text-[10px] font-bold text-gray-400">PLATAFORMA: PARADA</span>
+                  <span class="live-platform text-[10px] font-bold text-gray-400">PLATAFORMA: sem dado ao vivo</span>
+                  <span class="text-[10px] text-gray-400">${cicloQuando}</span>
                 </div>
               </div>
 
               <!-- Ultimo Ciclo / Ciclo Atual -->
               <div class="live-durations mb-3">
-                <div class="live-dur-title text-[10px] font-bold text-gray-500 mb-1 tracking-wider">ULTIMO CICLO</div>
+                <div class="live-dur-title text-[10px] font-bold text-gray-500 mb-1 tracking-wider">ULTIMO CICLO${cicloQuando ? ' · ' + cicloQuando : ''}</div>
                 <div class="space-y-1">
                   ${['Portão','Moega/Fosso','Trava Roda','Trava Chassi','Trava Pino E','Trava Pino D'].map((name, i) => {
-                    const keys = ['portao','moega','trava_roda','trava_chassi','trava_pino_e','trava_pino_d'];
-                    const val = t.last_cycle ? (t.last_cycle[keys[i]] || 0) : 0;
-                    const total = t.last_cycle ? (t.last_cycle.tempo_total || 1) : 1;
-                    const pct = Math.min(Math.round((val / total) * 100), 100);
-                    return `<div class="live-dur-row flex items-center gap-2 ${i % 2 === 1 ? 'bg-gray-50' : ''} px-2 py-1 rounded" data-sensor="${keys[i]}">
+                    const val = ciclo ? (Number(ciclo[sensorKeys[i]]) || 0) : 0;
+                    const pct = Math.min(Math.round((val / cicloMax) * 100), 100);
+                    return `<div class="live-dur-row flex items-center gap-2 ${i % 2 === 1 ? 'bg-gray-50' : ''} px-2 py-1 rounded" data-sensor="${sensorKeys[i]}">
                       <span class="text-xs text-gray-600 w-24 shrink-0">${name}</span>
-                      <span class="live-dur-val text-xs font-bold w-8 text-right">${val ? Math.round(val) + 'min' : '-'}</span>
+                      <span class="live-dur-val text-xs font-bold w-16 text-right">${fmtDur(val)}</span>
                       <div class="flex-1 bg-gray-200 h-2.5 rounded-full overflow-hidden"><div class="live-dur-bar h-full bg-red-600 rounded-full transition-all" style="width:${pct}%"></div></div>
                     </div>`;
                   }).join('')}
                   <div class="flex items-center gap-2 px-2 pt-1 border-t-2 border-gray-200">
                     <span class="text-xs font-bold text-gray-700 w-24">TOTAL CICLO</span>
-                    <span class="live-dur-total text-xs font-bold text-red-600">${t.last_cycle ? Math.round(t.last_cycle.tempo_total) + 'min' : '-'}</span>
+                    <span class="live-dur-total text-xs font-bold text-red-600">${ciclo ? fmtDur(ciclo.tempo_total) : '-'}</span>
                   </div>
                 </div>
               </div>
 
               <!-- Producao e Horimetro -->
               <div class="live-stats grid grid-cols-3 gap-3 mb-3">
-                <div class="text-center p-3 bg-pili-red/10 rounded-lg">
-                  <div class="text-xl font-bold text-pili-red">${t.ciclos_hoje || 0}</div>
+                <div class="text-center p-3 bg-pili-red/10 rounded-lg" title="${leituraHoje ? '' : 'Sem leitura hoje'}">
+                  <div class="text-xl font-bold text-pili-red">${leituraHoje ? (t.ciclos_hoje || 0) : '-'}</div>
                   <div class="text-xs text-gray-500">Ciclos Hoje</div>
                 </div>
                 <div class="text-center p-3 bg-pili-red/10 rounded-lg">
-                  <div class="text-xl font-bold text-pili-red">${(t.ciclos_total || 0).toLocaleString()}</div>
+                  <div class="text-xl font-bold text-pili-red">${(t.ciclos_total || 0).toLocaleString('pt-BR')}</div>
                   <div class="text-xs text-gray-500">Ciclos Total</div>
                 </div>
                 <div class="text-center p-3 bg-pili-red/10 rounded-lg">
-                  <div class="text-xl font-bold text-pili-red">${t.horas_operacao || 0}h</div>
+                  <div class="text-sm sm:text-xl whitespace-nowrap font-bold text-pili-red">${fmtHorimetro(t.horas_operacao, t.minutos_operacao)}</div>
                   <div class="text-xs text-gray-500">Horímetro</div>
                 </div>
               </div>
-              `}
+              </div>
 
               <!-- Footer -->
-              <div class="flex items-center justify-between pt-3 border-t border-gray-100">
-                <div>${subTag}</div>
-                <p class="text-xs text-gray-400">Visto: ${lastSeen}</p>
-              </div>
+              ${rodape}
             </div>
             `}
           </div>
         `;
+    }
+
+    // ========== MANUTENCAO PREVENTIVA ==========
+    function renderManutencaoCliente(resp, devices) {
+      const cards = document.getElementById('manutCards');
+      const resumo = document.getElementById('manutResumo');
+      // seletor do historico (mantem a escolha)
+      const sel = document.getElementById('manutHistSerial');
+      const atual = sel.value;
+      sel.innerHTML = '<option value="">Todos os tombadores</option>' +
+        (devices || []).map(d => `<option value="${esc(d.serial_number)}">${esc(d.name || 'Tombador')} - ${esc(d.serial_number)}</option>`).join('');
+      if (atual && (devices || []).some(d => d.serial_number === atual)) sel.value = atual;
+
+      if (!resp || resp.error) {
+        cards.innerHTML = '<div class="text-center py-6 text-red-500 col-span-full">Erro ao carregar a manutenção</div>';
+        resumo.innerHTML = '';
+        return;
+      }
+      if (resp.blocked) {
+        cards.innerHTML = '<div class="text-center py-6 text-gray-500 col-span-full">Assinatura necessária para acompanhar a manutenção dos equipamentos.</div>';
+        resumo.innerHTML = '';
+        return;
+      }
+      const lista = resp.equipamentos || [];
+      const r = resp.resumo || {};
+      resumo.innerHTML =
+        (r.vencidas ? `<span class="px-3 py-1 rounded-full text-xs font-bold bg-red-100 text-red-700">${r.vencidas} vencida${r.vencidas === 1 ? '' : 's'}</span>` : '') +
+        (r.atencao ? `<span class="px-3 py-1 rounded-full text-xs font-bold bg-yellow-100 text-yellow-700">${r.atencao} em atenção</span>` : '') +
+        (r.ok ? `<span class="px-3 py-1 rounded-full text-xs font-bold bg-green-100 text-green-700">${r.ok} em dia</span>` : '');
+
+      if (lista.length === 0) {
+        cards.innerHTML = '<div class="text-center py-6 text-gray-500 col-span-full">Nenhum equipamento encontrado</div>';
+        return;
+      }
+      const intervalo = resp.intervalo_h || 2000;
+      cards.innerHTML = lista.map(e => {
+        const cfg = {
+          vencida:   { texto: 'Vencida',     badge: 'bg-red-100 text-red-700',       barra: 'bg-red-500',    borda: 'border-red-300' },
+          atencao:   { texto: 'Atenção',     badge: 'bg-yellow-100 text-yellow-700', barra: 'bg-yellow-400', borda: 'border-yellow-300' },
+          ok:        { texto: 'Em dia',      badge: 'bg-green-100 text-green-700',   barra: 'bg-green-500',  borda: 'border-gray-200' },
+          sem_dados: { texto: 'Sem leitura', badge: 'bg-gray-100 text-gray-500',     barra: 'bg-gray-300',   borda: 'border-gray-200' }
+        }[e.status] || { texto: '-', badge: 'bg-gray-100 text-gray-500', barra: 'bg-gray-300', borda: 'border-gray-200' };
+        const pct = e.horas_desde_manutencao === null ? 0 : Math.min(100, Math.round(e.horas_desde_manutencao * 100 / intervalo));
+        const fmtH = n => Number(n).toLocaleString('pt-BR') + ' h';
+        let faltam = '';
+        if (e.status === 'vencida') faltam = `<span class="font-bold text-red-600">Vencida há ${fmtH(-e.faltam_horas)}</span>`;
+        else if (e.faltam_horas !== null) faltam = `Faltam <strong>${fmtH(e.faltam_horas)}</strong>`;
+        const um = e.ultima_manutencao;
+        return `<div class="border-2 ${cfg.borda} rounded-xl p-4">
+          <div class="flex items-start justify-between gap-2 mb-2">
+            <div>
+              <p class="font-bold text-gray-800">${esc(e.name || 'Tombador')}</p>
+              <p class="text-xs text-gray-500">S/N ${esc(e.serial_number)}${e.unidade_nome ? ' · ' + esc(e.unidade_nome) : ''}</p>
+            </div>
+            <span class="px-2 py-1 rounded-full text-xs font-bold ${cfg.badge}">${cfg.texto}</span>
+          </div>
+          ${e.status === 'sem_dados'
+            ? '<p class="text-xs text-gray-500">Ainda sem leitura do horímetro deste equipamento.</p>'
+            : `<div class="flex justify-between text-xs text-gray-600 mb-1"><span>${fmtH(e.horas_desde_manutencao)} desde a última</span><span>${faltam}</span></div>
+               <div class="h-2 bg-gray-200 rounded-full overflow-hidden mb-2"><div class="h-full ${cfg.barra}" style="width:${pct}%"></div></div>
+               <p class="text-xs text-gray-500">Horímetro: ${fmtHorimetro(e.horimetro, e.horimetro_min)}${e.leitura_em ? ' · leitura ' + fmtDataBR(e.leitura_em, { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : ''}</p>`}
+          <p class="text-xs text-gray-500 mt-1">Última manutenção: ${um
+            ? `${fmtSoDataBR(um.em)} com ${fmtH(um.horas_operacao || 0)}${um.tecnico ? ' · ' + esc(um.tecnico) : ''}`
+            : 'nunca registrada'}</p>
+        </div>`;
       }).join('');
     }
 
-    async function viewDeviceDetails(serialNumber) {
-      // Abrir modal com detalhes do dispositivo
-      alert('Detalhes do dispositivo: ' + serialNumber);
-    }
-
-    async function loadStats() {
-      try {
-        const response = await api('/api/latest-readings');
-        if (response && !response.blocked && response.data) {
-          let totalCiclos = 0;
-          let totalHoras = 0;
-          response.data.forEach(d => {
-            totalCiclos += (d.ciclos_total || 0);
-            totalHoras += (d.horas_operacao || 0);
-          });
-          document.getElementById('statCiclos').textContent = totalCiclos.toLocaleString();
-          document.getElementById('statHorimetro').textContent = totalHoras + 'h';
-        }
-      } catch (e) {
-        console.log('Erro ao carregar stats:', e);
+    async function loadManutHistorico() {
+      const tbody = document.getElementById('manutHistBody');
+      const serial = document.getElementById('manutHistSerial').value;
+      const resp = await api('/api/manutencoes/historico?limit=100' + (serial ? '&serial=' + encodeURIComponent(serial) : ''));
+      if (!resp || resp.error) {
+        tbody.innerHTML = '<tr><td colspan="5" class="px-4 py-6 text-center text-red-500">Erro ao carregar o histórico</td></tr>';
+        return;
       }
+      if (resp.blocked) {
+        tbody.innerHTML = '<tr><td colspan="5" class="px-4 py-6 text-center text-gray-500">Assinatura necessária</td></tr>';
+        return;
+      }
+      const lista = resp.manutencoes || [];
+      if (lista.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="5" class="px-4 py-6 text-center text-gray-500">Nenhuma manutenção registrada' + (serial ? ' para este tombador' : '') + '</td></tr>';
+        return;
+      }
+      tbody.innerHTML = lista.map(m => `
+        <tr class="hover:bg-gray-50">
+          <td class="px-4 py-3 text-xs text-gray-600 whitespace-nowrap">${fmtDataBR(m.timestamp, { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</td>
+          <td class="px-4 py-3"><div class="font-medium text-gray-800">${esc(m.name || 'Tombador')}</div><div class="text-xs text-gray-500">${esc(m.serial_number)}</div></td>
+          <td class="px-4 py-3 text-gray-700">${esc(m.technician || '-')}</td>
+          <td class="px-4 py-3 text-xs text-gray-600">${esc(m.description || '-')}</td>
+          <td class="px-4 py-3 text-right font-bold">${Number(m.horas_operacao || 0).toLocaleString('pt-BR')} h</td>
+        </tr>`).join('');
     }
 
     // Load alerts
     async function loadAlerts() {
       const alerts = await api('/api/recent-alerts');
-      if (!alerts) return;
+      if (!Array.isArray(alerts)) return;
 
       const list = document.getElementById('alertsList');
 
@@ -1164,8 +1348,8 @@
             </svg>
           </div>
           <div class="flex-1">
-            <p class="font-medium text-gray-800">${a.message}</p>
-            <p class="text-sm text-gray-500">${fmtDataBR(a.timestamp)}</p>
+            <p class="font-medium text-gray-800">${esc(a.message)}</p>
+            <p class="text-sm text-gray-500">${fmtDataBR(a.timestamp)} · ${esc(a.device_name || 'Tombador')} (${esc(a.serial_number || '-')})</p>
           </div>
         </div>
       `).join('');
@@ -1184,7 +1368,8 @@
       await loadStats();
       await Promise.all([
         loadDevices(),
-        loadAlerts()
+        loadAlerts(),
+        loadManutHistorico()
       ]);
       document.getElementById('lastUpdate').textContent = 'Atualizado: ' + new Date().toLocaleTimeString('pt-BR');
       const mobileUpdate = document.getElementById('lastUpdateMobile');
@@ -1197,27 +1382,50 @@
     // Full refresh (DB) every 60 seconds
     setInterval(refreshData, 60000);
 
-    // ========== LIVE STATUS - TEMPO REAL (3 segundos) ==========
+    // ========== AO VIVO (so com WiFi) - a cada 3 segundos ==========
+    // Pelo 4G o equipamento nao manda ao vivo (so lotes a cada 30 min): o card fica com a
+    // ultima leitura gravada (com a hora). O status Online/Adormecido/Offline vem SEMPRE do
+    // servidor (status_conexao); quando chega ao vivo de um card que nao esta "online",
+    // a pagina recarrega os dados para o servidor dizer o status (o ao vivo atualiza o last_seen).
+    let refreshAgendado = null;
+    let ultimoRefreshForcado = 0;
+    function agendarRefresh() {
+      if (refreshAgendado || Date.now() - ultimoRefreshForcado < 30000) return;
+      refreshAgendado = setTimeout(() => {
+        refreshAgendado = null;
+        ultimoRefreshForcado = Date.now();
+        refreshData();
+      }, 1500);
+    }
+
     async function pollLiveStatus() {
       try {
-        const liveData = await api('/api/live-status');
-        if (!liveData) return;
-
-        // Se nenhum ESP32 mandando live-status, não fazer nada (evita overlays falsos)
-        if (Object.keys(liveData).length === 0) return;
+        const liveData = await api('/api/cliente/ao-vivo');
+        if (!liveData || liveData.error) return;
 
         // Atualizar cards dos dispositivos com dados em tempo real
         Object.keys(liveData).forEach(serial => {
           const d = liveData[serial];
-          const card = document.querySelector(`[data-serial="${serial}"]`);
+          const card = Array.from(document.querySelectorAll('#devicesGrid [data-serial]')).find(c => c.dataset.serial === serial);
           if (!card) return;
+          knownLiveDevices.add(serial);
+
+          // Card desenhado como Adormecido/Offline: o servidor ja deve dar "online" (o ao
+          // vivo atualiza o last_seen). Recarrega em vez de inventar status aqui.
+          if (card.dataset.status !== 'online') { agendarRefresh(); return; }
+
+          // Fonte dos dados
+          card.querySelectorAll('.live-fonte').forEach(el => {
+            el.textContent = 'Ao vivo · ' + new Date().toLocaleTimeString('pt-BR');
+            el.className = 'live-fonte text-[10px] font-bold text-green-600';
+          });
 
           // Se sistema foi ativado mas card ainda mostra AGUARDANDO ATIVACAO, esconder
           const activationEl = card.querySelector('.live-activation');
-          if (d.sistema_ativo === true && activationEl) {
+          const contentEl = card.querySelector('.live-content');
+          if (d.sistema_ativo === true && activationEl && contentEl) {
             activationEl.style.display = 'none';
-            const lc = card.querySelector('.live-content');
-            if (lc) lc.style.display = 'block';
+            contentEl.style.display = '';
           }
 
           // Atualizar sensores
@@ -1238,7 +1446,6 @@
               const isOn = vals[i] === true;
               let cls;
               if (isAlertSensor[i]) {
-                // Alerta: branco normal, vermelho quando ativo
                 cls = isOn ? 'bg-red-100 text-red-700 border-red-400 font-bold' : 'bg-white text-gray-500 border-gray-200';
               } else {
                 cls = isOn ? 'bg-green-100 text-green-700 border-green-300' : 'bg-red-100 text-red-700 border-gray-200';
@@ -1253,21 +1460,21 @@
           if (liveStats) {
             liveStats.innerHTML = `
               <div class="text-center p-3 bg-pili-red/10 rounded-lg">
-                <div class="text-xl font-bold text-pili-red">${d.ciclos_hoje || 0}</div>
+                <div class="text-xl font-bold text-pili-red">${Number(d.ciclos_hoje) || 0}</div>
                 <div class="text-xs text-gray-500">Ciclos Hoje</div>
               </div>
               <div class="text-center p-3 bg-pili-red/10 rounded-lg">
-                <div class="text-xl font-bold text-pili-red">${(d.ciclos_total || 0).toLocaleString()}</div>
+                <div class="text-xl font-bold text-pili-red">${(Number(d.ciclos_total) || 0).toLocaleString('pt-BR')}</div>
                 <div class="text-xs text-gray-500">Ciclos Total</div>
               </div>
               <div class="text-center p-3 bg-pili-red/10 rounded-lg">
-                <div class="text-xl font-bold text-pili-red">${d.horas_operacao || 0}h</div>
-                <div class="text-xs text-gray-500">Horimetro</div>
+                <div class="text-sm sm:text-xl whitespace-nowrap font-bold text-pili-red">${fmtHorimetro(Number(d.horas_operacao) || 0, d.minutos_operacao)}</div>
+                <div class="text-xs text-gray-500">Horímetro</div>
               </div>
             `;
           }
 
-          // Atualizar ciclo + plataforma (espelho IoT)
+          // Atualizar ciclo + plataforma (espelho IoT). Tempos em SEGUNDOS.
           const cycleLabel = card.querySelector('.live-cycle-label');
           const cycleTimer = card.querySelector('.live-cycle-timer');
           const platformEl = card.querySelector('.live-platform');
@@ -1275,17 +1482,15 @@
 
           if (cycleLabel && cycleTimer) {
             if (d.cycle_in_progress && d.current_cycle) {
-              const elapsed = d.current_cycle.elapsed || 0;
               cycleLabel.textContent = 'CICLO EM ANDAMENTO';
               cycleLabel.className = 'live-cycle-label text-xs font-bold text-green-600';
-              cycleTimer.textContent = Math.round(elapsed) + 'min';
+              cycleTimer.textContent = fmtDur(d.current_cycle.elapsed || 0);
               cycleTimer.className = 'live-cycle-timer text-lg font-bold text-green-600 font-mono';
               if (cycleBox) cycleBox.className = 'live-cycle-box mb-3 p-3 bg-green-50 rounded-lg border border-green-200';
             } else {
               if (d.last_cycle && d.last_cycle.tempo_total > 0) {
-                const tt = d.last_cycle.tempo_total;
                 cycleLabel.textContent = 'ULTIMO CICLO';
-                cycleTimer.textContent = Math.round(tt) + 'min';
+                cycleTimer.textContent = fmtDur(d.last_cycle.tempo_total);
               } else {
                 cycleLabel.textContent = 'CICLO PARADO';
                 cycleTimer.textContent = '--:--';
@@ -1318,6 +1523,23 @@
           const durTotal = card.querySelector('.live-dur-total');
           const sensorKeys = ['portao', 'moega', 'trava_roda', 'trava_chassi', 'trava_pino_e', 'trava_pino_d'];
           const timingKeys = ['pt_on', 'mg_on', 'tr_on', 'tc_on', 'tpe_on', 'tpd_on'];
+          const desenharUltimo = (lc) => {
+            if (durTitle) durTitle.textContent = 'ULTIMO CICLO';
+            const maxVal = Math.max(...sensorKeys.map(k => lc[k] || 0)) || 1;
+            durRows.forEach((row, i) => {
+              if (i >= sensorKeys.length) return;
+              const val = lc[sensorKeys[i]] || 0;
+              const pct = Math.min(Math.round((val / maxVal) * 100), 100);
+              const valEl = row.querySelector('.live-dur-val');
+              const barEl = row.querySelector('.live-dur-bar');
+              if (valEl) valEl.textContent = fmtDur(val);
+              if (barEl) {
+                barEl.style.width = pct + '%';
+                barEl.className = 'live-dur-bar h-full bg-red-600 rounded-full transition-all';
+              }
+            });
+            if (durTotal) durTotal.textContent = fmtDur(lc.tempo_total);
+          };
 
           // Barras em tempo real (current_cycle agora é SEMPRE enviado)
           if (d.current_cycle) {
@@ -1326,7 +1548,6 @@
             const anyActive = vals.some(v => v > 0);
 
             if (anyActive || d.cycle_in_progress) {
-              // Tempo real dos sensores
               if (durTitle) durTitle.textContent = d.cycle_in_progress ? 'CICLO ATUAL' : 'SENSORES AO VIVO';
               const maxVal = Math.max(...vals) || 1;
               durRows.forEach((row, i) => {
@@ -1336,86 +1557,19 @@
                 const pct = Math.min(Math.round((val / maxVal) * 100), 100);
                 const valEl = row.querySelector('.live-dur-val');
                 const barEl = row.querySelector('.live-dur-bar');
-                if (valEl) valEl.textContent = Math.round(val) + 'min';
+                if (valEl) valEl.textContent = fmtDur(val);
                 if (barEl) {
                   barEl.style.width = pct + '%';
                   barEl.className = 'live-dur-bar h-full rounded-full transition-all ' + (isTiming ? 'bar-running' : 'bg-red-600');
                 }
               });
-              if (durTotal) {
-                if (d.cycle_in_progress) {
-                  const elapsed = cc.elapsed || 0;
-                  durTotal.textContent = Math.round(elapsed) + 'min';
-                } else {
-                  const maxSec = Math.max(...vals) || 0;
-                  durTotal.textContent = maxSec > 0 ? Math.round(maxSec) + 'min' : '-';
-                }
-              }
+              if (durTotal) durTotal.textContent = d.cycle_in_progress ? fmtDur(cc.elapsed || 0) : fmtDur(Math.max(...vals) || 0);
             } else if (d.last_cycle && d.last_cycle.tempo_total > 0) {
-              // Sem atividade atual, mostra ultimo ciclo
-              if (durTitle) durTitle.textContent = 'ULTIMO CICLO';
-              const lc = d.last_cycle;
-              const maxVal = Math.max(...sensorKeys.map(k => lc[k] || 0)) || 1;
-              durRows.forEach((row, i) => {
-                if (i >= sensorKeys.length) return;
-                const val = lc[sensorKeys[i]] || 0;
-                const pct = Math.min(Math.round((val / maxVal) * 100), 100);
-                const valEl = row.querySelector('.live-dur-val');
-                const barEl = row.querySelector('.live-dur-bar');
-                if (valEl) valEl.textContent = val ? Math.round(val) + 'min' : '-';
-                if (barEl) {
-                  barEl.style.width = pct + '%';
-                  barEl.className = 'live-dur-bar h-full bg-red-600 rounded-full transition-all';
-                }
-              });
-              if (durTotal) {
-                const tt = lc.tempo_total;
-                durTotal.textContent = Math.round(tt) + 'min';
-              }
+              desenharUltimo(d.last_cycle);
             }
           } else if (d.last_cycle && d.last_cycle.tempo_total > 0) {
-            if (durTitle) durTitle.textContent = 'ULTIMO CICLO';
-            const lc = d.last_cycle;
-            const maxVal = Math.max(...sensorKeys.map(k => lc[k] || 0)) || 1;
-            durRows.forEach((row, i) => {
-              if (i >= sensorKeys.length) return;
-              const val = lc[sensorKeys[i]] || 0;
-              const pct = Math.min(Math.round((val / maxVal) * 100), 100);
-              const valEl = row.querySelector('.live-dur-val');
-              const barEl = row.querySelector('.live-dur-bar');
-              if (valEl) valEl.textContent = val ? Math.round(val) + 'min' : '-';
-              if (barEl) {
-                barEl.style.width = pct + '%';
-                barEl.className = 'live-dur-bar h-full bg-red-600 rounded-full transition-all';
-              }
-            });
-            if (durTotal) {
-              const tt = lc.tempo_total;
-              durTotal.textContent = Math.round(tt) + 'min';
-            }
+            desenharUltimo(d.last_cycle);
           }
-
-          // Atualizar status sistema ativo
-          const liveActivation = card.querySelector('.live-activation');
-          if (liveActivation && d.sistema_ativo === true) {
-            liveActivation.style.display = 'none';
-            const liveContent = card.querySelector('.live-content');
-            if (liveContent) liveContent.style.display = 'block';
-          }
-
-          // Marca online
-          const statusDot = card.querySelector('.live-dot');
-          if (statusDot) statusDot.className = 'live-dot w-3 h-3 rounded-full bg-green-500 animate-pulse';
-          const statusLabel = card.querySelector('.live-status-label');
-          if (statusLabel) statusLabel.textContent = 'Online';
-
-          // Remove overlay offline se existir
-          knownLiveDevices.add(serial);
-          const oldOverlay = card.querySelector('.live-offline-overlay');
-          if (oldOverlay) oldOverlay.remove();
-          // Se card tinha tela offline estática, remover
-          const offScreen = card.querySelector('.offline-screen');
-          if (offScreen) offScreen.remove();
         });
 
         // Parou o ao vivo (WiFi caiu, equipamento adormeceu ou desligou): o card volta ao
@@ -1430,7 +1584,9 @@
         });
         if (recarregar) refreshData();
 
-        document.getElementById('lastUpdate').textContent = 'Ao vivo: ' + new Date().toLocaleTimeString('pt-BR');
+        if (liveSerials.size > 0) {
+          document.getElementById('lastUpdate').textContent = 'Ao vivo: ' + new Date().toLocaleTimeString('pt-BR');
+        }
       } catch (e) {
         // Silencioso - não interromper polling
       }
@@ -1509,71 +1665,54 @@
 
       grid.innerHTML = devices.map(d => {
         const t = telemetryMap[d.serial_number] || {};
-        const isOnline = d.status_conexao === 'online';
-        const statusDot = isOnline ? 'bg-green-500 animate-pulse' : d.status_conexao === 'idle' ? 'bg-yellow-500' : 'bg-red-500';
-        const borderClass = isOnline ? 'border-green-500' : 'border-gray-600';
+        const st = statusConexao(d.status_conexao);
+        const leitura = t.reading_timestamp
+          ? 'Leitura ' + fmtDataBR(t.reading_timestamp, { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
+          : 'Sem leitura gravada';
 
-        // Status dos sensores (compacto)
-        const sensorDot = (val) => val ? 'bg-green-500' : 'bg-red-500';
+        // Status dos sensores (compacto): sem dado = cinza
+        const sensorDot = (val) => (val === null || val === undefined) ? 'bg-gray-500' : (val ? 'bg-green-500' : 'bg-red-500');
+        // Moega/Fosso: alerta invertido (vermelho = cheio)
+        const moegaDot = (val) => (val === null || val === undefined) ? 'bg-gray-500' : (val ? 'bg-red-500 animate-pulse' : 'bg-gray-300');
+        const sensores = [
+          [sensorDot(t.sensor_0_graus), '0°'], [sensorDot(t.sensor_40_graus), '40°'],
+          [sensorDot(t.trava_roda), 'Roda'], [sensorDot(t.trava_chassi), 'Chassi'],
+          [sensorDot(t.trava_pino_e), 'Pin.E'], [sensorDot(t.trava_pino_d), 'Pin.D'],
+          [moegaDot(t.moega_fosso), 'Moega'], [sensorDot(t.portao_fechado), 'Portao']
+        ];
 
         return `
-          <div class="bg-gray-800 border-2 ${borderClass} rounded-xl overflow-hidden transition-all hover:scale-[1.02]">
+          <div class="bg-gray-800 border-2 ${st.borda} rounded-xl overflow-hidden transition-all hover:scale-[1.02]">
             <!-- Header -->
             <div class="bg-gradient-to-r from-pili-red to-pili-darkred p-3 flex items-center justify-between">
               <div>
-                <h4 class="font-bold text-white text-sm">${d.name || 'Tombador'}</h4>
-                <p class="text-white/60 text-xs">${d.serial_number}</p>
+                <h4 class="font-bold text-white text-sm">${esc(d.name || 'Tombador')}</h4>
+                <p class="text-white/60 text-xs">${esc(d.serial_number)}</p>
               </div>
               <div class="flex items-center gap-2">
-                <span class="w-3 h-3 rounded-full ${statusDot}"></span>
+                <span class="text-[10px] font-bold text-white/90">${st.texto}</span>
+                <span class="w-3 h-3 rounded-full ${st.dot}"></span>
               </div>
             </div>
 
             <div class="p-3">
-              <!-- Sensores em grid compacto -->
-              <div class="grid grid-cols-4 gap-1 mb-3">
-                <div class="flex flex-col items-center p-1">
-                  <span class="w-3 h-3 rounded-full ${sensorDot(t.sensor_0_graus)}"></span>
-                  <span class="text-[9px] text-gray-400 mt-1">0°</span>
-                </div>
-                <div class="flex flex-col items-center p-1">
-                  <span class="w-3 h-3 rounded-full ${sensorDot(t.sensor_40_graus)}"></span>
-                  <span class="text-[9px] text-gray-400 mt-1">40°</span>
-                </div>
-                <div class="flex flex-col items-center p-1">
-                  <span class="w-3 h-3 rounded-full ${sensorDot(t.trava_roda)}"></span>
-                  <span class="text-[9px] text-gray-400 mt-1">Roda</span>
-                </div>
-                <div class="flex flex-col items-center p-1">
-                  <span class="w-3 h-3 rounded-full ${sensorDot(t.trava_chassi)}"></span>
-                  <span class="text-[9px] text-gray-400 mt-1">Chassi</span>
-                </div>
-                <div class="flex flex-col items-center p-1">
-                  <span class="w-3 h-3 rounded-full ${sensorDot(t.trava_pino_e)}"></span>
-                  <span class="text-[9px] text-gray-400 mt-1">Pin.E</span>
-                </div>
-                <div class="flex flex-col items-center p-1">
-                  <span class="w-3 h-3 rounded-full ${sensorDot(t.trava_pino_d)}"></span>
-                  <span class="text-[9px] text-gray-400 mt-1">Pin.D</span>
-                </div>
-                <div class="flex flex-col items-center p-1">
-                  <span class="w-3 h-3 rounded-full ${sensorDot(t.moega_cheia)}"></span>
-                  <span class="text-[9px] text-gray-400 mt-1">Moega</span>
-                </div>
-                <div class="flex flex-col items-center p-1">
-                  <span class="w-3 h-3 rounded-full ${sensorDot(t.portao_fechado)}"></span>
-                  <span class="text-[9px] text-gray-400 mt-1">Portao</span>
-                </div>
+              <!-- Sensores em grid compacto (ultima leitura gravada) -->
+              <div class="grid grid-cols-4 gap-1 mb-1">
+                ${sensores.map(([cls, nome]) => `<div class="flex flex-col items-center p-1">
+                  <span class="w-3 h-3 rounded-full ${cls}"></span>
+                  <span class="text-[9px] text-gray-400 mt-1">${nome}</span>
+                </div>`).join('')}
               </div>
+              <p class="text-[9px] text-gray-500 text-center mb-2">${leitura}</p>
 
               <!-- Producao -->
               <div class="grid grid-cols-3 gap-2 text-center">
                 <div class="bg-gray-700 rounded-lg py-2">
-                  <div class="text-lg font-black text-white">${t.ciclos_hoje || 0}</div>
+                  <div class="text-lg font-black text-white">${ehHojeBR(t.reading_timestamp) ? (t.ciclos_hoje || 0) : '-'}</div>
                   <div class="text-[9px] text-gray-400">HOJE</div>
                 </div>
                 <div class="bg-gray-700 rounded-lg py-2">
-                  <div class="text-lg font-black text-white">${(t.ciclos_total || 0).toLocaleString()}</div>
+                  <div class="text-lg font-black text-white">${(t.ciclos_total || 0).toLocaleString('pt-BR')}</div>
                   <div class="text-[9px] text-gray-400">TOTAL</div>
                 </div>
                 <div class="bg-gray-700 rounded-lg py-2">
@@ -1589,42 +1728,44 @@
 
     // ========== TELEMETRIA E PRODUTIVIDADE ==========
     let chartCiclos, chartProdutividade, chartEtapas, chartPizza, chartHorario;
-    let devicesList = [];
     const TEMPO_PADRAO_CICLO = 20 * 60; // 20 minutos em segundos
 
-    // Populate device selector
-    async function populateDeviceSelector() {
-      const response = await api('/api/latest-readings');
-      if (!response) return;
+    // O seletor do dashboard e preenchido pelo loadDevices() (mantendo a escolha a cada
+    // atualizacao); antes havia um segundo preenchimento aqui que apagava a selecao.
 
-      const readings = response.data || response || [];
-      if (!Array.isArray(readings)) return;
-      devicesList = readings;
-      const selector = document.getElementById('deviceSelector');
-      selector.innerHTML = '<option value="">Selecione um dispositivo</option>';
-
-      readings.forEach(d => {
-        const option = document.createElement('option');
-        option.value = d.serial_number;
-        option.textContent = `${d.serial_number} - ${d.name || 'PILI TECH'}`;
-        selector.appendChild(option);
-      });
-
-      // Auto-select first device
-      if (readings.length > 0) {
-        selector.value = readings[0].serial_number;
-        loadTelemetry();
-      }
+    function limparTelemetria(mensagem) {
+      ['teleProdutividade', 'teleTempoCiclo', 'teleCiclosHoje', 'teleCiclosSemana', 'teleEficiencia']
+        .forEach(id => { document.getElementById(id).textContent = '-'; });
+      document.getElementById('teleCiclosTendencia').textContent = mensagem || 'sem ciclos';
+      const gauge = document.getElementById('gaugeProgress');
+      if (gauge) gauge.setAttribute('stroke-dasharray', '0, 100');
+      [chartCiclos, chartProdutividade, chartEtapas, chartPizza, chartHorario].forEach(c => { if (c) c.destroy(); });
+      chartCiclos = chartProdutividade = chartEtapas = chartPizza = chartHorario = null;
+      ['etapaMaisRapida', 'etapaMaisLenta', 'desvioPadrao', 'ciclosAcimaMeta'].forEach(id => { document.getElementById(id).textContent = '-'; });
+      document.getElementById('timelineEtapas').innerHTML = ['Portão', 'Moega/Fosso', 'Trava Roda', 'Trava Chassi', 'Trava Pino E', 'Trava Pino D']
+        .map(n => `<div class="bg-gray-200 rounded p-2 text-center"><div class="text-xs font-bold text-gray-600">-</div><div class="text-[8px] text-gray-400">${n}</div></div>`).join('');
+      document.getElementById('cyclesTable').innerHTML = `<tr><td colspan="5" class="px-4 py-8 text-center text-gray-500">${esc(mensagem || 'Nenhum ciclo registrado')}</td></tr>`;
     }
 
     // Load telemetry data
     async function loadTelemetry() {
       const serialNumber = document.getElementById('deviceSelector').value;
       if (!serialNumber) return;
+      const serialUrl = encodeURIComponent(serialNumber);
 
       // Load device stats
-      const stats = await api('/api/device-stats/' + serialNumber);
-      if (stats) {
+      const stats = await api('/api/device-stats/' + serialUrl);
+      if (document.getElementById('deviceSelector').value !== serialNumber) return;   // trocou no meio
+      if (!stats || stats.error) { limparTelemetria('Erro ao carregar'); return; }
+      if (stats.blocked) { limparTelemetria('Assinatura necessária'); return; }
+
+      const temCiclos = (stats.ciclosDiarios || []).length > 0;
+      if (!temCiclos) {
+        // sem ciclos em 7 dias: nada de "100%" de produtividade sem producao
+        limparTelemetria('Nenhum ciclo nos últimos 7 dias');
+        document.getElementById('teleCiclosHoje').textContent = stats.ciclosHoje || 0;
+        document.getElementById('teleCiclosSemana').textContent = 0;
+      } else {
         // Calcular produtividade media
         const prodMedia = stats.produtividadeMedia || 100;
         document.getElementById('teleProdutividade').textContent = prodMedia.toFixed(0) + '%';
@@ -1639,13 +1780,13 @@
 
         // Tempo medio por ciclo
         const tempoMedio = stats.tempoMedioCiclo || 0;
-        document.getElementById('teleTempoCiclo').textContent = tempoMedio > 0 ? Math.round(tempoMedio / 60) + ' min' : '-';
+        document.getElementById('teleTempoCiclo').textContent = tempoMedio > 0 ? fmtDur(tempoMedio) : '-';
 
         // Ciclos hoje
         document.getElementById('teleCiclosHoje').textContent = stats.ciclosHoje || 0;
 
         // Ciclos semana
-        const ciclosSemana = stats.ciclosDiarios ? stats.ciclosDiarios.reduce((sum, d) => sum + parseInt(d.ciclos || 0), 0) : 0;
+        const ciclosSemana = stats.ciclosDiarios.reduce((sum, d) => sum + parseInt(d.ciclos || 0), 0);
         document.getElementById('teleCiclosSemana').textContent = ciclosSemana;
 
         // Eficiencia
@@ -1653,7 +1794,8 @@
         document.getElementById('teleEficiencia').textContent = eficiencia;
 
         // Tendencia (comparar com ontem)
-        if (stats.ciclosDiarios && stats.ciclosDiarios.length >= 2) {
+        document.getElementById('teleCiclosTendencia').textContent = 'ultimos 7 dias';
+        if (stats.ciclosDiarios.length >= 2) {
           const hoje = parseInt(stats.ciclosHoje) || 0;
           const ontem = parseInt(stats.ciclosDiarios[stats.ciclosDiarios.length - 2]?.ciclos) || 0;
           const diff = hoje - ontem;
@@ -1662,20 +1804,21 @@
         }
 
         // Update charts
-        if (stats.ciclosDiarios) {
-          updateCiclosChart(stats.ciclosDiarios);
-          updateProdutividadeChart(stats.ciclosDiarios);
-        }
+        updateCiclosChart(stats.ciclosDiarios);
+        updateProdutividadeChart(stats.ciclosDiarios);
       }
 
       // Load cycle data for timeline and table
-      const cycleData = await api('/api/cycle-data/' + serialNumber);
-      if (cycleData && cycleData.length > 0) {
+      const cycleData = await api('/api/cycle-data/' + serialUrl);
+      if (document.getElementById('deviceSelector').value !== serialNumber) return;
+      if (Array.isArray(cycleData) && cycleData.length > 0) {
         updateTimelineEtapas(cycleData[0]);
         updateEtapasChart(cycleData);
         updateCyclesTable(cycleData);
         updatePizzaChart(cycleData);
         updateIndicadores(cycleData);
+      } else if (temCiclos) {
+        updateCyclesTable([]);
       }
 
       // Load productivity data for hourly chart
@@ -1796,14 +1939,15 @@
 
       const medias = sensorMedia.map(v => Math.round(v / count));
       const maxTempo = Math.max(...medias);
-      const minTempo = Math.min(...medias.filter(v => v > 0)) || 0;
+      const positivos = medias.filter(v => v > 0);
+      const minTempo = positivos.length ? Math.min(...positivos) : 0;
 
       const maxIdx = medias.indexOf(maxTempo);
       const minIdx = medias.indexOf(minTempo);
 
-      document.getElementById('etapaMaisRapida').textContent = `${sensorNomes[minIdx]} (${minTempo}s)`;
-      document.getElementById('etapaMaisLenta').textContent = `${sensorNomes[maxIdx]} (${maxTempo}s)`;
-      document.getElementById('barraRapida').style.width = (minTempo / maxTempo * 100) + '%';
+      document.getElementById('etapaMaisRapida').textContent = minTempo > 0 ? `${sensorNomes[minIdx]} (${fmtDur(minTempo)})` : '-';
+      document.getElementById('etapaMaisLenta').textContent = maxTempo > 0 ? `${sensorNomes[maxIdx]} (${fmtDur(maxTempo)})` : '-';
+      document.getElementById('barraRapida').style.width = (maxTempo > 0 ? (minTempo / maxTempo * 100) : 0) + '%';
 
       // Desvio padrao
       const temposTotal = data.map(c => c.tempo_total || 0);
@@ -1833,10 +1977,7 @@
 
       if (chartCiclos) chartCiclos.destroy();
 
-      const labels = data.map(d => {
-        const date = new Date(d.dia);
-        return date.toLocaleDateString('pt-BR', { weekday: 'short', day: 'numeric' });
-      });
+      const labels = data.map(d => fmtDiaBR(d.dia));
       const values = data.map(d => parseInt(d.ciclos) || 0);
 
       chartCiclos = new Chart(ctx, {
@@ -1866,10 +2007,7 @@
 
       if (chartProdutividade) chartProdutividade.destroy();
 
-      const labels = data.map(d => {
-        const date = new Date(d.dia);
-        return date.toLocaleDateString('pt-BR', { weekday: 'short', day: 'numeric' });
-      });
+      const labels = data.map(d => fmtDiaBR(d.dia));
       // Produtividade = (tempo_padrao / tempo_real) * 100
       const values = data.map(d => {
         const tempoReal = parseFloat(d.tempo_medio_ciclo) || TEMPO_PADRAO_CICLO;
@@ -2025,8 +2163,7 @@
       }).join('');
     }
 
-    // Initialize telemetry after main data loads
-    setTimeout(populateDeviceSelector, 1000);
+    // (o dashboard de produtividade inicia pelo loadDevices: primeiro tombador da lista)
 
     // ========== COMPARAÇÃO DE TOMBADORES ==========
     const COMPARE_COLORS = ['#dc2626', '#2563eb', '#16a34a', '#d97706', '#7c3aed'];
@@ -2043,11 +2180,11 @@
         return;
       }
       container.innerHTML = devices.map((d, i) => `
-        <label class="flex items-center gap-2 px-4 py-2 bg-white border-2 rounded-lg cursor-pointer hover:border-pili-red transition-colors compare-label" data-serial="${d.serial_number}">
-          <input type="checkbox" class="compare-check w-4 h-4 accent-pili-red" value="${d.serial_number}" ${devices.length <= 3 ? 'checked' : (i < 3 ? 'checked' : '')}>
+        <label class="flex items-center gap-2 px-4 py-2 bg-white border-2 rounded-lg cursor-pointer hover:border-pili-red transition-colors compare-label" data-serial="${esc(d.serial_number)}">
+          <input type="checkbox" class="compare-check w-4 h-4 accent-pili-red" value="${esc(d.serial_number)}" ${devices.length <= 3 ? 'checked' : (i < 3 ? 'checked' : '')}>
           <span class="w-3 h-3 rounded-full" style="background:${COMPARE_COLORS[i % COMPARE_COLORS.length]}"></span>
-          <span class="text-sm font-medium text-gray-700">${d.name || d.serial_number}</span>
-          <span class="text-xs px-2 py-0.5 rounded-full ${d.status_conexao === 'online' ? 'bg-green-100 text-green-700' : d.status_conexao === 'idle' ? 'bg-yellow-100 text-yellow-700' : 'bg-gray-100 text-gray-500'}">${d.status_conexao === 'online' ? 'ON' : d.status_conexao === 'idle' ? 'ZZZ' : 'OFF'}</span>
+          <span class="text-sm font-medium text-gray-700">${esc(d.name || d.serial_number)}</span>
+          <span class="text-xs px-2 py-0.5 rounded-full ${d.status_conexao === 'online' ? 'bg-green-100 text-green-700' : d.status_conexao === 'idle' ? 'bg-yellow-100 text-yellow-700' : 'bg-gray-100 text-gray-500'}">${statusConexao(d.status_conexao).texto}</span>
         </label>
       `).join('');
 
@@ -2124,9 +2261,9 @@
         return `
           <div class="border-2 rounded-2xl overflow-hidden" style="border-color:${color}">
             <div class="p-3 text-white text-center" style="background:${color}">
-              <h4 class="font-bold text-sm truncate">${d.name}</h4>
-              <span class="text-xs opacity-80">${d.serial_number}</span>
-              <span class="ml-2 px-2 py-0.5 rounded-full text-[10px] font-bold ${d.status === 'online' ? 'bg-white/30' : 'bg-black/20'}">${d.status === 'online' ? 'ONLINE' : 'OFFLINE'}</span>
+              <h4 class="font-bold text-sm truncate">${esc(d.name)}</h4>
+              <span class="text-xs opacity-80">${esc(d.serial_number)}</span>
+              <span class="ml-2 px-2 py-0.5 rounded-full text-[10px] font-bold ${d.status === 'online' ? 'bg-white/30' : 'bg-black/20'}">${statusConexao(d.status).texto.toUpperCase()}</span>
             </div>
             <div class="p-4 space-y-3">
               <div class="flex justify-between items-center">
@@ -2143,7 +2280,7 @@
               </div>
               <div class="flex justify-between items-center">
                 <span class="text-xs text-gray-500">Tempo Medio</span>
-                <span class="text-sm font-bold text-gray-700">${Math.round(d.tempo_medio / 60)}min ${d.tempo_medio % 60}s</span>
+                <span class="text-sm font-bold text-gray-700">${fmtDur(d.tempo_medio)}</span>
               </div>
               <div class="flex justify-between items-center">
                 <span class="text-xs text-gray-500">Eficiencia Media</span>
@@ -2176,7 +2313,7 @@
       const allDates = new Set();
       devices.forEach(d => d.ciclos_diarios.forEach(cd => allDates.add(cd.dia)));
       const labels = Array.from(allDates).sort();
-      const labelsPtBR = labels.map(l => new Date(l).toLocaleDateString('pt-BR', { weekday: 'short', day: 'numeric' }));
+      const labelsPtBR = labels.map(l => fmtDiaBR(l));
 
       const datasets = devices.map((d, i) => {
         const dataMap = {};
@@ -2326,11 +2463,11 @@
       const tbody = document.getElementById('compareTableBody');
 
       thead.innerHTML = '<tr><th class="px-4 py-3 text-left text-xs font-medium uppercase">Metrica</th>' +
-        devices.map((d, i) => `<th class="px-4 py-3 text-center text-xs font-medium uppercase" style="color:${COMPARE_COLORS[i]}">${d.name}</th>`).join('') +
+        devices.map((d, i) => `<th class="px-4 py-3 text-center text-xs font-medium uppercase" style="color:${COMPARE_COLORS[i]}">${esc(d.name)}</th>`).join('') +
         '</tr>';
 
       const metrics = [
-        { label: 'Status', key: d => `<span class="px-2 py-1 rounded-full text-xs font-bold ${d.status === 'online' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}">${d.status}</span>` },
+        { label: 'Status', key: d => `<span class="px-2 py-1 rounded-full text-xs font-bold ${statusConexao(d.status).badge}">${statusConexao(d.status).texto}</span>` },
         { label: 'Produtividade', key: d => { const v = parseFloat(d.produtividade); return `<span class="font-bold ${v >= 100 ? 'text-green-600' : v >= 80 ? 'text-yellow-600' : 'text-red-600'}">${v}%</span>`; } },
         { label: 'Ciclos Hoje', key: d => `<span class="font-bold">${d.ciclos_hoje}</span>` },
         { label: 'Ciclos no Periodo', key: d => `<span class="font-bold">${d.total_ciclos_periodo}</span>` },
@@ -2467,8 +2604,17 @@
       try { new Audio('data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbsGczFj+a2teleS0cR6zg7LSFOh0wk9/t3KlmMhk8oOPw4rFrMxU6oOb04LBpMBc6n+fw4LBpMBc6').play(); } catch(e) {}
     }
 
+    // id do alerta na tela / ja fechado: sem isso o mesmo alerta voltava (com som) a cada 15 s
+    let alertaNaTelaId = null;
+    let alertaFechadoId = null;
+    try { alertaFechadoId = sessionStorage.getItem('pili_alerta_fechado'); } catch (e) {}
+
     function dismissAlert() {
       document.getElementById('alertBanner').classList.add('hidden');
+      if (alertaNaTelaId !== null) {
+        alertaFechadoId = String(alertaNaTelaId);
+        try { sessionStorage.setItem('pili_alerta_fechado', alertaFechadoId); } catch (e) {}
+      }
     }
 
     // Poll for recent alerts
@@ -2477,7 +2623,10 @@
         const res = await api('/api/alerts/recent');
         if (res && res.alerts && res.alerts.length > 0) {
           const a = res.alerts[0];
-          if (!a._dismissed) showAlert(a.title || 'ALERTA', a.message, a.type || 'critical');
+          const id = String(a.id || a.timestamp || '');
+          if (id === alertaFechadoId || id === String(alertaNaTelaId)) return;
+          alertaNaTelaId = id;
+          showAlert(a.title || 'ALERTA', a.message, a.type || 'critical');
         }
       } catch(e) {}
     }
