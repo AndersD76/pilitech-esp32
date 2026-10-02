@@ -1152,11 +1152,11 @@
             <input type="checkbox" id="ctrlSensor${i}" ${checked} class="w-4 h-4 accent-green-600">
             <span class="text-sm font-medium text-gray-700">${name}</span>
           </label>
-          <label class="flex items-center gap-1 cursor-pointer text-xs text-gray-500" title="Sensor NC: sinal sempre presente, atua quando cai a zero">
-            <input type="checkbox" id="ctrlInvert${i}" ${inv} class="w-3.5 h-3.5 accent-orange-500">Invertido (NC)
+          <label class="flex items-center gap-1 cursor-pointer text-xs text-gray-500" title="Logica invertida: o sensor atua (acende) quando o sinal cai a zero">
+            <input type="checkbox" id="ctrlInvert${i}" ${inv} class="w-3.5 h-3.5 accent-orange-500">Logica invertida
           </label>
         </div>`;
-      }).join('') + (data.live ? '' : '<p class="text-[11px] text-gray-400 col-span-full">Sem dado ao vivo (4G): "Invertido" mostra o padrao de fabrica. A configuracao chega ao equipamento no proximo contato.</p>');
+      }).join('') + (data.live ? '' : '<p class="text-[11px] text-gray-400 col-span-full">Sem dado ao vivo (4G): "Logica invertida" mostra o padrao de fabrica (40° e Moega/Fosso). A configuracao chega ao equipamento no proximo contato.</p>');
 
       const db = data.dbInfo || {};
       // ao vivo (WiFi) ou, sem ele, a ultima leitura gravada (o 4G manda em lote a cada 30 min)
