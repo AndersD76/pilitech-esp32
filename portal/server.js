@@ -1196,10 +1196,10 @@ app.get('/api/latest-readings', authenticateToken, checkSubscription, async (req
       ),
       latest_event AS (
         SELECT DISTINCT ON (device_id)
-          device_id,
+          device_id, timestamp AS evt_em,
           CASE WHEN message LIKE '%Sistema iniciado%' THEN true ELSE false END as evt_started
         FROM event_logs
-        WHERE message LIKE '%Sistema iniciado%' OR message LIKE '%Reset total%'
+        WHERE message LIKE '%Sistema iniciado%' OR message LIKE '%Reset total%' OR message LIKE '%Sistema parado%'
         ORDER BY device_id, timestamp DESC
       )
       SELECT d.serial_number, d.name, d.last_seen,
@@ -1209,7 +1209,11 @@ app.get('/api/latest-readings', authenticateToken, checkSubscription, async (req
         l.moega_fosso, l.portao_fechado,
         l.ciclos_hoje, l.ciclos_total, l.horas_operacao, l.minutos_operacao,
         l.free_heap, l.uptime_seconds, l.wifi_connected,
-        COALESCE(le.evt_started, l.sistema_ativo, false) as sistema_ativo,
+        -- o que a IoT diz na leitura mais recente; o evento (iniciar/parar/reset) so vale se
+        -- for mais novo que ela (antes o evento ganhava sempre e o portal dizia "ativo"
+        -- enquanto o display mostrava "nao iniciado" depois de um reinicio)
+        CASE WHEN le.evt_em IS NOT NULL AND (l.timestamp IS NULL OR le.evt_em > l.timestamp)
+             THEN le.evt_started ELSE COALESCE(l.sistema_ativo, false) END as sistema_ativo,
         cfg.sensor_config,
         un.nome as unidade_nome, COALESCE(e.razao_social, e2.razao_social) as empresa_nome
       FROM devices d
@@ -2377,9 +2381,9 @@ app.post('/api/event', validateApiKey, async (req, res) => {
       VALUES ($1, $2, $3, $4, $5)
     `, [deviceResult.rows[0].id, event_type, message, sensor_name || null, sensor_value || null]);
 
-    // Auto-send push notification for critical alerts
-    const alertTypes = ['moega_cheia', 'moega_fosso', 'alerta_critico', 'parada_emergencia', 'sensor_falha'];
-    if (alertTypes.includes(event_type)) {
+    // Push dos alertas: a IoT manda event_type "ALERT" (moega cheia etc.) - antes so os
+    // tipos antigos da lista disparavam, e o alerta de moega nunca virava notificacao
+    if (ehEventoDeAlerta(event_type)) {
       sendAlertPush(serial_number, event_type, message || `Alerta: ${event_type}`).catch(e => console.error('Push error:', e));
     }
 
@@ -2482,6 +2486,10 @@ function crc32(buf) {
 }
 const dataUsage = new Map();   // serial -> { kb, at } (consumo 4G informado pelo equipamento)
 
+// Eventos que viram notificacao push: o firmware atual manda "ALERT"; os outros sao de versoes antigas
+const TIPOS_ALERTA = ['ALERT', 'CRITICAL', 'moega_cheia', 'moega_fosso', 'alerta_critico', 'parada_emergencia', 'sensor_falha'];
+const ehEventoDeAlerta = tipo => TIPOS_ALERTA.includes(tipo);
+
 app.post('/api/batch', validateApiKey, async (req, res) => {
   try {
     const raw = req.rawBody;
@@ -2520,7 +2528,6 @@ app.post('/api/batch', validateApiKey, async (req, res) => {
 
     const b = v => (v === null || v === undefined) ? null : !!v;
     const quando = idade => (typeof idade === 'number' && idade >= 0) ? Math.min(idade, 30 * 86400) : 0;
-    const alertTypes = ['moega_cheia', 'moega_fosso', 'alerta_critico', 'parada_emergencia', 'sensor_falha'];
     let gravados = 0;
     for (const item of it) {
       if (!Array.isArray(item) || item.length < 2) continue;
@@ -2543,7 +2550,7 @@ app.post('/api/batch', validateApiKey, async (req, res) => {
           INSERT INTO event_logs (device_id, timestamp, event_type, message, sensor_name, sensor_value)
           VALUES ($1, NOW() - ($2 * INTERVAL '1 second'), $3, $4, $5, $6)
         `, [deviceId, seg, f[0], f[1], f[2] || null, b(f[3])]);
-        if (alertTypes.includes(f[0])) {
+        if (ehEventoDeAlerta(f[0])) {
           sendAlertPush(sn, f[0], f[1] || `Alerta: ${f[0]}`).catch(e => console.error('Push error:', e));
         }
       } else if (tipo === 'c') {
