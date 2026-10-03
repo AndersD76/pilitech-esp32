@@ -2224,13 +2224,29 @@ class FilaComandos extends Map {
   }
   // Retira os comandos para entregar ao equipamento. Comando com mais de 24 h e
   // descartado: um "Reiniciar" esquecido nao pode ser executado dias depois.
-  retirar(serial) {
+  //
+  // OTA_UPDATE nao sai na entrega: a resposta do lote pode se perder na UART do modem
+  // (03/10/2026: entregue e nunca executado). Fica ate o lote reportar a versao nova
+  // (fwAtual), e e reentregue no maximo 3 vezes, com 20 min entre entregas (enquanto
+  // baixa, a IoT nao manda lote; cada tentativa gasta ~1,4 MB do chip de 20 MB).
+  retirar(serial, fwAtual) {
     const cmds = this.get(serial) || [];
     if (cmds.length === 0) return [];
-    this.delete(serial);
-    const validos = cmds.filter(c => !c.timestamp || Date.now() - new Date(c.timestamp).getTime() < 24 * 3600 * 1000);
+    const agora = Date.now();
+    const validos = cmds.filter(c => !c.timestamp || agora - new Date(c.timestamp).getTime() < 24 * 3600 * 1000);
     if (validos.length < cmds.length) console.log(`[CMD] ${serial}: ${cmds.length - validos.length} comando(s) vencido(s) descartado(s)`);
-    return validos;
+    const ficam = [], entregar = [];
+    for (const c of validos) {
+      if (c.cmd !== 'OTA_UPDATE') { entregar.push(c); continue; }
+      if (fwAtual && c.version === fwAtual) { console.log(`[OTA] ${serial}: ${fwAtual} instalada`); continue; }
+      const entregas = c.entregas || 0;
+      if (entregas >= 3) { console.log(`[OTA] ${serial}: ${c.version} entregue 3x sem instalar - desisti`); continue; }
+      if (c.ultimaEntrega && agora - new Date(c.ultimaEntrega).getTime() < 20 * 60 * 1000) { ficam.push(c); continue; }
+      ficam.push({ ...c, entregas: entregas + 1, ultimaEntrega: new Date(agora).toISOString() });
+      entregar.push({ cmd: c.cmd, version: c.version, timestamp: c.timestamp });
+    }
+    if (ficam.length > 0) this.set(serial, ficam); else this.delete(serial);
+    return entregar;
   }
 }
 const pendingCommands = new FilaComandos();
@@ -2574,7 +2590,7 @@ app.post('/api/batch', validateApiKey, async (req, res) => {
     if (typeof kb === 'number') dataUsage.set(sn, { kb, at: new Date().toISOString() });
     console.log(`📦 Lote de ${sn}: ${gravados}/${it.length} itens gravados, consumo 4G ${kb} KB no mes`);
 
-    const cmds = pendingCommands.retirar(sn);
+    const cmds = pendingCommands.retirar(sn, typeof fw === 'string' ? fw : null);
     res.json(cmds.length > 0 ? { success: true, n: gravados, commands: cmds } : { success: true, n: gravados });
   } catch (err) {
     console.error('Erro ao gravar lote:', err);
