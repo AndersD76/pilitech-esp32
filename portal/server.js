@@ -51,7 +51,10 @@ const SUBSCRIPTION_PRICE = 2000.00;
 // meta / tempo real, ate 200%. Calculada aqui a partir do tempo do ciclo, e nao lida do valor que
 // a IoT grava: IoT antiga (ate a v10.45) ainda manda a eficiencia contra 20 min.
 const META_CICLO_S = 10 * 60;
-const EFICIENCIA_SQL = `LEAST(200, ROUND(${META_CICLO_S} * 100.0 / NULLIF(tempo_total, 0), 1))`;
+// Moega/fosso cheio e so alarme: o tempo parado esperando a moega (coluna sensor40) mostra a
+// ineficiencia da moega, nao do tombador. Tempo do ciclo = total - parada da moega.
+const TEMPO_CICLO_SQL = `GREATEST(tempo_total - COALESCE(sensor40, 0), 0)`;
+const EFICIENCIA_SQL = `LEAST(200, ROUND(${META_CICLO_S} * 100.0 / NULLIF(${TEMPO_CICLO_SQL}, 0), 1))`;
 
 // Database connection
 const pool = new Pool({
@@ -2659,7 +2662,8 @@ app.get('/api/device-stats/:serialNumber', authenticateToken, checkSubscription,
       SELECT
         (created_at AT TIME ZONE 'UTC' AT TIME ZONE 'America/Sao_Paulo')::date as dia,
         COUNT(*) as ciclos,
-        AVG(tempo_total) as tempo_medio_ciclo
+        AVG(${TEMPO_CICLO_SQL}) as tempo_medio_ciclo,
+        COALESCE(SUM(sensor40), 0) as parada_moega
       FROM cycle_data
       WHERE device_id = $1 AND created_at > NOW() - INTERVAL '7 days'
       GROUP BY (created_at AT TIME ZONE 'UTC' AT TIME ZONE 'America/Sao_Paulo')::date
@@ -2675,7 +2679,8 @@ app.get('/api/device-stats/:serialNumber', authenticateToken, checkSubscription,
 
     // Tempo médio geral
     const tempoMedioResult = await pool.query(`
-      SELECT AVG(tempo_total) as tempo_medio
+      SELECT AVG(${TEMPO_CICLO_SQL}) as tempo_medio, COALESCE(SUM(sensor40), 0) as parada_moega,
+             COUNT(*) FILTER (WHERE sensor40 > 0) as ciclos_com_parada
       FROM cycle_data
       WHERE device_id = $1 AND created_at > NOW() - INTERVAL '7 days'
     `, [deviceId]);
@@ -2689,6 +2694,8 @@ app.get('/api/device-stats/:serialNumber', authenticateToken, checkSubscription,
       ciclosHoje: parseInt(ciclosHojeResult.rows[0].total) || 0,
       tempoMedioCiclo: tempoMedio,
       produtividadeMedia: produtividadeMedia,
+      paradaMoegaS: parseInt(tempoMedioResult.rows[0].parada_moega) || 0,      // 7 dias, so alarme da moega
+      ciclosComParadaMoega: parseInt(tempoMedioResult.rows[0].ciclos_com_parada) || 0,
       metaCicloS: META_CICLO_S
     });
   } catch (err) {
@@ -2725,6 +2732,8 @@ app.get('/api/cycle-data/:serialNumber', authenticateToken, checkSubscription, a
       SELECT
         ciclo_numero,
         tempo_total,
+        ${TEMPO_CICLO_SQL} as tempo_ciclo,
+        COALESCE(sensor40, 0) as parada_moega,
         COALESCE(sensor0, 0) as portao,
         COALESCE(sensor40, 0) as moega,
         COALESCE(trava_roda, 0) as trava_roda,
@@ -2773,7 +2782,7 @@ app.get('/api/productivity/:serialNumber', authenticateToken, checkSubscription,
 
     const cyclesResult = await pool.query(`
       SELECT
-        ciclo_numero, tempo_total, sensor0 as portao, sensor40 as moega,
+        ciclo_numero, tempo_total, ${TEMPO_CICLO_SQL} as tempo_ciclo, sensor0 as portao, sensor40 as moega,
         trava_roda, trava_chassi, trava_pino_e, trava_pino_d,
         ${META_CICLO_S} as tempo_padrao, ${EFICIENCIA_SQL} as eficiencia, created_at
       FROM cycle_data
@@ -2785,7 +2794,7 @@ app.get('/api/productivity/:serialNumber', authenticateToken, checkSubscription,
     const cycles = cyclesResult.rows;
     const totalCycles = cycles.length;
     const avgTime = cycles.length > 0
-      ? cycles.reduce((sum, c) => sum + c.tempo_total, 0) / cycles.length
+      ? cycles.reduce((sum, c) => sum + Number(c.tempo_ciclo), 0) / cycles.length
       : 0;
     const avgEfficiency = cycles.length > 0
       ? cycles.reduce((sum, c) => sum + parseFloat(c.eficiencia), 0) / cycles.length
@@ -2833,10 +2842,11 @@ app.get('/api/compare', authenticateToken, checkSubscription, async (req, res) =
       const statsResult = await pool.query(`
         SELECT
           COUNT(*) as total_ciclos,
-          COALESCE(AVG(tempo_total), 0) as tempo_medio,
+          COALESCE(AVG(${TEMPO_CICLO_SQL}), 0) as tempo_medio,
+          COALESCE(SUM(sensor40), 0) as parada_moega,
           COALESCE(AVG(${EFICIENCIA_SQL}), 0) as eficiencia_media,
-          COALESCE(MIN(tempo_total), 0) as melhor_ciclo,
-          COALESCE(MAX(tempo_total), 0) as pior_ciclo
+          COALESCE(MIN(${TEMPO_CICLO_SQL}), 0) as melhor_ciclo,
+          COALESCE(MAX(${TEMPO_CICLO_SQL}), 0) as pior_ciclo
         FROM cycle_data
         WHERE device_id = $1 AND created_at >= NOW() - INTERVAL '${days} days'
       `, [deviceId]);
@@ -2850,7 +2860,7 @@ app.get('/api/compare', authenticateToken, checkSubscription, async (req, res) =
 
       // Ciclos por dia
       const dailyResult = await pool.query(`
-        SELECT (created_at AT TIME ZONE 'UTC' AT TIME ZONE 'America/Sao_Paulo')::date as dia, COUNT(*) as ciclos, AVG(tempo_total) as tempo_medio
+        SELECT (created_at AT TIME ZONE 'UTC' AT TIME ZONE 'America/Sao_Paulo')::date as dia, COUNT(*) as ciclos, AVG(${TEMPO_CICLO_SQL}) as tempo_medio
         FROM cycle_data
         WHERE device_id = $1 AND created_at >= NOW() - INTERVAL '${days} days'
         GROUP BY (created_at AT TIME ZONE 'UTC' AT TIME ZONE 'America/Sao_Paulo')::date ORDER BY dia ASC
@@ -2894,6 +2904,7 @@ app.get('/api/compare', authenticateToken, checkSubscription, async (req, res) =
         horas_operacao: parseInt(lastReading.rows[0]?.horas_operacao) || 0,
         total_ciclos_periodo: parseInt(stats.total_ciclos) || 0,
         tempo_medio: Math.round(tempoMedio),
+        parada_moega: parseInt(stats.parada_moega) || 0,
         eficiencia_media: parseFloat(stats.eficiencia_media).toFixed(1),
         produtividade: ((META_CICLO_S / tempoMedio) * 100).toFixed(1),
         melhor_ciclo: parseInt(stats.melhor_ciclo) || 0,

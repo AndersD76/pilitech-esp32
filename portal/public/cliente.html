@@ -439,6 +439,7 @@
           </div>
           <div class="text-xl sm:text-3xl font-black" id="teleEficiencia">-</div>
           <div class="text-xs opacity-70">vs meta 10min</div>
+          <div class="text-xs opacity-70" id="teleParadaMoega"></div>
         </div>
       </div>
 
@@ -529,7 +530,7 @@
         <p class="text-xs text-gray-500 mb-3 sm:mb-4">Duracao ativa de cada sensor no ultimo ciclo registrado</p>
         <div class="grid grid-cols-3 sm:grid-cols-6 gap-2 mb-2" id="timelineEtapas">
           <div class="bg-gray-200 rounded p-2 text-center"><div class="text-xs font-bold text-gray-600">-</div><div class="text-[8px] text-gray-400">Portão</div></div>
-          <div class="bg-gray-200 rounded p-2 text-center"><div class="text-xs font-bold text-gray-600">-</div><div class="text-[8px] text-gray-400">Moega/Fosso</div></div>
+          <div class="bg-gray-200 rounded p-2 text-center"><div class="text-xs font-bold text-gray-600">-</div><div class="text-[8px] text-gray-400">Parada moega</div></div>
           <div class="bg-gray-200 rounded p-2 text-center"><div class="text-xs font-bold text-gray-600">-</div><div class="text-[8px] text-gray-400">Trava Roda</div></div>
           <div class="bg-gray-200 rounded p-2 text-center"><div class="text-xs font-bold text-gray-600">-</div><div class="text-[8px] text-gray-400">Trava Chassi</div></div>
           <div class="bg-gray-200 rounded p-2 text-center"><div class="text-xs font-bold text-gray-600">-</div><div class="text-[8px] text-gray-400">Trava Pino E</div></div>
@@ -638,9 +639,9 @@
             <tr>
               <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Data/Hora</th>
               <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Ciclo #</th>
-              <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Tempo Total</th>
+              <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Tempo do Ciclo</th>
               <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Produtividade</th>
-              <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Etapa + Lenta</th>
+              <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Parada Moega</th>
             </tr>
           </thead>
           <tbody id="cyclesTable" class="divide-y divide-gray-200">
@@ -1745,7 +1746,7 @@
       [chartCiclos, chartProdutividade, chartEtapas, chartPizza, chartHorario].forEach(c => { if (c) c.destroy(); });
       chartCiclos = chartProdutividade = chartEtapas = chartPizza = chartHorario = null;
       ['etapaMaisRapida', 'etapaMaisLenta', 'desvioPadrao', 'ciclosAcimaMeta'].forEach(id => { document.getElementById(id).textContent = '-'; });
-      document.getElementById('timelineEtapas').innerHTML = ['Portão', 'Moega/Fosso', 'Trava Roda', 'Trava Chassi', 'Trava Pino E', 'Trava Pino D']
+      document.getElementById('timelineEtapas').innerHTML = ['Portão', 'Parada moega', 'Trava Roda', 'Trava Chassi', 'Trava Pino E', 'Trava Pino D']
         .map(n => `<div class="bg-gray-200 rounded p-2 text-center"><div class="text-xs font-bold text-gray-600">-</div><div class="text-[8px] text-gray-400">${n}</div></div>`).join('');
       document.getElementById('cyclesTable').innerHTML = `<tr><td colspan="5" class="px-4 py-8 text-center text-gray-500">${esc(mensagem || 'Nenhum ciclo registrado')}</td></tr>`;
     }
@@ -1795,6 +1796,10 @@
         // Eficiencia
         const eficiencia = prodMedia >= 100 ? '+' + (prodMedia - 100).toFixed(0) + '%' : '-' + (100 - prodMedia).toFixed(0) + '%';
         document.getElementById('teleEficiencia').textContent = eficiencia;
+        // moega cheia e so alarme: fica fora do tempo do ciclo e aparece a parte
+        const paradaMoega = stats.paradaMoegaS || 0;
+        document.getElementById('teleParadaMoega').textContent = paradaMoega > 0
+          ? `parada moega: ${fmtDur(paradaMoega)} em ${stats.ciclosComParadaMoega} ciclo(s)` : '';
 
         // Tendencia (comparar com ontem)
         document.getElementById('teleCiclosTendencia').textContent = 'ultimos 7 dias';
@@ -1842,7 +1847,7 @@
       const count = data.length || 1;
       const sensores = {
         'Portão': 0,
-        'Moega/Fosso': 0,
+        'Parada moega': 0,
         'Trava Roda': 0,
         'Trava Chassi': 0,
         'Trava Pino E': 0,
@@ -1851,7 +1856,7 @@
 
       data.forEach(c => {
         sensores['Portão'] += (c.portao || 0);
-        sensores['Moega/Fosso'] += (c.moega || 0);
+        sensores['Parada moega'] += (c.moega || 0);
         sensores['Trava Roda'] += (c.trava_roda || 0);
         sensores['Trava Chassi'] += (c.trava_chassi || 0);
         sensores['Trava Pino E'] += (c.trava_pino_e || 0);
@@ -1941,6 +1946,7 @@
       });
 
       const medias = sensorMedia.map(v => Math.round(v / count));
+      medias[1] = 0;   // moega cheia e parada (alarme), nao etapa do ciclo
       const maxTempo = Math.max(...medias);
       const positivos = medias.filter(v => v > 0);
       const minTempo = positivos.length ? Math.min(...positivos) : 0;
@@ -1953,14 +1959,14 @@
       document.getElementById('barraRapida').style.width = (maxTempo > 0 ? (minTempo / maxTempo * 100) : 0) + '%';
 
       // Desvio padrao
-      const temposTotal = data.map(c => c.tempo_total || 0);
+      const temposTotal = data.map(c => Number(c.tempo_ciclo ?? c.tempo_total) || 0);
       const mediaTempo = temposTotal.reduce((a, b) => a + b, 0) / count;
       const variancia = temposTotal.reduce((sum, t) => sum + Math.pow(t - mediaTempo, 2), 0) / count;
       const desvio = Math.sqrt(variancia);
       document.getElementById('desvioPadrao').textContent = Math.round(desvio) + 's';
 
       // Ciclos acima da meta
-      const acimaMeta = data.filter(c => (c.tempo_total || 0) <= TEMPO_PADRAO_CICLO).length;
+      const acimaMeta = data.filter(c => (Number(c.tempo_ciclo ?? c.tempo_total) || 0) <= TEMPO_PADRAO_CICLO).length;
       const pctAcima = Math.round((acimaMeta / count) * 100);
       document.getElementById('ciclosAcimaMeta').textContent = `${acimaMeta}/${count} (${pctAcima}%)`;
     }
@@ -2059,7 +2065,7 @@
       // 6 sensores independentes
       const sensores = [
         { nome: 'Portão', tempo: lastCycle.portao || 0 },
-        { nome: 'Moega/Fosso', tempo: lastCycle.moega || 0 },
+        { nome: 'Parada moega', tempo: lastCycle.moega || 0 },
         { nome: 'Trava Roda', tempo: lastCycle.trava_roda || 0 },
         { nome: 'Trava Chassi', tempo: lastCycle.trava_chassi || 0 },
         { nome: 'Trava Pino E', tempo: lastCycle.trava_pino_e || 0 },
@@ -2101,7 +2107,7 @@
       });
 
       const values = sensorMedia.map(v => Math.round(v / count) || 0);
-      const labels = ['Portão', 'Moega', 'Tr.Roda', 'Tr.Chassi', 'Tr.Pino E', 'Tr.Pino D'];
+      const labels = ['Portão', 'Parada moega', 'Tr.Roda', 'Tr.Chassi', 'Tr.Pino E', 'Tr.Pino D'];
 
       chartEtapas = new Chart(ctx, {
         type: 'bar',
@@ -2138,32 +2144,25 @@
       }
 
       tbody.innerHTML = data.slice(0, 20).map(c => {
-        const produtividade = parseFloat(c.eficiencia) || (c.tempo_total > 0 ? (TEMPO_PADRAO_CICLO / c.tempo_total) * 100 : 0);
+        // tempo do ciclo = total - parada da moega (moega cheia e so alarme, nao e ciclo)
+        const tempoCiclo = Number(c.tempo_ciclo ?? c.tempo_total) || 0;
+        const produtividade = parseFloat(c.eficiencia) || (tempoCiclo > 0 ? Math.min(200, (TEMPO_PADRAO_CICLO / tempoCiclo) * 100) : 0);
         const prodClass = produtividade >= 100 ? 'text-green-600 bg-green-50' : produtividade >= 80 ? 'text-yellow-600 bg-yellow-50' : 'text-red-600 bg-red-50';
 
-        // Etapa mais lenta: so portao e moega/fosso. As travas ficam engatadas do comeco
-        // ao fim do ciclo, entao o tempo delas e sempre o ciclo inteiro e elas "ganhavam"
-        // sempre (05/10/2026: todo ciclo aparecia como "Trava Chassi"). Sensor desabilitado
-        // ou parado manda 0 e nao entra.
-        const etapas = [
-          { nome: 'Portão', tempo: Number(c.portao) || 0 },
-          { nome: 'Moega/Fosso', tempo: Number(c.moega) || 0 }
-        ].filter(e => e.tempo > 0);
-        const maisLento = etapas.length ? etapas.reduce((a, b) => a.tempo > b.tempo ? a : b) : null;
-        const tempoEtapa = s => s >= 60 ? `${Math.round(s / 60)} min` : `${Math.round(s)}s`;
-        const celulaEtapa = maisLento
-          ? `<span class="text-red-500">${maisLento.nome} (${tempoEtapa(maisLento.tempo)})</span>`
+        const parada = Number(c.parada_moega) || 0;
+        const celulaParada = parada > 0
+          ? `<span class="text-red-500">Moega cheia (${parada >= 60 ? Math.round(parada / 60) + ' min' : Math.round(parada) + 's'})</span>`
           : '<span class="text-gray-400">—</span>';
 
         return `
           <tr class="hover:bg-gray-50 border-b">
             <td class="px-4 py-3 text-xs text-gray-600">${fmtDataBR(c.timestamp)}</td>
             <td class="px-4 py-3 text-center font-bold text-gray-800">#${c.ciclo_numero || '-'}</td>
-            <td class="px-4 py-3 text-center font-medium">${Math.round((c.tempo_total || 0) / 60)} min</td>
+            <td class="px-4 py-3 text-center font-medium">${Math.round(tempoCiclo / 60)} min</td>
             <td class="px-4 py-3 text-center">
               <span class="px-3 py-1 rounded-full text-sm font-bold ${prodClass}">${produtividade.toFixed(0)}%</span>
             </td>
-            <td class="px-4 py-3 text-center text-xs font-medium">${celulaEtapa}</td>
+            <td class="px-4 py-3 text-center text-xs font-medium">${celulaParada}</td>
           </tr>
         `;
       }).join('');
@@ -2354,7 +2353,7 @@
       const ctx = document.getElementById('chartCompareRadar');
       if (chartCompareRadar) chartCompareRadar.destroy();
 
-      const labels = ['Portao', 'Moega', 'Tr.Roda', 'Tr.Chassi', 'Tr.Pino E', 'Tr.Pino D'];
+      const labels = ['Portao', 'Parada moega', 'Tr.Roda', 'Tr.Chassi', 'Tr.Pino E', 'Tr.Pino D'];
       const sensorKeys = ['portao', 'moega', 'trava_roda', 'trava_chassi', 'trava_pino_e', 'trava_pino_d'];
 
       const datasets = devices.map((d, i) => ({
@@ -2483,7 +2482,7 @@
         { label: 'Eficiencia Media', key: d => d.eficiencia_media + '%' },
         { label: 'Horimetro', key: d => d.horas_operacao + 'h' },
         { label: 'Sensor - Portao (med)', key: d => Math.round(parseFloat(d.sensores.portao) || 0) + 's' },
-        { label: 'Sensor - Moega (med)', key: d => Math.round(parseFloat(d.sensores.moega) || 0) + 's' },
+        { label: 'Parada moega (med)', key: d => Math.round(parseFloat(d.sensores.moega) || 0) + 's' },
         { label: 'Sensor - Trava Roda (med)', key: d => Math.round(parseFloat(d.sensores.trava_roda) || 0) + 's' },
         { label: 'Sensor - Trava Chassi (med)', key: d => Math.round(parseFloat(d.sensores.trava_chassi) || 0) + 's' },
         { label: 'Sensor - Trava Pino E (med)', key: d => Math.round(parseFloat(d.sensores.trava_pino_e) || 0) + 's' },
