@@ -1,7 +1,7 @@
 /**
  * PILI TECH - Portal Unificado
  * Sistema Hierárquico: Empresas → Unidades → Dispositivos → Usuários
- * Com Trial de 30 dias e Sistema de Pagamento
+ * Com Trial de 365 dias e Sistema de Pagamento
  */
 
 require('dotenv').config();
@@ -51,6 +51,10 @@ const SUBSCRIPTION_PRICE = 2000.00;
 // meta / tempo real, ate 200%. Calculada aqui a partir do tempo do ciclo, e nao lida do valor que
 // a IoT grava: IoT antiga (ate a v10.45) ainda manda a eficiencia contra 20 min.
 const META_CICLO_S = 10 * 60;
+
+// Periodo de avaliacao de empresa nova (05/10/2026: 365 dias; antes 30). O padrao da coluna
+// empresas.trial_ends_at e ajustado na inicializacao.
+const TRIAL_DIAS = 365;
 // Moega/fosso cheio e so alarme: o tempo parado esperando a moega (coluna sensor40) mostra a
 // ineficiencia da moega, nao do tombador. Tempo do ciclo = total - parada da moega.
 const TEMPO_CICLO_SQL = `GREATEST(tempo_total - COALESCE(sensor40, 0), 0)`;
@@ -432,7 +436,7 @@ app.post('/api/empresas', authenticateToken, requireSuperAdmin, async (req, res)
       VALUES ($1, 'anual', 2000.00, 'trial', $2)
     `, [empresaId, trialEndsAt]);
 
-    res.status(201).json({ success: true, id: empresaId, message: 'Empresa criada com sucesso (30 dias de trial)' });
+    res.status(201).json({ success: true, id: empresaId, message: `Empresa criada com sucesso (${TRIAL_DIAS} dias de avaliação)` });
   } catch (err) {
     if (err.code === '23505') {
       return res.status(400).json({ error: 'CNPJ já cadastrado' });
@@ -1660,9 +1664,9 @@ app.post('/api/payment/register-card', authenticateToken, async (req, res) => {
       WHERE id = $5
     `, [cardToken, lastFour, cardName, cpf.replace(/\D/g, ''), empresa_id]);
 
-    // Criar registro de assinatura pendente (será cobrada após 30 dias)
+    // Criar registro de assinatura pendente (será cobrada após o período de avaliação)
     const trialEnds = new Date();
-    trialEnds.setDate(trialEnds.getDate() + 30);
+    trialEnds.setDate(trialEnds.getDate() + TRIAL_DIAS);
     const unidade_id = req.body.unidade_id || req.user.unidade_id || null;
 
     await pool.query(`
@@ -3040,6 +3044,7 @@ async function initDatabase() {
     `);
     console.log('✅ Tabela firmwares verificada');
     await criarTabelasOta(pool);
+    await pool.query(`ALTER TABLE empresas ALTER COLUMN trial_ends_at SET DEFAULT (CURRENT_TIMESTAMP + INTERVAL '${TRIAL_DIAS} days')`);
 
     // Fila de comandos do Controle Remoto (sobrevive a reinicio/publicacao do portal)
     await pool.query(`
@@ -3267,7 +3272,7 @@ server.listen(PORT, async () => {
   console.log('   Senha: @2025@2026');
   console.log('');
   console.log('   Assinatura Anual: R$ 2.000,00');
-  console.log('   Trial: 30 dias');
+  console.log(`   Trial: ${TRIAL_DIAS} dias`);
   console.log('');
   console.log('=========================================');
 
