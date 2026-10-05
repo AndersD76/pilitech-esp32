@@ -438,7 +438,7 @@
             <span class="text-xs font-medium opacity-80">EFICIENCIA</span>
           </div>
           <div class="text-xl sm:text-3xl font-black" id="teleEficiencia">-</div>
-          <div class="text-xs opacity-70">vs meta 12min</div>
+          <div class="text-xs opacity-70">vs meta 10min</div>
         </div>
       </div>
 
@@ -607,7 +607,7 @@
           <!-- Barras - Produtividade -->
           <div class="bg-gradient-to-br from-gray-50 to-white border-2 border-gray-100 rounded-2xl p-5 shadow-sm">
             <h4 class="font-bold text-gray-800 mb-1">Produtividade & Eficiencia</h4>
-            <p class="text-xs text-gray-500 mb-4">Percentual vs meta de 12 minutos</p>
+            <p class="text-xs text-gray-500 mb-4">Percentual vs meta de 10 minutos</p>
             <canvas id="chartCompareProd" height="200"></canvas>
           </div>
 
@@ -1731,7 +1731,7 @@
 
     // ========== TELEMETRIA E PRODUTIVIDADE ==========
     let chartCiclos, chartProdutividade, chartEtapas, chartPizza, chartHorario;
-    const TEMPO_PADRAO_CICLO = 12 * 60; // meta de ciclo: 12 minutos em segundos (igual a META_CICLO_S do server.js)
+    const TEMPO_PADRAO_CICLO = 10 * 60; // meta de ciclo: 10 minutos em segundos (igual a META_CICLO_S do server.js)
 
     // O seletor do dashboard e preenchido pelo loadDevices() (mantendo a escolha a cada
     // atualizacao); antes havia um segundo preenchimento aqui que apagava a selecao.

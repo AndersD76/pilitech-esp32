@@ -47,10 +47,10 @@ const BB_API_CONFIG = {
 // Valor da assinatura anual
 const SUBSCRIPTION_PRICE = 2000.00;
 
-// Meta de tempo de ciclo do tombador (05/10/2026: 12 min; antes 20). Eficiencia de um ciclo =
+// Meta de tempo de ciclo do tombador (05/10/2026: 10 min; antes 20). Eficiencia de um ciclo =
 // meta / tempo real, ate 200%. Calculada aqui a partir do tempo do ciclo, e nao lida do valor que
 // a IoT grava: IoT antiga (ate a v10.45) ainda manda a eficiencia contra 20 min.
-const META_CICLO_S = 12 * 60;
+const META_CICLO_S = 10 * 60;
 const EFICIENCIA_SQL = `LEAST(200, ROUND(${META_CICLO_S} * 100.0 / NULLIF(tempo_total, 0), 1))`;
 
 // Database connection

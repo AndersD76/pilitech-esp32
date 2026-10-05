@@ -4,7 +4,7 @@ const jwt = require('jsonwebtoken');
 const WebSocket = require('ws');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'pilitech_secret_key_2025';
-const TEMPO_PADRAO = 12 * 60;   // meta de ciclo (igual a META_CICLO_S do server.js)
+const TEMPO_PADRAO = 10 * 60;   // meta de ciclo (igual a META_CICLO_S do server.js)
 
 async function isDemoEmpresa(pool, empresaId) {
   if (!empresaId) return false;
@@ -87,7 +87,7 @@ function getStatePayload(state) {
 }
 
 async function persistCycle(pool, deviceId) {
-  const tempoTotal = rand(540, 960);   // 9 a 16 min, em torno da meta de 12
+  const tempoTotal = rand(450, 800);   // 7,5 a 13 min, em torno da meta de 10
   const eficiencia = Math.round((TEMPO_PADRAO / tempoTotal) * 100 * 100) / 100;
   try {
     const r = await pool.query(`
@@ -192,7 +192,7 @@ function setupDemoMode(app, httpServer, pool, liveDeviceStatus, _pendingCommands
     const dev = await findDemoDevice(pool, serial_number, req.user.empresa_id);
     if (!dev) return res.status(404).json({ error: 'Device demo nao encontrado' });
 
-    const tempoTotal = rand(540, 960);   // 9 a 16 min, em torno da meta de 12
+    const tempoTotal = rand(450, 800);   // 7,5 a 13 min, em torno da meta de 10
     const efic = Math.round((TEMPO_PADRAO / tempoTotal) * 100 * 100) / 100;
     const r = await pool.query(`
       INSERT INTO cycle_data (
