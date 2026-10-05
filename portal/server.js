@@ -2590,6 +2590,23 @@ app.post('/api/batch', validateApiKey, async (req, res) => {
     if (typeof kb === 'number') dataUsage.set(sn, { kb, at: new Date().toISOString() });
     console.log(`📦 Lote de ${sn}: ${gravados}/${it.length} itens gravados, consumo 4G ${kb} KB no mes`);
 
+    // d = contadores do buffer (IoT v10.46+): [no boot, gravados, confirmados, pendentes,
+    // descartados: ilegivel, recusado, SPIFFS cheio, sem slot]. Item que some sem
+    // ser confirmado nem descartado aparece em "sumidos".
+    const d = req.body.d;
+    if (Array.isArray(d) && d.length >= 8 && d.every(Number.isInteger)) {
+      const [b0, bz, bk, bf, d0, d1, d2, d3] = d;
+      const sumidos = b0 + bz - bk - d0 - d1 - d2 - d3 - bf;
+      if (sumidos !== 0 || d0 + d1 + d2 + d3 > 0) {
+        console.warn(`[BUFFER] ${sn}: pendentes ${bf}, descartados ${d0}/${d1}/${d2}/${d3}, sumidos ${sumidos}`);
+      }
+      pool.query(`INSERT INTO pilitech_lote_diag (device_id, fw, itens, no_boot, gravados, confirmados, pendentes,
+                    desc_ilegivel, desc_recusado, desc_cheio, desc_sem_slot, sumidos)
+                  VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
+                 [deviceId, typeof fw === 'string' ? fw : null, it.length, b0, bz, bk, bf, d0, d1, d2, d3, sumidos])
+        .catch(e => console.error('lote diag:', e.message));
+    }
+
     const cmds = pendingCommands.retirar(sn, typeof fw === 'string' ? fw : null);
     res.json(cmds.length > 0 ? { success: true, n: gravados, commands: cmds } : { success: true, n: gravados });
   } catch (err) {
@@ -3009,6 +3026,22 @@ async function initDatabase() {
     const filas = await pool.query('SELECT serial_number, commands FROM device_command_queue');
     filas.rows.forEach(r => Map.prototype.set.call(pendingCommands, r.serial_number, r.commands));
     console.log(`✅ Fila de comandos: ${filas.rows.length} dispositivo(s) com comandos pendentes`);
+
+    // Contadores do buffer da IoT que chegam em cada lote 4G (IoT v10.46+): mostram se
+    // algum item some entre o equipamento e o portal (ver /api/batch)
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS pilitech_lote_diag (
+        id SERIAL PRIMARY KEY,
+        device_id INTEGER NOT NULL,
+        recebido_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        fw VARCHAR(20),
+        itens INTEGER,
+        no_boot INTEGER, gravados INTEGER, confirmados INTEGER, pendentes INTEGER,
+        desc_ilegivel INTEGER, desc_recusado INTEGER, desc_cheio INTEGER, desc_sem_slot INTEGER,
+        sumidos INTEGER
+      )
+    `);
+    await pool.query('CREATE INDEX IF NOT EXISTS pilitech_lote_diag_dev ON pilitech_lote_diag (device_id, recebido_em)');
 
     // Apagar assinaturas pendentes antigas (limpeza)
     await pool.query(`DELETE FROM subscriptions WHERE status = 'pending' AND created_at < NOW() - INTERVAL '7 days'`);

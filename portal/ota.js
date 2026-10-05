@@ -60,8 +60,14 @@ function setupOta(app, pool, { authenticateToken, requireSuperAdmin, validateApi
       const tipo = req.body.tipo === 'display' ? 'display' : 'iot';
       if (!version || !data) return res.status(400).json({ error: 'versao e arquivo obrigatorios' });
       if (!/^[0-9A-Za-z._-]{1,20}$/.test(version)) return res.status(400).json({ error: 'versao: use so letras, numeros, ponto, - e _ (ate 20)' });
-      const buf = Buffer.from(data, 'base64');
-      if (buf.length < 1024 || buf[0] !== 0xE9) return res.status(400).json({ error: 'nao e um firmware ESP32 (.bin do app, nao o merged)' });
+      const original = Buffer.from(data, 'base64');
+      if (original.length < 1024 || original[0] !== 0xE9) return res.status(400).json({ error: 'nao e um firmware ESP32 (.bin do app, nao o merged)' });
+      // Completa com 0xFF ate um numero inteiro de pedacos de 64 KB: o ultimo pedaco
+      // curto nunca passava na IoT (05/10/2026: OTA 10.45 parou 8x no bloco 0 do
+      // pedaco 19, o curto; a mesma versao completada passou inteira). A imagem diz
+      // onde termina: o ESP32 (Update/esp_image_verify) ignora o que vem depois.
+      const buf = Buffer.alloc(Math.ceil(original.length / PEDACO) * PEDACO, 0xFF);
+      original.copy(buf);
       if (buf.length > APP_MAX) return res.status(400).json({ error: `firmware maior que a particao (${(APP_MAX / 1048576).toFixed(0)} MB)` });
       const md5 = crypto.createHash('md5').update(buf).digest('hex');
       await pool.query(`
@@ -72,8 +78,8 @@ function setupOta(app, pool, { authenticateToken, requireSuperAdmin, validateApi
           md5 = EXCLUDED.md5, uploaded_by = EXCLUDED.uploaded_by, uploaded_at = CURRENT_TIMESTAMP
       `, [version, filename || 'firmware.bin', buf.length, buf, req.user.email || 'admin', tipo, md5]);
       cache.delete(version);
-      console.log(`[OTA] firmware ${tipo} ${version} cadastrado (${(buf.length / 1024).toFixed(0)} KB, md5 ${md5})`);
-      res.json({ success: true, version, tipo, size: buf.length, md5 });
+      console.log(`[OTA] firmware ${tipo} ${version} cadastrado (${(original.length / 1024).toFixed(0)} KB completado para ${(buf.length / 1024).toFixed(0)} KB, md5 ${md5})`);
+      res.json({ success: true, version, tipo, size: buf.length, original: original.length, md5 });
     } catch (e) {
       console.error('[OTA upload]', e.message);
       res.status(500).json({ error: 'Erro ao salvar firmware: ' + e.message });
