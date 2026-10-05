@@ -277,7 +277,7 @@ app.post('/api/login', async (req, res) => {
   const password = req.body.password;
 
   if (!email || !password) {
-    return res.status(400).json({ success: false, message: 'Email e senha sao obrigatorios' });
+    return res.status(400).json({ success: false, message: 'Email e senha são obrigatórios' });
   }
 
   try {
@@ -509,7 +509,7 @@ app.delete('/api/empresas/:id', authenticateToken, requireSuperAdmin, async (req
     // Verificar se empresa existe
     const empresaCheck = await pool.query('SELECT id FROM empresas WHERE id = $1', [id]);
     if (empresaCheck.rows.length === 0) {
-      return res.status(404).json({ error: 'Empresa nao encontrada' });
+      return res.status(404).json({ error: 'Empresa não encontrada' });
     }
 
     // Buscar todos os dispositivos das unidades desta empresa
@@ -551,7 +551,7 @@ app.delete('/api/empresas/:id', authenticateToken, requireSuperAdmin, async (req
     // Excluir empresa
     await pool.query('DELETE FROM empresas WHERE id = $1', [id]);
 
-    res.json({ success: true, message: 'Empresa excluida com sucesso' });
+    res.json({ success: true, message: 'Empresa excluída com sucesso' });
   } catch (err) {
     console.error('Erro ao excluir empresa:', err);
     res.status(500).json({ error: err.message });
@@ -639,7 +639,7 @@ app.get('/api/unidades/:id', authenticateToken, async (req, res) => {
     `, [id]);
 
     if (result.rows.length === 0) {
-      return res.status(404).json({ error: 'Unidade nao encontrada' });
+      return res.status(404).json({ error: 'Unidade não encontrada' });
     }
 
     const unidade = result.rows[0];
@@ -648,11 +648,11 @@ app.get('/api/unidades/:id', authenticateToken, async (req, res) => {
     if (req.user.role !== 'super_admin' &&
         req.user.role !== 'admin_empresa' &&
         req.user.unidade_id !== parseInt(id)) {
-      return res.status(403).json({ error: 'Sem permissao para visualizar esta unidade' });
+      return res.status(403).json({ error: 'Sem permissão para visualizar esta unidade' });
     }
 
     if (req.user.role === 'admin_empresa' && unidade.empresa_id !== req.user.empresa_id) {
-      return res.status(403).json({ error: 'Sem permissao para visualizar esta unidade' });
+      return res.status(403).json({ error: 'Sem permissão para visualizar esta unidade' });
     }
 
     res.json(unidade);
@@ -671,16 +671,16 @@ app.put('/api/unidades/:id', authenticateToken, requireAdmin, async (req, res) =
     // Buscar unidade
     const unidadeResult = await pool.query('SELECT empresa_id FROM unidades WHERE id = $1', [id]);
     if (unidadeResult.rows.length === 0) {
-      return res.status(404).json({ error: 'Unidade nao encontrada' });
+      return res.status(404).json({ error: 'Unidade não encontrada' });
     }
 
     // Verificar permissao
     if (req.user.role === 'admin_empresa' && unidadeResult.rows[0].empresa_id !== req.user.empresa_id) {
-      return res.status(403).json({ error: 'Sem permissao para editar esta unidade' });
+      return res.status(403).json({ error: 'Sem permissão para editar esta unidade' });
     }
 
     if (!nome) {
-      return res.status(400).json({ error: 'Nome e obrigatorio' });
+      return res.status(400).json({ error: 'Nome é obrigatório' });
     }
 
     await pool.query(`
@@ -706,12 +706,12 @@ app.delete('/api/unidades/:id', authenticateToken, requireAdmin, async (req, res
     // Buscar unidade
     const unidadeResult = await pool.query('SELECT empresa_id FROM unidades WHERE id = $1', [id]);
     if (unidadeResult.rows.length === 0) {
-      return res.status(404).json({ error: 'Unidade nao encontrada' });
+      return res.status(404).json({ error: 'Unidade não encontrada' });
     }
 
     // Verificar permissao (admin_empresa so pode excluir da propria empresa)
     if (req.user.role === 'admin_empresa' && unidadeResult.rows[0].empresa_id !== req.user.empresa_id) {
-      return res.status(403).json({ error: 'Sem permissao para excluir esta unidade' });
+      return res.status(403).json({ error: 'Sem permissão para excluir esta unidade' });
     }
 
     // Verificar se tem dispositivos vinculados
@@ -722,7 +722,7 @@ app.delete('/api/unidades/:id', authenticateToken, requireAdmin, async (req, res
 
     if (parseInt(devicesResult.rows[0].total) > 0) {
       return res.status(400).json({
-        error: 'Nao e possivel excluir. Unidade possui dispositivos vinculados. Desvincule os dispositivos primeiro.'
+        error: 'Não é possível excluir. Unidade possui dispositivos vinculados. Desvincule os dispositivos primeiro.'
       });
     }
 
@@ -734,14 +734,14 @@ app.delete('/api/unidades/:id', authenticateToken, requireAdmin, async (req, res
 
     if (parseInt(usuariosResult.rows[0].total) > 0) {
       return res.status(400).json({
-        error: 'Nao e possivel excluir. Unidade possui usuarios vinculados. Altere os usuarios primeiro.'
+        error: 'Não é possível excluir. Unidade possui usuários vinculados. Altere os usuários primeiro.'
       });
     }
 
     // Excluir unidade
     await pool.query('DELETE FROM unidades WHERE id = $1', [id]);
 
-    res.json({ success: true, message: 'Unidade excluida com sucesso' });
+    res.json({ success: true, message: 'Unidade excluída com sucesso' });
   } catch (err) {
     console.error('Erro ao excluir unidade:', err);
     res.status(500).json({ error: err.message });
@@ -806,7 +806,7 @@ app.get('/api/usuarios/:id', authenticateToken, async (req, res) => {
     `, [id]);
 
     if (result.rows.length === 0) {
-      return res.status(404).json({ error: 'Usuario nao encontrado' });
+      return res.status(404).json({ error: 'Usuário não encontrado' });
     }
 
     const user = result.rows[0];
@@ -818,12 +818,12 @@ app.get('/api/usuarios/:id', authenticateToken, async (req, res) => {
       req.user.id === parseInt(id);
 
     if (!canView) {
-      return res.status(403).json({ error: 'Sem permissao para visualizar este usuario' });
+      return res.status(403).json({ error: 'Sem permissão para visualizar este usuário' });
     }
 
     res.json(user);
   } catch (err) {
-    console.error('Erro ao buscar usuario:', err);
+    console.error('Erro ao buscar usuário:', err);
     res.status(500).json({ error: err.message });
   }
 });
@@ -961,13 +961,13 @@ app.post('/api/devices', authenticateToken, requireSuperAdmin, async (req, res) 
     const { serial_number, name, unidade_id } = req.body;
 
     if (!serial_number) {
-      return res.status(400).json({ error: 'Numero de serie e obrigatorio' });
+      return res.status(400).json({ error: 'Número de série é obrigatório' });
     }
 
     // Verificar se já existe
     const existing = await pool.query('SELECT id FROM devices WHERE serial_number = $1', [serial_number]);
     if (existing.rows.length > 0) {
-      return res.status(400).json({ error: 'Dispositivo com este numero de serie ja existe' });
+      return res.status(400).json({ error: 'Dispositivo com este número de série já existe' });
     }
 
     // Criar dispositivo
@@ -998,14 +998,14 @@ app.put('/api/devices/:serialNumber', authenticateToken, requireSuperAdmin, asyn
     // Verificar se dispositivo existe
     const existing = await pool.query('SELECT id FROM devices WHERE serial_number = $1', [serialNumber]);
     if (existing.rows.length === 0) {
-      return res.status(404).json({ error: 'Dispositivo nao encontrado' });
+      return res.status(404).json({ error: 'Dispositivo não encontrado' });
     }
 
     // Se mudou serial_number, verificar se o novo ja existe
     if (serial_number && serial_number !== serialNumber) {
       const dup = await pool.query('SELECT id FROM devices WHERE serial_number = $1', [serial_number]);
       if (dup.rows.length > 0) {
-        return res.status(400).json({ error: 'Ja existe um dispositivo com este numero de serie' });
+        return res.status(400).json({ error: 'Já existe um dispositivo com este número de série' });
       }
     }
 
@@ -1131,7 +1131,7 @@ app.delete('/api/devices/:serialNumber', authenticateToken, requireSuperAdmin, a
     // Buscar device
     const deviceResult = await pool.query('SELECT id FROM devices WHERE serial_number = $1', [serialNumber]);
     if (deviceResult.rows.length === 0) {
-      return res.status(404).json({ error: 'Dispositivo nao encontrado' });
+      return res.status(404).json({ error: 'Dispositivo não encontrado' });
     }
 
     const deviceId = deviceResult.rows[0].id;
@@ -1364,7 +1364,7 @@ app.get('/api/admin/telemetria', authenticateToken, requireSuperAdmin, async (re
 // Admin envia comando para um dispositivo
 app.post('/api/admin/device-command', authenticateToken, requireSuperAdmin, (req, res) => {
   const { serial_number, cmd, params } = req.body;
-  if (!serial_number || !cmd) return res.status(400).json({ error: 'serial_number e cmd obrigatorios' });
+  if (!serial_number || !cmd) return res.status(400).json({ error: 'serial_number e cmd obrigatórios' });
 
   const command = { cmd, ...params, timestamp: new Date().toISOString(), from: 'admin' };
   const queue = pendingCommands.get(serial_number) || [];
@@ -1440,7 +1440,7 @@ app.get('/api/firmware/check', validateApiKey, async (req, res) => {
 app.get('/api/firmware/download/:version', validateApiKey, async (req, res) => {
   try {
     const r = await pool.query('SELECT filename, size, data FROM firmwares WHERE version = $1', [req.params.version]);
-    if (r.rows.length === 0) return res.status(404).json({ error: 'Firmware nao encontrado' });
+    if (r.rows.length === 0) return res.status(404).json({ error: 'Firmware não encontrado' });
     const fw = r.rows[0];
     res.setHeader('Content-Type', 'application/octet-stream');
     res.setHeader('Content-Disposition', `attachment; filename="${fw.filename}"`);
@@ -1596,7 +1596,7 @@ app.post('/api/payment/register-card', authenticateToken, async (req, res) => {
     const empresa_id = req.user.empresa_id;
 
     if (!empresa_id) {
-      return res.status(400).json({ error: 'Usuario não vinculado a uma empresa' });
+      return res.status(400).json({ error: 'Usuário não vinculado a uma empresa' });
     }
 
     const { cardName, cardNumber, cardExpiry, cardCvv, cpf, cupom_code } = req.body;
@@ -2033,12 +2033,12 @@ app.post('/api/cupons', authenticateToken, requireSuperAdmin, async (req, res) =
     const { code, discount_type, discount_value, valid_until, max_uses, description } = req.body;
 
     if (!code || !discount_type || !discount_value) {
-      return res.status(400).json({ error: 'Codigo, tipo e valor do desconto sao obrigatorios' });
+      return res.status(400).json({ error: 'Código, tipo e valor do desconto são obrigatórios' });
     }
 
     // Validar tipo de desconto
     if (!['percentual', 'valor'].includes(discount_type)) {
-      return res.status(400).json({ error: 'Tipo de desconto invalido' });
+      return res.status(400).json({ error: 'Tipo de desconto inválido' });
     }
 
     // Validar percentual
@@ -2055,7 +2055,7 @@ app.post('/api/cupons', authenticateToken, requireSuperAdmin, async (req, res) =
     res.status(201).json({ success: true, id: result.rows[0].id });
   } catch (err) {
     if (err.code === '23505') {
-      return res.status(400).json({ error: 'Ja existe um cupom com esse codigo' });
+      return res.status(400).json({ error: 'Já existe um cupom com esse código' });
     }
     console.error('Erro ao criar cupom:', err);
     res.status(500).json({ error: err.message });
@@ -2111,7 +2111,7 @@ app.post('/api/cupons/validate', authenticateToken, async (req, res) => {
     const { code } = req.body;
 
     if (!code) {
-      return res.status(400).json({ error: 'Codigo do cupom e obrigatorio' });
+      return res.status(400).json({ error: 'Código do cupom e obrigatório' });
     }
 
     const result = await pool.query(`
@@ -2119,7 +2119,7 @@ app.post('/api/cupons/validate', authenticateToken, async (req, res) => {
     `, [code.toUpperCase()]);
 
     if (result.rows.length === 0) {
-      return res.status(404).json({ error: 'Cupom nao encontrado ou inativo' });
+      return res.status(404).json({ error: 'Cupom não encontrado ou inativo' });
     }
 
     const cupom = result.rows[0];
@@ -2171,7 +2171,7 @@ app.post('/api/cupons/apply', authenticateToken, async (req, res) => {
     const { code, empresa_id } = req.body;
 
     if (!code) {
-      return res.status(400).json({ error: 'Codigo do cupom e obrigatorio' });
+      return res.status(400).json({ error: 'Código do cupom e obrigatório' });
     }
 
     // Incrementar contador de uso
@@ -2182,7 +2182,7 @@ app.post('/api/cupons/apply', authenticateToken, async (req, res) => {
     `, [code.toUpperCase()]);
 
     if (result.rows.length === 0) {
-      return res.status(404).json({ error: 'Cupom nao encontrado' });
+      return res.status(404).json({ error: 'Cupom não encontrado' });
     }
 
     res.json({ success: true, times_used: result.rows[0].times_used });
@@ -2534,12 +2534,12 @@ app.post('/api/batch', validateApiKey, async (req, res) => {
     if (idx < 0) return res.status(400).json({ error: 'crc ausente' });
     const crcRecebido = raw.subarray(idx + marca.length, idx + marca.length + 8).toString();
     if (crc32(raw.subarray(0, idx)) !== crcRecebido) {
-      console.warn(`[BATCH] CRC nao confere (${req.body && req.body.sn}) - lote rejeitado`);
-      return res.status(400).json({ error: 'crc invalido' });
+      console.warn(`[BATCH] CRC não confere (${req.body && req.body.sn}) - lote rejeitado`);
+      return res.status(400).json({ error: 'crc inválido' });
     }
 
     const { sn, kb, it, fw } = req.body;
-    if (!sn || !Array.isArray(it)) return res.status(400).json({ error: 'sn e it obrigatorios' });
+    if (!sn || !Array.isArray(it)) return res.status(400).json({ error: 'sn e it obrigatórios' });
 
     let dev = await pool.query('SELECT id FROM devices WHERE serial_number = $1', [sn]);
     let deviceId;
@@ -2611,7 +2611,7 @@ app.post('/api/batch', validateApiKey, async (req, res) => {
     }
 
     if (typeof kb === 'number') dataUsage.set(sn, { kb, at: new Date().toISOString() });
-    console.log(`📦 Lote de ${sn}: ${gravados}/${it.length} itens gravados, consumo 4G ${kb} KB no mes`);
+    console.log(`📦 Lote de ${sn}: ${gravados}/${it.length} itens gravados, consumo 4G ${kb} KB no mês`);
 
     // d = contadores do buffer (IoT v10.46+): [no boot, gravados, confirmados, pendentes,
     // descartados: ilegivel, recusado, SPIFFS cheio, sem slot]. Item que some sem

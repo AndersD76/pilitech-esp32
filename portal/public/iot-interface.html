@@ -91,7 +91,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;ba
 <h2 style="color:#6b7280;font-size:24px;letter-spacing:4px;margin:0 0 12px">PILI TECH</h2>
 <div style="width:60px;height:2px;background:#374151;margin:0 auto 16px"></div>
 <h3 style="color:#6b7280;font-size:14px;letter-spacing:2px;margin:0 0 8px">EQUIPAMENTO OFFLINE</h3>
-<p style="color:#4b5563;font-size:12px;margin:0">Sem energia ou sem conexao</p>
+<p style="color:#4b5563;font-size:12px;margin:0">Sem energia ou sem conexão</p>
 </div>
 </div>
 <div class="header">
@@ -194,7 +194,7 @@ Sensores do Sistema
 </div>
 </div>
 <div id="moegaAlert" style="display:none;margin-top:6px;padding:10px;background:#dc2626;border-radius:5px;text-align:center;animation:blink 1s infinite">
-<div style="font-size:14px;font-weight:700;color:#fff">MOEGA/FOSSO CHEIO — OPERACAO PARADA</div>
+<div style="font-size:14px;font-weight:700;color:#fff">MOEGA/FOSSO CHEIO — OPERAÇÃO PARADA</div>
 <div style="font-size:11px;color:rgba(255,255,255,0.8);margin-top:2px">Aguardando esvaziamento para retomar</div>
 </div>
 <div style="margin-top:6px;padding:6px 10px;background:#f9fafb;border-radius:5px">
@@ -297,7 +297,7 @@ Informações do Sistema
 Configuração WiFi
 </div>
 <div id="wifiStatusBar" style="padding:6px 10px;border-radius:5px;background:#fef2f2;border:2px solid #fecaca;text-align:center;margin-bottom:6px">
-<span id="wifiStatusText" style="font-size:11px;font-weight:700;color:#991b1b">SEM CONEXAO</span>
+<span id="wifiStatusText" style="font-size:11px;font-weight:700;color:#991b1b">SEM CONEXÃO</span>
 </div>
 <input type="text" id="wifiSSID" placeholder="Nome da Rede (SSID)" class="input" style="margin:2px 0">
 <input type="password" id="wifiPass" placeholder="Senha WiFi" class="input" style="margin:2px 0">
@@ -365,7 +365,7 @@ Perguntas Frequentes - PILI TECH
 </div>
 <div class="faq-item">
 <div class="faq-q">2. Como acessar localmente?</div>
-<div class="faq-a">Conecte ao WiFi "PILI-TECH" (senha: numero de serie do equipamento) e acesse 192.168.4.1 no navegador.</div>
+<div class="faq-a">Conecte ao WiFi "PILI-TECH" (senha: número de série do equipamento) e acesse 192.168.4.1 no navegador.</div>
 </div>
 <div class="faq-item">
 <div class="faq-q">3. Como é contado um ciclo?</div>
@@ -534,7 +534,7 @@ if(!seCfg[i])continue;
 if((now-sensorLastChange[i])>SENSOR_STUCK_TIMEOUT&&!sensorStuckAlerted[i]){
 sensorStuckAlerted[i]=true;
 var names=['Sensor 0°','Sensor 40°','Trava Roda','Trava Chassi','Trava Pino E','Trava Pino D','Moega/Fosso','Portão'];
-addLog('ALERTA: '+names[i]+' sem mudanca ha 24h - verificar equipamento!');
+addLog('ALERTA: '+names[i]+' sem mudança há 24h - verificar equipamento!');
 var el=document.getElementById(sIds[i]);
 if(el){el.style.border='3px solid #f59e0b';el.style.boxShadow='0 0 12px rgba(245,158,11,0.5)';}
 if(ws&&ws.readyState===1){ws.send(JSON.stringify({cmd:'SENSOR_STUCK',sensor:i,name:names[i]}));}
@@ -722,7 +722,7 @@ label.textContent='CICLO EM ANDAMENTO';label.style.color='#10b981';
 var lcMin=Math.round(data.lct/1000);
 timer.textContent=lcMin+'min';
 timer.style.color='#6b7280';
-label.textContent='ULTIMO CICLO';label.style.color='#6b7280';
+label.textContent='ÚLTIMO CICLO';label.style.color='#6b7280';
 }else{
 timer.textContent='--:--';timer.style.color='#6b7280';
 label.textContent='CICLO PARADO';label.style.color='#6b7280';
@@ -775,7 +775,7 @@ barEl2.className='bar-done';barEl2.style.background='';
 if(!isActive&&data.lct>0){
 var ttMin=Math.round(data.lct/1000);
 timer.textContent=ttMin+'min';
-timer.style.color='#6b7280';label.textContent='ULTIMO CICLO';label.style.color='#6b7280';
+timer.style.color='#6b7280';label.textContent='ÚLTIMO CICLO';label.style.color='#6b7280';
 }
 updateSistemaStatus();
 checkSensorChanges();
@@ -787,11 +787,11 @@ var noWifi=document.getElementById('noWifiWarning');
 if(data.sistemaIniciado){
 status.style.background='#d1fae5';
 status.style.borderColor='#6ee7b7';
-status.innerHTML='<span style="font-size:12px;font-weight:700;color:#065f46">SISTEMA EM OPERACAO</span>';
+status.innerHTML='<span style="font-size:12px;font-weight:700;color:#065f46">SISTEMA EM OPERAÇÃO</span>';
 }else{
 status.style.background='#fef2f2';
 status.style.borderColor='#fecaca';
-status.innerHTML='<span style="font-size:12px;font-weight:700;color:#991b1b">SISTEMA NAO INICIADO</span>';
+status.innerHTML='<span style="font-size:12px;font-weight:700;color:#991b1b">SISTEMA NÃO INICIADO</span>';
 }
 var wBar=document.getElementById('wifiStatusBar');
 var wTxt=document.getElementById('wifiStatusText');
@@ -804,7 +804,7 @@ wTxt.style.color='#065f46';wTxt.textContent='WIFI CONECTADO';
 techControls.style.display='none';
 noWifi.style.display='block';
 wBar.style.background='#fef2f2';wBar.style.borderColor='#fecaca';
-wTxt.style.color='#991b1b';wTxt.textContent='SEM CONEXAO';
+wTxt.style.color='#991b1b';wTxt.textContent='SEM CONEXÃO';
 }
 }
 function openConfigModal(){
@@ -873,7 +873,7 @@ var pass=document.getElementById('techPass').value;
 if(pass===TECH_PASS){
 document.getElementById('techLogin').style.display='none';
 document.getElementById('techPanel').style.display='block';
-addLog('Tecnico acessou controles do sistema');
+addLog('Técnico acessou controles do sistema');
 }else{
 document.getElementById('techError').style.display='block';
 }
@@ -883,43 +883,43 @@ document.getElementById('techPanel').style.display='none';
 document.getElementById('techLogin').style.display='block';
 document.getElementById('techPass').value='';
 document.getElementById('techError').style.display='none';
-addLog('Tecnico saiu dos controles');
+addLog('Técnico saiu dos controles');
 }
 function startSistema(){
-if(confirm('Iniciar o sistema? O tombador entrara em operacao.')){
+if(confirm('Iniciar o sistema? O tombador entrará em operação.')){
 if(ws&&ws.readyState===1){
 ws.send(JSON.stringify({cmd:'START_SISTEMA'}));
-addLog('SISTEMA INICIADO pelo tecnico');
+addLog('SISTEMA INICIADO pelo técnico');
 alert('Sistema iniciado com sucesso!');
 }
 }
 }
 function resetCiclosTotal(){
-if(confirm('ATENCAO: Isso vai zerar os ciclos TOTAIS. Continuar?')){
-if(confirm('Tem certeza? Esta acao nao pode ser desfeita!')){
+if(confirm('ATENÇÃO: Isso vai zerar os ciclos TOTAIS. Continuar?')){
+if(confirm('Tem certeza? Esta ação não pode ser desfeita!')){
 if(ws&&ws.readyState===1){
 ws.send(JSON.stringify({cmd:'RESET_CICLOS_TOTAL'}));
-addLog('Ciclos totais resetados pelo tecnico');
+addLog('Ciclos totais resetados pelo técnico');
 }
 }
 }
 }
 function resetHorimetro(){
-if(confirm('ATENCAO: Isso vai zerar o HORIMETRO. Continuar?')){
-if(confirm('Tem certeza? Esta acao nao pode ser desfeita!')){
+if(confirm('ATENÇÃO: Isso vai zerar o HORÍMETRO. Continuar?')){
+if(confirm('Tem certeza? Esta ação não pode ser desfeita!')){
 if(ws&&ws.readyState===1){
 ws.send(JSON.stringify({cmd:'RESET_HORIMETRO'}));
-addLog('Horimetro resetado pelo tecnico');
+addLog('Horímetro resetado pelo técnico');
 }
 }
 }
 }
 function restartIoT(){
-if(confirm('ATENCAO: Isso vai REINICIAR o IoT. Continuar?')){
-if(confirm('O sistema sera desconectado. Continuar?')){
+if(confirm('ATENÇÃO: Isso vai REINICIAR o IoT. Continuar?')){
+if(confirm('O sistema será desconectado. Continuar?')){
 if(ws&&ws.readyState===1){
 ws.send(JSON.stringify({cmd:'RESTART_IOT'}));
-addLog('IoT reiniciado pelo tecnico');
+addLog('IoT reiniciado pelo técnico');
 }
 }
 }
@@ -943,7 +943,7 @@ function salvarManutencao(){
 var desc=document.getElementById('modalMaintDesc').value;
 var tech=document.getElementById('modalMaintTech').value;
 if(!desc||!tech){
-alert('Preencha a descricao e o nome do tecnico');
+alert('Preencha a descrição e o nome do técnico');
 return;
 }
 lastMaint=new Date();
@@ -958,9 +958,9 @@ document.getElementById('lastMaint').textContent=displayText;
 if(ws && ws.readyState===1){
 ws.send(JSON.stringify({cmd:'MAINT_LOG',data:maintData}));
 }
-addLog('Manutencao: '+desc+' ('+tech+')');
+addLog('Manutenção: '+desc+' ('+tech+')');
 closeMaintModal();
-alert('Manutencao registrada com sucesso!');
+alert('Manutenção registrada com sucesso!');
 }
 function addLog(msg){
 var t=new Date().toLocaleTimeString('pt-BR');
@@ -1012,7 +1012,7 @@ addLog('Abrindo: '+filename);
 var m=document.getElementById('pdfInfoModal');
 if(!m){
 m=document.createElement('div');m.id='pdfInfoModal';m.className='modal';
-m.innerHTML='<div class="modal-content"><div class="modal-header"><div class="modal-title" id="pdfModalTitle"></div><button class="modal-close" onclick="document.getElementById(\'pdfInfoModal\').classList.remove(\'show\')">✕</button></div><div class="modal-body"><div style="text-align:center;padding:30px"><svg style="width:64px;height:64px;stroke:#dc2626;fill:none;margin-bottom:16px" viewBox="0 0 24 24" stroke-width="1.5"><path d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"/><path d="M9 13h6m-6 3h4"/></svg><p style="font-size:14px;font-weight:700;color:#111827;margin-bottom:8px">Documento disponivel no ESP32 local</p><p style="color:#6b7280;font-size:12px">Este documento esta armazenado no cartao SD do dispositivo.<br>Conecte-se a rede WiFi <b>PILI-TECH</b> e acesse <b>192.168.4.1</b> para visualizar.</p></div></div><div class="modal-footer"><button onclick="document.getElementById(\'pdfInfoModal\').classList.remove(\'show\')" class="btn btn-primary" style="width:100%">Entendi</button></div></div>';
+m.innerHTML='<div class="modal-content"><div class="modal-header"><div class="modal-title" id="pdfModalTitle"></div><button class="modal-close" onclick="document.getElementById(\'pdfInfoModal\').classList.remove(\'show\')">✕</button></div><div class="modal-body"><div style="text-align:center;padding:30px"><svg style="width:64px;height:64px;stroke:#dc2626;fill:none;margin-bottom:16px" viewBox="0 0 24 24" stroke-width="1.5"><path d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"/><path d="M9 13h6m-6 3h4"/></svg><p style="font-size:14px;font-weight:700;color:#111827;margin-bottom:8px">Documento disponível no ESP32 local</p><p style="color:#6b7280;font-size:12px">Este documento esta armazenado no cartão SD do dispositivo.<br>Conecte-se a rede WiFi <b>PILI-TECH</b> e acesse <b>192.168.4.1</b> para visualizar.</p></div></div><div class="modal-footer"><button onclick="document.getElementById(\'pdfInfoModal\').classList.remove(\'show\')" class="btn btn-primary" style="width:100%">Entendi</button></div></div>';
 document.body.appendChild(m);
 }
 document.getElementById('pdfModalTitle').textContent=filename;

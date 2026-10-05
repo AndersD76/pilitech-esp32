@@ -419,7 +419,7 @@ function setupDocsManutencao(app, pool, deps) {
       if (!(id > 0)) return res.status(400).json({ error: 'Documento inválido' });
       const r = await pool.query('DELETE FROM equipment_docs WHERE id = $1 RETURNING id, titulo', [id]);
       if (r.rows.length === 0) return res.status(404).json({ error: 'Documento não encontrado' });
-      console.log(`[DOCS] Excluido documento #${id} "${r.rows[0].titulo}"`);
+      console.log(`[DOCS] Excluído documento #${id} "${r.rows[0].titulo}"`);
       res.json({ success: true });
     } catch (err) {
       console.error('[DOCS excluir]', err.message);
@@ -530,7 +530,7 @@ function setupDocsManutencao(app, pool, deps) {
         corpo
       });
     } catch (err) {
-      console.error('[DOCS pagina]', err.message);
+      console.error('[DOCS página]', err.message);
       enviarPaginaDocs(res, 500, {
         titulo: 'Erro',
         status: '<div class="equip"><h1>Documentos indisponíveis</h1></div>',
@@ -647,7 +647,7 @@ function setupDocsManutencao(app, pool, deps) {
       `, params);
       res.json({ blocked: false, manutencoes: r.rows });
     } catch (err) {
-      console.error('[MANUT historico]', err.message);
+      console.error('[MANUT histórico]', err.message);
       res.status(500).json({ error: 'Erro ao buscar histórico de manutenções' });
     }
   });
@@ -720,7 +720,7 @@ function setupDocsManutencao(app, pool, deps) {
       r.rows.forEach(x => { const { serial_number, ...resto } = x; ciclos[serial_number] = resto; });
       res.json({ blocked: false, ciclos });
     } catch (err) {
-      console.error('[CLIENTE ultimos ciclos]', err.message);
+      console.error('[CLIENTE últimos ciclos]', err.message);
       res.status(500).json({ error: 'Erro ao buscar últimos ciclos' });
     }
   });

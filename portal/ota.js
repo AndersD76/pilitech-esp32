@@ -58,17 +58,17 @@ function setupOta(app, pool, { authenticateToken, requireSuperAdmin, validateApi
     try {
       const { version, filename, data } = req.body;
       const tipo = req.body.tipo === 'display' ? 'display' : 'iot';
-      if (!version || !data) return res.status(400).json({ error: 'versao e arquivo obrigatorios' });
-      if (!/^[0-9A-Za-z._-]{1,20}$/.test(version)) return res.status(400).json({ error: 'versao: use so letras, numeros, ponto, - e _ (ate 20)' });
+      if (!version || !data) return res.status(400).json({ error: 'versão e arquivo obrigatórios' });
+      if (!/^[0-9A-Za-z._-]{1,20}$/.test(version)) return res.status(400).json({ error: 'versão: use só letras, números, ponto, - e _ (até 20)' });
       const original = Buffer.from(data, 'base64');
-      if (original.length < 1024 || original[0] !== 0xE9) return res.status(400).json({ error: 'nao e um firmware ESP32 (.bin do app, nao o merged)' });
+      if (original.length < 1024 || original[0] !== 0xE9) return res.status(400).json({ error: 'não é um firmware ESP32 (.bin do app, não o merged)' });
       // Completa com 0xFF ate um numero inteiro de pedacos de 64 KB: o ultimo pedaco
       // curto nunca passava na IoT (05/10/2026: OTA 10.45 parou 8x no bloco 0 do
       // pedaco 19, o curto; a mesma versao completada passou inteira). A imagem diz
       // onde termina: o ESP32 (Update/esp_image_verify) ignora o que vem depois.
       const buf = Buffer.alloc(Math.ceil(original.length / PEDACO) * PEDACO, 0xFF);
       original.copy(buf);
-      if (buf.length > APP_MAX) return res.status(400).json({ error: `firmware maior que a particao (${(APP_MAX / 1048576).toFixed(0)} MB)` });
+      if (buf.length > APP_MAX) return res.status(400).json({ error: `firmware maior que a partição (${(APP_MAX / 1048576).toFixed(0)} MB)` });
       const md5 = crypto.createHash('md5').update(buf).digest('hex');
       await pool.query(`
         INSERT INTO firmwares (version, filename, size, data, uploaded_by, tipo, md5)
@@ -103,7 +103,7 @@ function setupOta(app, pool, { authenticateToken, requireSuperAdmin, validateApi
     try {
       const r = await pool.query('DELETE FROM firmwares WHERE version = $1 RETURNING version', [req.params.version]);
       cache.delete(req.params.version);
-      if (r.rowCount === 0) return res.status(404).json({ error: 'Versao nao encontrada' });
+      if (r.rowCount === 0) return res.status(404).json({ error: 'Versão não encontrada' });
       res.json({ success: true });
     } catch (e) {
       res.status(500).json({ error: 'Erro ao excluir firmware' });
@@ -115,9 +115,9 @@ function setupOta(app, pool, { authenticateToken, requireSuperAdmin, validateApi
   app.post('/api/admin/firmware/push', authenticateToken, requireSuperAdmin, async (req, res) => {
     try {
       const { serial_number, version } = req.body;
-      if (!serial_number || !version) return res.status(400).json({ error: 'equipamento e versao obrigatorios' });
+      if (!serial_number || !version) return res.status(400).json({ error: 'equipamento e versão obrigatórios' });
       const fw = await carregar(version);
-      if (!fw) return res.status(404).json({ error: 'Versao de firmware nao encontrada' });
+      if (!fw) return res.status(404).json({ error: 'Versão de firmware não encontrada' });
       // O N/S fica gravado no firmware (SERIAL_NUMBER da IoT e do display): binario gerado para
       // outra unidade faria este equipamento mandar dados como se fosse a outra.
       const sn = Buffer.concat([Buffer.from(String(serial_number)), Buffer.from([0])]);
@@ -129,10 +129,10 @@ function setupOta(app, pool, { authenticateToken, requireSuperAdmin, validateApi
       fila.push({ cmd: 'OTA_UPDATE', version, tipo: fw.tipo, timestamp: new Date().toISOString(), from: req.user.email || 'admin' });
       pendingCommands.set(serial_number, fila);
       console.log(`[OTA] ${version} enfileirado para ${serial_number}`);
-      res.json({ success: true, message: `Atualizacao ${version} na fila: o ${serial_number} recebe no proximo contato` });
+      res.json({ success: true, message: `Atualização ${version} na fila: o ${serial_number} recebe no próximo contato` });
     } catch (e) {
       console.error('[OTA push]', e.message);
-      res.status(500).json({ error: 'Erro ao enfileirar atualizacao' });
+      res.status(500).json({ error: 'Erro ao enfileirar atualização' });
     }
   });
 
@@ -165,7 +165,7 @@ function setupOta(app, pool, { authenticateToken, requireSuperAdmin, validateApi
   app.get('/api/fw/:version/info', validateApiKey, async (req, res) => {
     try {
       const fw = await carregar(req.params.version);
-      if (!fw) return res.status(404).type('text/plain').send('nao encontrado');
+      if (!fw) return res.status(404).type('text/plain').send('não encontrado');
       const texto = `${fw.size} ${fw.md5} ${PEDACO} ${fw.tipo}`;
       const crc = crc32(Buffer.from(texto)).toString(16).padStart(8, '0');
       res.set('Cache-Control', 'no-store, no-transform').type('text/plain').send(`${texto} ${crc}`);
@@ -179,7 +179,7 @@ function setupOta(app, pool, { authenticateToken, requireSuperAdmin, validateApi
     try {
       const fw = await carregar(req.params.version);
       const n = parseInt(req.params.n, 10);
-      if (!fw || !(n >= 0) || n * PEDACO >= fw.size) return res.status(404).type('text/plain').send('nao encontrado');
+      if (!fw || !(n >= 0) || n * PEDACO >= fw.size) return res.status(404).type('text/plain').send('não encontrado');
       const dados = fw.buf.subarray(n * PEDACO, Math.min((n + 1) * PEDACO, fw.size));
       const nb = Math.ceil(dados.length / BLOCO);
       const hdr = Buffer.alloc(2 + 4 * nb + 4);

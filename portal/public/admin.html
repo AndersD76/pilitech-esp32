@@ -92,7 +92,7 @@
           </li>
         </ul>
 
-        <p class="text-xs text-gray-500 uppercase mb-2 px-4">Operacao</p>
+        <p class="text-xs text-gray-500 uppercase mb-2 px-4">Operação</p>
         <ul class="space-y-1 mb-4">
           <li>
             <a href="#" onclick="showSection('telemetria')" class="nav-link flex items-center gap-3 px-4 py-3 rounded-lg text-gray-300 hover:bg-gray-700">
@@ -149,7 +149,7 @@
           <li>
             <a href="#" onclick="showSection('usuarios')" class="nav-link flex items-center gap-3 px-4 py-3 rounded-lg text-gray-300 hover:bg-gray-700">
               <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"/></svg>
-              Usuarios
+              Usuários
             </a>
           </li>
         </ul>
@@ -296,7 +296,7 @@
               <p class="text-2xl font-bold text-red-600" id="telAlertas">0</p>
             </div>
             <div class="bg-white rounded-xl shadow-sm p-5">
-              <p class="text-xs text-gray-500">Manutencoes (30 dias)</p>
+              <p class="text-xs text-gray-500">Manutenções (30 dias)</p>
               <p class="text-2xl font-bold text-blue-600" id="telManutencoes">0</p>
             </div>
           </div>
@@ -306,7 +306,7 @@
             <h3 class="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
               <svg class="w-5 h-5 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z"/></svg>
               Alertas e Eventos Recentes
-              <span class="text-xs font-normal text-gray-400 ml-2">(ultimas 24h)</span>
+              <span class="text-xs font-normal text-gray-400 ml-2">(últimas 24h)</span>
             </h3>
             <div id="telAlertsList" class="space-y-2 max-h-64 overflow-y-auto">
               <p class="text-gray-400 text-sm text-center py-4">Carregando alertas...</p>
@@ -328,8 +328,8 @@
           <div class="bg-white rounded-xl shadow-sm p-6">
             <h3 class="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
               <svg class="w-5 h-5 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.7 6.3a1 1 0 000 1.4l1.6 1.6a1 1 0 001.4 0l3.77-3.77a6 6 0 01-7.94 7.94l-6.91 6.91a2.12 2.12 0 01-3-3l6.91-6.91a6 6 0 017.94-7.94l-3.76 3.76z"/></svg>
-              Manutencoes Registradas
-              <span class="text-xs font-normal text-gray-400 ml-2">(ultimos 30 dias)</span>
+              Manutenções Registradas
+              <span class="text-xs font-normal text-gray-400 ml-2">(últimos 30 dias)</span>
             </h3>
             <div id="telMaintList" class="overflow-x-auto">
               <p class="text-gray-400 text-sm text-center py-4">Carregando...</p>
@@ -363,7 +363,7 @@
               <div class="bg-white rounded-xl shadow-sm p-6">
                 <h3 class="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
                   <svg class="w-5 h-5 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
-                  Configuracao de Sensores
+                  Configuração de Sensores
                 </h3>
                 <div id="ctrlSensorConfig" class="grid grid-cols-2 md:grid-cols-4 gap-3">
                   <p class="text-gray-400 text-sm col-span-full text-center py-4">Selecione um dispositivo</p>
@@ -403,7 +403,7 @@
                     Resetar Ciclos Total
                   </button>
                   <button onclick="if(confirm('Zerar horimetro?'))sendDeviceCmd('RESET_HORIMETRO')" class="w-full px-3 py-2 bg-red-50 border border-red-200 text-red-700 rounded-lg hover:bg-red-100 text-sm font-medium">
-                    Resetar Horimetro
+                    Resetar Horímetro
                   </button>
                 </div>
                 <div id="ctrlCmdLog" class="mt-4 text-xs text-gray-400 max-h-32 overflow-y-auto space-y-1"></div>
@@ -432,13 +432,13 @@
               <h3 class="font-bold text-lg text-gray-800 mb-4">Cadastrar firmware</h3>
               <div class="space-y-3">
                 <div class="grid grid-cols-2 gap-3">
-                  <div><label class="text-xs text-gray-500">Versao</label>
+                  <div><label class="text-xs text-gray-500">Versão</label>
                     <input type="text" id="fwVersao" placeholder="Ex: 10.42" class="w-full px-3 py-2 border rounded-lg text-sm"></div>
                   <div><label class="text-xs text-gray-500">Placa</label>
                     <select id="fwTipo" class="w-full px-3 py-2 border rounded-lg text-sm">
                       <option value="iot">IoT (sensores)</option><option value="display">Display</option></select></div>
                 </div>
-                <div><label class="text-xs text-gray-500">Arquivo .bin do app (sketch_pilitech.ino.bin / pili_disp7.ino.bin - nao o merged)</label>
+                <div><label class="text-xs text-gray-500">Arquivo .bin do app (sketch_pilitech.ino.bin / pili_disp7.ino.bin - não o merged)</label>
                   <input type="file" id="fwArquivo" accept=".bin" class="w-full px-3 py-2 border rounded-lg text-sm bg-gray-50"></div>
                 <button onclick="fwCadastrar()" class="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-bold">Cadastrar firmware</button>
                 <p id="fwMsg" class="text-xs text-center"></p>
@@ -449,10 +449,10 @@
               <div class="space-y-3">
                 <div><label class="text-xs text-gray-500">Tombador</label>
                   <select id="fwEquip" class="w-full px-3 py-2 border rounded-lg text-sm"></select></div>
-                <div><label class="text-xs text-gray-500">Versao</label>
+                <div><label class="text-xs text-gray-500">Versão</label>
                   <select id="fwVersaoEnviar" class="w-full px-3 py-2 border rounded-lg text-sm"></select></div>
-                <button onclick="fwEnviar()" class="w-full px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 text-sm font-bold">Enviar atualizacao</button>
-                <p class="text-[11px] text-gray-400">A atualizacao chega no proximo contato do equipamento (pelo 4G, ate 30 min; adormecido, ate 6 h). A IoT baixa ~1,3 MB do chip, confere cada bloco e o MD5, e volta sozinha para a versao anterior se a nova nao falar com o portal em 30 min. Display: a IoT baixa e repassa pelo ESP-NOW (display ligado e perto da IoT); o display confere o MD5 e reinicia.</p>
+                <button onclick="fwEnviar()" class="w-full px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 text-sm font-bold">Enviar atualização</button>
+                <p class="text-[11px] text-gray-400">A atualização chega no próximo contato do equipamento (pelo 4G, até 30 min; adormecido, até 6 h). A IoT baixa ~1,3 MB do chip, confere cada bloco e o MD5, e volta sozinha para a versão anterior se a nova não falar com o portal em 30 min. Display: a IoT baixa e repassa pelo ESP-NOW (display ligado e perto da IoT); o display confere o MD5 e reinicia.</p>
                 <p id="fwEnviarMsg" class="text-xs text-center"></p>
               </div>
             </div>
@@ -728,14 +728,14 @@
         <section id="sec-usuarios" class="section hidden">
           <div class="bg-white rounded-xl shadow-sm p-6">
             <div class="flex items-center justify-between mb-4">
-              <h3 class="text-lg font-bold text-gray-800">Usuarios do Sistema</h3>
+              <h3 class="text-lg font-bold text-gray-800">Usuários do Sistema</h3>
               <div class="flex gap-2">
                 <select id="filterEmpresaUsuarios" onchange="loadUsuarios()" class="px-3 py-2 border rounded-lg text-sm">
                   <option value="">Todas Empresas</option>
                 </select>
                 <button onclick="openUsuarioModal()" class="px-4 py-2 bg-pili-red text-white rounded-lg hover:bg-pili-darkred flex items-center gap-2">
                   <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"/></svg>
-                  Novo Usuario
+                  Novo Usuário
                 </button>
               </div>
             </div>
@@ -749,7 +749,7 @@
                     <th class="text-left py-3 px-4 font-medium text-gray-600">Empresa</th>
                     <th class="text-left py-3 px-4 font-medium text-gray-600">Unidade</th>
                     <th class="text-left py-3 px-4 font-medium text-gray-600">Status</th>
-                    <th class="text-right py-3 px-4 font-medium text-gray-600">Acoes</th>
+                    <th class="text-right py-3 px-4 font-medium text-gray-600">Ações</th>
                   </tr>
                 </thead>
                 <tbody id="usuariosTableBody">
@@ -773,10 +773,10 @@
                     <th class="text-left py-3 px-4 font-medium text-gray-600">Empresa</th>
                     <th class="text-left py-3 px-4 font-medium text-gray-600">CNPJ</th>
                     <th class="text-left py-3 px-4 font-medium text-gray-600">Valor</th>
-                    <th class="text-left py-3 px-4 font-medium text-gray-600">Metodo</th>
+                    <th class="text-left py-3 px-4 font-medium text-gray-600">Método</th>
                     <th class="text-left py-3 px-4 font-medium text-gray-600">Status</th>
                     <th class="text-left py-3 px-4 font-medium text-gray-600">Data</th>
-                    <th class="text-right py-3 px-4 font-medium text-gray-600">Acoes</th>
+                    <th class="text-right py-3 px-4 font-medium text-gray-600">Ações</th>
                   </tr>
                 </thead>
                 <tbody id="assinaturasTableBody">
@@ -801,13 +801,13 @@
               <table class="w-full">
                 <thead>
                   <tr class="border-b">
-                    <th class="text-left py-3 px-4 font-medium text-gray-600">Codigo</th>
+                    <th class="text-left py-3 px-4 font-medium text-gray-600">Código</th>
                     <th class="text-left py-3 px-4 font-medium text-gray-600">Desconto</th>
                     <th class="text-left py-3 px-4 font-medium text-gray-600">Tipo</th>
                     <th class="text-left py-3 px-4 font-medium text-gray-600">Validade</th>
                     <th class="text-left py-3 px-4 font-medium text-gray-600">Uso</th>
                     <th class="text-left py-3 px-4 font-medium text-gray-600">Status</th>
-                    <th class="text-right py-3 px-4 font-medium text-gray-600">Acoes</th>
+                    <th class="text-right py-3 px-4 font-medium text-gray-600">Ações</th>
                   </tr>
                 </thead>
                 <tbody id="cuponsTableBody">
@@ -839,7 +839,7 @@
             <input type="text" id="empresaCnpj" required class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-pili-red focus:border-transparent" placeholder="00.000.000/0001-00">
           </div>
           <div class="col-span-2">
-            <label class="block text-sm font-medium text-gray-700 mb-1">Razao Social *</label>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Razão Social *</label>
             <input type="text" id="empresaRazao" required class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-pili-red focus:border-transparent">
           </div>
           <div class="col-span-2">
@@ -894,11 +894,11 @@
             <input type="text" id="unidadeNome" required class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-pili-red focus:border-transparent">
           </div>
           <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">Codigo</label>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Código</label>
             <input type="text" id="unidadeCodigo" class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-pili-red focus:border-transparent" placeholder="MATRIZ">
           </div>
           <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">Responsavel</label>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Responsável</label>
             <input type="text" id="unidadeResponsavel" class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-pili-red focus:border-transparent">
           </div>
           <div>
@@ -922,7 +922,7 @@
   <div id="usuarioModal" class="fixed inset-0 modal-bg hidden items-center justify-center z-50">
     <div class="bg-white rounded-xl shadow-xl w-full max-w-lg mx-4 max-h-[90vh] overflow-y-auto">
       <div class="p-6 border-b flex items-center justify-between">
-        <h3 class="text-lg font-bold text-gray-800" id="usuarioModalTitle">Novo Usuario</h3>
+        <h3 class="text-lg font-bold text-gray-800" id="usuarioModalTitle">Novo Usuário</h3>
         <button onclick="closeUsuarioModal()" class="p-2 hover:bg-gray-100 rounded-lg">
           <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
         </button>
@@ -994,9 +994,9 @@
       </div>
       <form id="deviceForm" class="p-6 space-y-4">
         <div>
-          <label class="block text-sm font-medium text-gray-700 mb-1">Numero de Serie *</label>
+          <label class="block text-sm font-medium text-gray-700 mb-1">Número de Série *</label>
           <input type="text" id="deviceSerial" required class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-pili-red focus:border-transparent" placeholder="Ex: ESP32-001">
-          <p class="text-xs text-gray-500 mt-1">Este e o identificador unico do dispositivo IoT</p>
+          <p class="text-xs text-gray-500 mt-1">Este é o identificador único do dispositivo IoT</p>
         </div>
         <div>
           <label class="block text-sm font-medium text-gray-700 mb-1">Nome/Descricao</label>
@@ -1078,11 +1078,11 @@
             <input type="text" id="editUnidadeNome" required class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-pili-red focus:border-transparent">
           </div>
           <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">Codigo</label>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Código</label>
             <input type="text" id="editUnidadeCodigo" class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-pili-red focus:border-transparent" placeholder="MATRIZ">
           </div>
           <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">Responsavel</label>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Responsável</label>
             <input type="text" id="editUnidadeResponsavel" class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-pili-red focus:border-transparent">
           </div>
           <div>
@@ -1115,9 +1115,9 @@
         <input type="hidden" id="cupomId">
         <div class="grid grid-cols-2 gap-4">
           <div class="col-span-2">
-            <label class="block text-sm font-medium text-gray-700 mb-1">Codigo do Cupom *</label>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Código do Cupom *</label>
             <input type="text" id="cupomCodigo" required class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-pili-red focus:border-transparent uppercase" placeholder="DESCONTO10">
-            <p class="text-xs text-gray-500 mt-1">Codigo que o cliente digitara no checkout</p>
+            <p class="text-xs text-gray-500 mt-1">Código que o cliente digitara no checkout</p>
           </div>
           <div>
             <label class="block text-sm font-medium text-gray-700 mb-1">Tipo de Desconto *</label>
@@ -1141,8 +1141,8 @@
             <p class="text-xs text-gray-500 mt-1">0 = uso ilimitado</p>
           </div>
           <div class="col-span-2">
-            <label class="block text-sm font-medium text-gray-700 mb-1">Descricao (opcional)</label>
-            <input type="text" id="cupomDescricao" class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-pili-red focus:border-transparent" placeholder="Promocao de lancamento">
+            <label class="block text-sm font-medium text-gray-700 mb-1">Descrição (opcional)</label>
+            <input type="text" id="cupomDescricao" class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-pili-red focus:border-transparent" placeholder="Promoção de lançamento">
           </div>
         </div>
       </form>
@@ -1170,7 +1170,7 @@
           headers: { 'Authorization': 'Bearer ' + token }
         });
 
-        if (!res.ok) throw new Error('Token invalido');
+        if (!res.ok) throw new Error('Token inválido');
 
         const data = await res.json();
         user = data.user;
@@ -1235,11 +1235,11 @@
         dispositivos: ['Dispositivos', 'Gerenciar dispositivos IoT'],
         empresas: ['Empresas', 'Gerenciar empresas cadastradas'],
         unidades: ['Unidades', 'Gerenciar unidades/filiais'],
-        usuarios: ['Usuarios', 'Gerenciar usuarios do sistema'],
+        usuarios: ['Usuarios', 'Gerenciar usuários do sistema'],
         assinaturas: ['Assinaturas', 'Gerenciar assinaturas e pagamentos'],
         cupons: ['Cupons de Desconto', 'Gerenciar cupons promocionais'],
         controle: ['Controle Remoto', 'Configurar sensores e enviar comandos remotamente'],
-        firmware: ['Firmware', 'Atualizacao do firmware a distancia (OTA)'],
+        firmware: ['Firmware', 'Atualização do firmware a distância (OTA)'],
       };
       document.getElementById('pageTitle').textContent = titles[name]?.[0] || name;
       document.getElementById('pageSubtitle').textContent = titles[name]?.[1] || '';
@@ -1291,7 +1291,7 @@
             </div>`;
           }).join('');
         } else {
-          alertsEl.innerHTML = '<p class="text-gray-400 text-sm text-center py-4">Nenhum alerta nas ultimas 24h</p>';
+          alertsEl.innerHTML = '<p class="text-gray-400 text-sm text-center py-4">Nenhum alerta nas últimas 24h</p>';
         }
 
         // Devices live
@@ -1313,7 +1313,7 @@
             ].map(s => {
               const cls = s.n === 'MG' ? (s.v ? 'bg-red-500 text-white' : 'bg-gray-100 text-gray-400') : (s.v ? 'bg-green-500 text-white' : 'bg-gray-100 text-gray-400');
               return `<span class="px-1.5 py-0.5 rounded text-[10px] font-bold ${cls}">${s.n}</span>`;
-            }).join('') + (live ? '' : `<span class="text-[10px] text-gray-400 ml-1 self-center">ultima leitura ${fmtDataBR(sens.timestamp, { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}</span>`)
+            }).join('') + (live ? '' : `<span class="text-[10px] text-gray-400 ml-1 self-center">última leitura ${fmtDataBR(sens.timestamp, { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}</span>`)
               : '<span class="text-xs text-gray-400">Nenhuma leitura recebida</span>';
 
             const ciclosHoje = live ? (live.ciclos_hoje || 0) : (d.ciclos_hoje || 0);
@@ -1350,9 +1350,9 @@
               <th class="text-left py-2 px-3 text-gray-500 font-medium">Data</th>
               <th class="text-left py-2 px-3 text-gray-500 font-medium">Dispositivo</th>
               <th class="text-left py-2 px-3 text-gray-500 font-medium">Empresa</th>
-              <th class="text-left py-2 px-3 text-gray-500 font-medium">Tecnico</th>
-              <th class="text-left py-2 px-3 text-gray-500 font-medium">Descricao</th>
-              <th class="text-right py-2 px-3 text-gray-500 font-medium">Horimetro</th>
+              <th class="text-left py-2 px-3 text-gray-500 font-medium">Técnico</th>
+              <th class="text-left py-2 px-3 text-gray-500 font-medium">Descrição</th>
+              <th class="text-right py-2 px-3 text-gray-500 font-medium">Horímetro</th>
             </tr></thead>
             <tbody>${data.manutencoes.map(m => `<tr class="border-b hover:bg-gray-50">
               <td class="py-2 px-3 text-xs">${fmtSoDataBR(m.timestamp)}</td>
@@ -1364,7 +1364,7 @@
             </tr>`).join('')}</tbody>
           </table>`;
         } else {
-          maintEl.innerHTML = '<p class="text-gray-400 text-sm text-center py-4">Nenhuma manutencao nos ultimos 30 dias</p>';
+          maintEl.innerHTML = '<p class="text-gray-400 text-sm text-center py-4">Nenhuma manutenção nos últimos 30 dias</p>';
         }
       } catch (err) {
         console.error('Erro telemetria:', err);
@@ -1407,7 +1407,7 @@
       const statusEl = document.getElementById('ctrlDeviceStatus');
       const st = statusConexao(data.status_conexao);
       statusEl.innerHTML = `<span class="w-3 h-3 rounded-full ${st.dot}"></span><span class="text-sm font-bold ${st.cor}">${st.texto}</span>`
-        + (data.status_conexao !== 'online' ? '<span class="text-xs text-gray-400 ml-2">comando chega no proximo contato do equipamento</span>' : '');
+        + (data.status_conexao !== 'online' ? '<span class="text-xs text-gray-400 ml-2">comando chega no próximo contato do equipamento</span>' : '');
 
       const sensorConfig = (data.live && data.live.sensor_config) || (data.dbInfo && data.dbInfo.last_sensor_config) || [true,true,true,true,true,true,true,true];
       // Inversao: sensor NC (sinal sempre presente, atua quando cai a zero). Sem dado ao
@@ -1422,11 +1422,11 @@
             <input type="checkbox" id="ctrlSensor${i}" ${checked} class="w-4 h-4 accent-green-600">
             <span class="text-sm font-medium text-gray-700">${name}</span>
           </label>
-          <label class="flex items-center gap-1 cursor-pointer text-xs text-gray-500" title="Logica invertida: o sensor atua (acende) quando o sinal cai a zero">
-            <input type="checkbox" id="ctrlInvert${i}" ${inv} class="w-3.5 h-3.5 accent-orange-500">Logica invertida
+          <label class="flex items-center gap-1 cursor-pointer text-xs text-gray-500" title="Lógica invertida: o sensor atua (acende) quando o sinal cai a zero">
+            <input type="checkbox" id="ctrlInvert${i}" ${inv} class="w-3.5 h-3.5 accent-orange-500">Lógica invertida
           </label>
         </div>`;
-      }).join('') + (data.live ? '' : '<p class="text-[11px] text-gray-400 col-span-full">Sem dado ao vivo (4G): "Logica invertida" mostra o padrao de fabrica (40° e Moega/Fosso). A configuracao chega ao equipamento no proximo contato.</p>');
+      }).join('') + (data.live ? '' : '<p class="text-[11px] text-gray-400 col-span-full">Sem dado ao vivo (4G): "Lógica invertida" mostra o padrão de fábrica (40° e Moega/Fosso). A configuração chega ao equipamento no próximo contato.</p>');
 
       const db = data.dbInfo || {};
       // ao vivo (WiFi) ou, sem ele, a ultima leitura gravada (o 4G manda em lote a cada 30 min)
@@ -1439,7 +1439,7 @@
         <div class="bg-gray-50 rounded-lg p-3"><p class="text-[10px] text-gray-400 uppercase">Free Heap</p><p class="text-sm font-bold">${live.free_heap ? (live.free_heap/1024).toFixed(0) + 'KB' : 'N/A'}</p></div>
         <div class="bg-gray-50 rounded-lg p-3"><p class="text-[10px] text-gray-400 uppercase">Ciclos Hoje</p><p class="text-sm font-bold text-pili-red">${live.ciclos_hoje || 0}</p></div>
         <div class="bg-gray-50 rounded-lg p-3"><p class="text-[10px] text-gray-400 uppercase">Ciclos Total</p><p class="text-sm font-bold">${live.ciclos_total || 0}</p></div>
-        <div class="bg-gray-50 rounded-lg p-3"><p class="text-[10px] text-gray-400 uppercase">Horimetro</p><p class="text-sm font-bold">${live.horas_operacao || 0}h${live.minutos_operacao || 0}m</p></div>
+        <div class="bg-gray-50 rounded-lg p-3"><p class="text-[10px] text-gray-400 uppercase">Horímetro</p><p class="text-sm font-bold">${live.horas_operacao || 0}h${live.minutos_operacao || 0}m</p></div>
         <div class="bg-gray-50 rounded-lg p-3"><p class="text-[10px] text-gray-400 uppercase">Empresa</p><p class="text-sm font-bold">${db.empresa_name || 'N/A'}</p></div>
       `;
 
@@ -1463,7 +1463,7 @@
       });
       const msg = document.getElementById('ctrlConfigMsg');
       if (result && result.success) {
-        msg.textContent = 'Config na fila: o equipamento aplica no proximo contato (pelo 4G, ate 30 min).';
+        msg.textContent = 'Config na fila: o equipamento aplica no próximo contato (pelo 4G, até 30 min).';
         msg.className = 'text-xs text-green-600 self-center';
         addCmdLog('SAVE_CONFIG', serial);
       } else {
@@ -1501,7 +1501,7 @@
       document.getElementById('fwLista').innerHTML = fws.length === 0
         ? '<p class="text-gray-400 text-center py-4">Nenhum firmware cadastrado</p>'
         : `<table class="w-full"><thead><tr class="border-b text-gray-500 text-left">
-             <th class="py-2 px-2">Versao</th><th class="py-2 px-2">Placa</th><th class="py-2 px-2">Tamanho</th>
+             <th class="py-2 px-2">Versão</th><th class="py-2 px-2">Placa</th><th class="py-2 px-2">Tamanho</th>
              <th class="py-2 px-2">MD5</th><th class="py-2 px-2">Cadastrado</th><th></th></tr></thead><tbody>
            ${fws.map(f => `<tr class="border-b">
              <td class="py-2 px-2 font-bold">${f.version}</td>
@@ -1518,11 +1518,11 @@
       document.getElementById('fwStatus').innerHTML = eqs.length === 0 ? '<p class="text-gray-400 text-center py-4">Nenhum equipamento</p>'
         : `<table class="w-full"><thead><tr class="border-b text-gray-500 text-left">
              <th class="py-2 px-2">Tombador</th><th class="py-2 px-2">Status</th><th class="py-2 px-2">Firmware IoT</th>
-             <th class="py-2 px-2">Atualizacao</th><th class="py-2 px-2">Ultimos eventos de atualizacao</th></tr></thead><tbody>
+             <th class="py-2 px-2">Atualização</th><th class="py-2 px-2">Últimos eventos de atualização</th></tr></thead><tbody>
            ${eqs.map(d => { const st = statusConexao(d.status_conexao); return `<tr class="border-b align-top">
              <td class="py-2 px-2"><b>${d.serial_number}</b><br><span class="text-xs text-gray-400">${d.empresa_nome || ''}</span></td>
              <td class="py-2 px-2"><span class="px-2 py-0.5 rounded-full text-xs font-bold ${st.badge}">${st.texto}</span></td>
-             <td class="py-2 px-2 font-bold">${d.firmware_version || '<span class="text-gray-400 font-normal">nao informado</span>'}</td>
+             <td class="py-2 px-2 font-bold">${d.firmware_version || '<span class="text-gray-400 font-normal">não informado</span>'}</td>
              <td class="py-2 px-2 text-xs">${d.ota_pendente ? `<span class="text-orange-600 font-bold">${d.ota_pendente} na fila</span>` : '-'}</td>
              <td class="py-2 px-2 text-xs text-gray-600">${(d.eventos_ota || []).map(e => `${fmtDataBR(e.timestamp)} - ${e.message}`).join('<br>') || '-'}</td>
            </tr>`; }).join('')}</tbody></table>`;
@@ -1532,7 +1532,7 @@
       const msg = document.getElementById('fwMsg');
       const versao = document.getElementById('fwVersao').value.trim();
       const arq = document.getElementById('fwArquivo').files[0];
-      if (!versao || !arq) { msg.textContent = 'Informe a versao e o arquivo'; msg.className = 'text-xs text-center text-red-600'; return; }
+      if (!versao || !arq) { msg.textContent = 'Informe a versão e o arquivo'; msg.className = 'text-xs text-center text-red-600'; return; }
       msg.textContent = 'Enviando...'; msg.className = 'text-xs text-center text-gray-500';
       const b64 = await new Promise((ok, erro) => { const r = new FileReader(); r.onload = () => ok(String(r.result).split(',')[1]); r.onerror = erro; r.readAsDataURL(arq); });
       const res = await api('/api/admin/firmware/upload', { method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -1654,7 +1654,7 @@
       const pct = Math.round(c.kb * 100 / limiteKb);
       const cor = pct >= 90 ? 'bg-red-100 text-red-700' : pct >= 70 ? 'bg-orange-100 text-orange-700' : 'bg-gray-100 text-gray-700';
       const mb = c.kb >= 1024 ? (c.kb / 1024).toFixed(1) + ' MB' : c.kb + ' KB';
-      return ` <span class="px-2 py-1 rounded-full text-xs font-medium ${cor}" title="Atualizado em ${fmtDataBR(c.at)}">4G: ${mb} de 20 MB no mes (${pct}%)</span>`;
+      return ` <span class="px-2 py-1 rounded-full text-xs font-medium ${cor}" title="Atualizado em ${fmtDataBR(c.at)}">4G: ${mb} de 20 MB no mês (${pct}%)</span>`;
     }
 
     function renderDeviceCardFull(d) {
@@ -1679,7 +1679,7 @@
         } else {
           subscriptionTag = `
             <span class="px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-700">
-              Assinado ate ${expiresStr} ${isDeviceSub ? '(IoT)' : '(Empresa)'}
+              Assinado até ${expiresStr} ${isDeviceSub ? '(IoT)' : '(Empresa)'}
             </span>
           `;
         }
@@ -1699,7 +1699,7 @@
               <p class="text-sm text-gray-500">${d.name || 'Tombador'}</p>
               ${d.empresa_nome
                 ? `<p class="text-xs text-gray-400">${d.empresa_nome} ${d.unidade_nome ? '> ' + d.unidade_nome : ''}</p>`
-                : '<p class="text-xs text-orange-500">Dispositivo sem vinculo - aguardando configuracao</p>'}
+                : '<p class="text-xs text-orange-500">Dispositivo sem vinculo - aguardando configuração</p>'}
               <div class="mt-2">${subscriptionTag}${consumo4gTag(d.consumo_4g)}</div>
             </div>
             <span class="px-4 py-2 rounded-full text-sm font-bold ${statusClass}">${statusText}</span>
@@ -1775,7 +1775,7 @@
               </div>
               <div>
                 <div class="font-bold text-gray-800">${e.total_usuarios || 0}</div>
-                <div class="text-gray-500">Usuarios</div>
+                <div class="text-gray-500">Usuários</div>
               </div>
             </div>
             <div class="mt-4 flex gap-2">
@@ -1838,7 +1838,7 @@
       const tbody = document.getElementById('usuariosTableBody');
 
       if (usuarios.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="7" class="text-center py-8 text-gray-500">Nenhum usuario cadastrado</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="7" class="text-center py-8 text-gray-500">Nenhum usuário cadastrado</td></tr>';
         return;
       }
 
@@ -1979,7 +1979,7 @@
       };
 
       if (!data.cnpj || !data.razao_social) {
-        alert('CNPJ e Razao Social sao obrigatorios');
+        alert('CNPJ e Razão Social são obrigatórios');
         return;
       }
 
@@ -2024,7 +2024,7 @@
       };
 
       if (!data.empresa_id || !data.nome) {
-        alert('Empresa e Nome sao obrigatorios');
+        alert('Empresa e Nome são obrigatórios');
         return;
       }
 
@@ -2043,7 +2043,7 @@
     function openUsuarioModal() {
       document.getElementById('usuarioForm').reset();
       document.getElementById('usuarioId').value = '';
-      document.getElementById('usuarioModalTitle').textContent = 'Novo Usuario';
+      document.getElementById('usuarioModalTitle').textContent = 'Novo Usuário';
       document.getElementById('usuarioSenha').placeholder = '';
       document.getElementById('usuarioSenha').required = true;
 
@@ -2075,7 +2075,7 @@
       // Carregar dados do usuario
       const usuario = await api('/api/usuarios/' + id);
       if (!usuario || usuario.error) {
-        alert('Erro ao carregar usuario: ' + (usuario?.error || 'Usuario nao encontrado'));
+        alert('Erro ao carregar usuário: ' + (usuario?.error || 'Usuário não encontrado'));
         return;
       }
 
@@ -2096,7 +2096,7 @@
         document.getElementById('usuarioUnidade').value = usuario.unidade_id || '';
       }
 
-      document.getElementById('usuarioModalTitle').textContent = 'Editar Usuario';
+      document.getElementById('usuarioModalTitle').textContent = 'Editar Usuário';
       document.getElementById('usuarioModal').classList.remove('hidden');
       document.getElementById('usuarioModal').classList.add('flex');
     }
@@ -2115,12 +2115,12 @@
       };
 
       if (!data.nome || !data.email) {
-        alert('Nome e Email sao obrigatorios');
+        alert('Nome e Email são obrigatórios');
         return;
       }
 
       if (!id && !data.password) {
-        alert('Senha e obrigatoria para novos usuarios');
+        alert('Senha é obrigatória para novos usuários');
         return;
       }
 
@@ -2132,7 +2132,7 @@
       if (result?.success || result?.id) {
         closeUsuarioModal();
         loadUsuarios();
-        alert(id ? 'Usuario atualizado!' : 'Usuario criado!');
+        alert(id ? 'Usuário atualizado!' : 'Usuário criado!');
       } else {
         alert('Erro: ' + (result?.error || 'Erro desconhecido'));
       }
@@ -2140,14 +2140,14 @@
 
     // Excluir usuario
     async function deleteUsuario(id, nome) {
-      if (!confirm(`Tem certeza que deseja excluir o usuario "${nome}"?\nEssa acao nao pode ser desfeita.`)) return;
+      if (!confirm(`Tem certeza que deseja excluir o usuário "${nome}"?\nEssa ação não pode ser desfeita.`)) return;
 
       const result = await api('/api/usuarios/' + id, { method: 'DELETE' });
 
       if (result?.success) {
         loadUsuarios();
         loadStats();
-        alert('Usuario excluido com sucesso!');
+        alert('Usuário excluído com sucesso!');
       } else {
         alert('Erro: ' + (result?.error || 'Erro desconhecido'));
       }
@@ -2180,7 +2180,7 @@
         loadEmpresas();
         loadDevices();
         loadStats();
-        alert('Assinatura excluida!');
+        alert('Assinatura excluída!');
       } else {
         alert('Erro: ' + (result?.error || 'Erro desconhecido'));
       }
@@ -2270,7 +2270,7 @@
       };
 
       if (!data.serial_number) {
-        alert('Numero de serie e obrigatorio');
+        alert('Número de série é obrigatório');
         return;
       }
 
@@ -2296,7 +2296,7 @@
           closeDeviceModal();
           loadDevices();
           loadStats();
-          alert('Dispositivo cadastrado com sucesso!\n\nQuando o dispositivo ficar online, ele sera reconhecido automaticamente.');
+          alert('Dispositivo cadastrado com sucesso!\n\nQuando o dispositivo ficar online, ele será reconhecido automaticamente.');
         } else {
           alert('Erro: ' + (result?.error || 'Erro desconhecido'));
         }
@@ -2305,14 +2305,14 @@
 
     // Excluir empresa
     async function deleteEmpresa(id, nome) {
-      if (!confirm(`Tem certeza que deseja excluir a empresa "${nome}"?\n\nTODOS os dados serao removidos:\n- Unidades\n- Dispositivos e telemetria\n- Usuarios\n- Assinaturas\n\nEsta acao nao pode ser desfeita!`)) return;
+      if (!confirm(`Tem certeza que deseja excluir a empresa "${nome}"?\n\nTODOS os dados serão removidos:\n- Unidades\n- Dispositivos e telemetria\n- Usuarios\n- Assinaturas\n\nEsta ação não pode ser desfeita!`)) return;
 
       const result = await api('/api/empresas/' + id, { method: 'DELETE' });
 
       if (result?.success) {
         loadEmpresas();
         loadStats();
-        alert('Empresa excluida com sucesso!');
+        alert('Empresa excluída com sucesso!');
       } else {
         alert('Erro: ' + (result?.error || 'Erro desconhecido'));
       }
@@ -2321,11 +2321,11 @@
     // Excluir unidade
     async function deleteUnidade(id, nome, totalDevices) {
       if (totalDevices > 0) {
-        alert(`Nao e possivel excluir. A unidade "${nome}" possui ${totalDevices} dispositivo(s) vinculado(s).\n\nDesvincule os dispositivos primeiro.`);
+        alert(`Não é possível excluir. A unidade "${nome}" possui ${totalDevices} dispositivo(s) vinculado(s).\n\nDesvincule os dispositivos primeiro.`);
         return;
       }
 
-      if (!confirm(`Tem certeza que deseja excluir a unidade "${nome}"?\n\nEsta acao nao pode ser desfeita!`)) return;
+      if (!confirm(`Tem certeza que deseja excluir a unidade "${nome}"?\n\nEsta ação não pode ser desfeita!`)) return;
 
       const result = await api('/api/unidades/' + id, { method: 'DELETE' });
 
@@ -2333,7 +2333,7 @@
         loadUnidades();
         loadEmpresas();
         loadStats();
-        alert('Unidade excluida com sucesso!');
+        alert('Unidade excluída com sucesso!');
       } else {
         alert('Erro: ' + (result?.error || 'Erro desconhecido'));
       }
@@ -2341,7 +2341,7 @@
 
     // Excluir dispositivo
     async function deleteDispositivo(serialNumber) {
-      if (!confirm(`Tem certeza que deseja excluir o dispositivo "${serialNumber}"?\n\nTODOS OS DADOS DE TELEMETRIA SERAO PERDIDOS!\n\nEsta acao nao pode ser desfeita!`)) return;
+      if (!confirm(`Tem certeza que deseja excluir o dispositivo "${serialNumber}"?\n\nTODOS OS DADOS DE TELEMETRIA SERÃO PERDIDOS!\n\nEsta ação não pode ser desfeita!`)) return;
 
       const result = await api('/api/devices/' + serialNumber, { method: 'DELETE' });
 
@@ -2409,7 +2409,7 @@
           select.innerHTML += `<option value="${u.id}">${u.nome} ${u.codigo ? '(' + u.codigo + ')' : ''}</option>`;
         });
       } else {
-        select.innerHTML = '<option value="">Nenhuma unidade - sera vinculado somente a empresa</option>';
+        select.innerHTML = '<option value="">Nenhuma unidade - será vinculado somente a empresa</option>';
       }
     }
 
@@ -2444,7 +2444,7 @@
     async function editUnidade(id) {
       const unidade = await api('/api/unidades/' + id);
       if (!unidade || unidade.error) {
-        alert('Erro ao carregar unidade: ' + (unidade?.error || 'Unidade nao encontrada'));
+        alert('Erro ao carregar unidade: ' + (unidade?.error || 'Unidade não encontrada'));
         return;
       }
 
@@ -2476,7 +2476,7 @@
       };
 
       if (!data.nome) {
-        alert('Nome e obrigatorio');
+        alert('Nome é obrigatório');
         return;
       }
 
@@ -2572,7 +2572,7 @@
       };
 
       if (!data.code || !data.discount_value) {
-        alert('Codigo e valor do desconto sao obrigatorios');
+        alert('Código e valor do desconto são obrigatórios');
         return;
       }
 
@@ -2615,7 +2615,7 @@
 
       if (result?.success) {
         loadCupons();
-        alert('Cupom excluido com sucesso!');
+        alert('Cupom excluído com sucesso!');
       } else {
         alert('Erro: ' + (result?.error || 'Erro desconhecido'));
       }

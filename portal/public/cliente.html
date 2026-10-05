@@ -274,7 +274,7 @@
             </svg>
           </div>
           <div>
-            <p class="text-sm text-gray-500 font-medium">Horimetro Total</p>
+            <p class="text-sm text-gray-500 font-medium">Horímetro Total</p>
             <p class="text-3xl font-bold text-gray-800" id="statHorimetro">0h</p>
           </div>
         </div>
@@ -379,7 +379,7 @@
       <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mb-4 sm:mb-6">
         <div>
           <h3 class="text-lg sm:text-xl font-bold text-gray-800">Dashboard de Produtividade</h3>
-          <p class="text-xs sm:text-sm text-gray-500">Analise detalhada de desempenho e eficiencia</p>
+          <p class="text-xs sm:text-sm text-gray-500">Análise detalhada de desempenho e eficiência</p>
         </div>
         <select id="deviceSelector" onchange="loadTelemetry()" class="w-full sm:w-auto px-3 sm:px-4 py-2 border-2 border-pili-red rounded-lg text-sm font-medium focus:ring-2 focus:ring-pili-red">
           <option value="">Selecione um dispositivo</option>
@@ -407,7 +407,7 @@
             <svg class="w-5 h-5 opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
             </svg>
-            <span class="text-xs font-medium opacity-80">TEMPO MEDIO</span>
+            <span class="text-xs font-medium opacity-80">TEMPO MÉDIO</span>
           </div>
           <div class="text-xl sm:text-3xl font-black" id="teleTempoCiclo">-</div>
           <div class="text-xs opacity-70">por ciclo</div>
@@ -432,7 +432,7 @@
             <span class="text-xs font-medium opacity-80">CICLOS SEMANA</span>
           </div>
           <div class="text-xl sm:text-3xl font-black" id="teleCiclosSemana">-</div>
-          <div class="text-xs opacity-70">ultimos 7 dias</div>
+          <div class="text-xs opacity-70">últimos 7 dias</div>
         </div>
 
         <div class="bg-gradient-to-br from-emerald-500 to-emerald-600 rounded-2xl p-5 text-white shadow-lg">
@@ -440,7 +440,7 @@
             <svg class="w-5 h-5 opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"/>
             </svg>
-            <span class="text-xs font-medium opacity-80">EFICIENCIA</span>
+            <span class="text-xs font-medium opacity-80">EFICIÊNCIA</span>
           </div>
           <div class="text-xl sm:text-3xl font-black" id="teleEficiencia">-</div>
           <div class="text-xs opacity-70">vs meta 10min</div>
@@ -453,7 +453,7 @@
         <div class="bg-gradient-to-br from-gray-50 to-white border-2 border-gray-100 rounded-2xl p-5 shadow-sm">
           <div class="flex items-center justify-between mb-4">
             <div>
-              <h4 class="font-bold text-gray-800">Evolucao da Produtividade</h4>
+              <h4 class="font-bold text-gray-800">Evolução da Produtividade</h4>
               <p class="text-xs text-gray-500">Meta: linha vermelha = 100%</p>
             </div>
             <span class="px-3 py-1 bg-green-100 text-green-700 rounded-full text-xs font-bold">7 DIAS</span>
@@ -466,7 +466,7 @@
           <div class="flex items-center justify-between mb-4">
             <div>
               <h4 class="font-bold text-gray-800">Ciclos por Dia</h4>
-              <p class="text-xs text-gray-500">Volume de producao diario</p>
+              <p class="text-xs text-gray-500">Volume de produção diário</p>
             </div>
             <span class="px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-xs font-bold">7 DIAS</span>
           </div>
@@ -479,14 +479,14 @@
         <!-- Grafico de Rosca - Distribuicao por Sensor -->
         <div class="bg-gradient-to-br from-gray-50 to-white border-2 border-gray-100 rounded-2xl p-5 shadow-sm">
           <h4 class="font-bold text-gray-800 mb-2">Tempo por Sensor</h4>
-          <p class="text-xs text-gray-500 mb-4">Distribuicao do tempo ON</p>
+          <p class="text-xs text-gray-500 mb-4">Distribuição do tempo ON</p>
           <canvas id="chartPizza" height="180"></canvas>
         </div>
 
         <!-- Grafico de Linha - Tendencia Horaria -->
         <div class="bg-gradient-to-br from-gray-50 to-white border-2 border-gray-100 rounded-2xl p-5 shadow-sm">
           <h4 class="font-bold text-gray-800 mb-2">Ciclos por Hora</h4>
-          <p class="text-xs text-gray-500 mb-4">Producao nas ultimas 24h</p>
+          <p class="text-xs text-gray-500 mb-4">Produção nas últimas 24h</p>
           <canvas id="chartHorario" height="180"></canvas>
         </div>
 
@@ -496,7 +496,7 @@
           <div class="space-y-4">
             <div>
               <div class="flex justify-between text-sm mb-1">
-                <span class="text-gray-400">Sensor mais rapido</span>
+                <span class="text-gray-400">Sensor mais rápido</span>
                 <span class="font-bold text-green-400" id="etapaMaisRapida">-</span>
               </div>
               <div class="h-2 bg-gray-700 rounded-full overflow-hidden">
@@ -514,7 +514,7 @@
             </div>
             <div class="pt-3 border-t border-gray-700">
               <div class="flex justify-between text-sm mb-1">
-                <span class="text-gray-400">Desvio padrao</span>
+                <span class="text-gray-400">Desvio padrão</span>
                 <span class="font-bold" id="desvioPadrao">-</span>
               </div>
             </div>
@@ -549,8 +549,8 @@
       <div class="bg-gradient-to-br from-gray-50 to-white border-2 border-gray-100 rounded-2xl p-5 shadow-sm">
         <div class="flex items-center justify-between mb-4">
           <div>
-            <h4 class="font-bold text-gray-800">Tempo Medio por Sensor</h4>
-            <p class="text-xs text-gray-500">Tempo ON medio de cada sensor no ciclo</p>
+            <h4 class="font-bold text-gray-800">Tempo Médio por Sensor</h4>
+            <p class="text-xs text-gray-500">Tempo ON médio de cada sensor no ciclo</p>
           </div>
           <span class="px-3 py-1 bg-pili-red/10 text-pili-red rounded-full text-xs font-bold">6 SENSORES</span>
         </div>
@@ -596,14 +596,14 @@
           <!-- Ciclos por Dia -->
           <div class="bg-gradient-to-br from-gray-50 to-white border-2 border-gray-100 rounded-2xl p-5 shadow-sm">
             <h4 class="font-bold text-gray-800 mb-1">Ciclos por Dia</h4>
-            <p class="text-xs text-gray-500 mb-4">Volume de producao comparado</p>
+            <p class="text-xs text-gray-500 mb-4">Volume de produção comparado</p>
             <canvas id="chartCompareCiclos" height="200"></canvas>
           </div>
 
           <!-- Radar - Tempo por Sensor -->
           <div class="bg-gradient-to-br from-gray-50 to-white border-2 border-gray-100 rounded-2xl p-5 shadow-sm">
             <h4 class="font-bold text-gray-800 mb-1">Perfil de Sensores</h4>
-            <p class="text-xs text-gray-500 mb-4">Tempo medio ON por sensor (segundos)</p>
+            <p class="text-xs text-gray-500 mb-4">Tempo médio ON por sensor (segundos)</p>
             <canvas id="chartCompareRadar" height="200"></canvas>
           </div>
         </div>
@@ -611,15 +611,15 @@
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
           <!-- Barras - Produtividade -->
           <div class="bg-gradient-to-br from-gray-50 to-white border-2 border-gray-100 rounded-2xl p-5 shadow-sm">
-            <h4 class="font-bold text-gray-800 mb-1">Produtividade & Eficiencia</h4>
+            <h4 class="font-bold text-gray-800 mb-1">Produtividade & Eficiência</h4>
             <p class="text-xs text-gray-500 mb-4">Percentual vs meta de 10 minutos</p>
             <canvas id="chartCompareProd" height="200"></canvas>
           </div>
 
           <!-- Barras - Tempo Médio -->
           <div class="bg-gradient-to-br from-gray-50 to-white border-2 border-gray-100 rounded-2xl p-5 shadow-sm">
-            <h4 class="font-bold text-gray-800 mb-1">Tempo Medio por Ciclo</h4>
-            <p class="text-xs text-gray-500 mb-4">Melhor ciclo / Medio / Pior ciclo</p>
+            <h4 class="font-bold text-gray-800 mb-1">Tempo Médio por Ciclo</h4>
+            <p class="text-xs text-gray-500 mb-4">Melhor ciclo / Médio / Pior ciclo</p>
             <canvas id="chartCompareTempo" height="200"></canvas>
           </div>
         </div>
@@ -636,7 +636,7 @@
 
     <!-- Historico de Ciclos -->
     <div class="bg-white rounded-xl shadow-sm p-4 sm:p-6 mb-6 sm:mb-8">
-      <h3 class="text-lg sm:text-xl font-bold text-gray-800 mb-4 sm:mb-6">Historico de Ciclos</h3>
+      <h3 class="text-lg sm:text-xl font-bold text-gray-800 mb-4 sm:mb-6">Histórico de Ciclos</h3>
       <div class="overflow-x-auto -mx-4 sm:mx-0">
         <table class="w-full text-xs sm:text-sm min-w-[500px]">
           <thead class="bg-gray-50">
@@ -772,15 +772,15 @@
         const data = await r.json();
         if (!r.ok) { demoFeedback(data.error || 'Erro', 'error'); return; }
         const labels = {
-          cycle: `Ciclo #${data.cycle?.ciclo_numero} gerado em ${serial} (${data.cycle?.tempo_total}s, ${data.cycle?.eficiencia}% eficiencia)`,
+          cycle: `Ciclo #${data.cycle?.ciclo_numero} gerado em ${serial} (${data.cycle?.tempo_total}s, ${data.cycle?.eficiencia}% eficiência)`,
           alert: `Alerta disparado em ${serial}: "${data.message}"`,
-          maintenance: `Manutencao registrada em ${serial} por ${data.technician}`,
+          maintenance: `Manutenção registrada em ${serial} por ${data.technician}`,
           reset: `${data.deleted} ciclo(s) de hoje removidos de ${serial}`
         };
         demoFeedback(labels[action], 'success');
         setTimeout(() => { if (typeof refreshData === 'function') refreshData(); }, 600);
       } catch (e) {
-        demoFeedback('Erro de conexao: ' + e.message, 'error');
+        demoFeedback('Erro de conexão: ' + e.message, 'error');
       }
     }
 
@@ -873,8 +873,8 @@
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
             </svg>
             <div>
-              <p class="font-bold text-yellow-800">Periodo de Avaliacao</p>
-              <p class="text-sm text-yellow-700">Restam <strong>${daysLeft} dias</strong> do seu periodo gratuito</p>
+              <p class="font-bold text-yellow-800">Período de Avaliação</p>
+              <p class="text-sm text-yellow-700">Restam <strong>${daysLeft} dias</strong> do seu período gratuito</p>
             </div>
           </div>
           <a href="/checkout.html" class="px-4 py-2 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 text-sm font-bold">
@@ -890,7 +890,7 @@
             </svg>
             <div>
               <p class="font-bold text-red-800">Assinatura Expirada</p>
-              <p class="text-sm text-red-700">A telemetria esta bloqueada. Renove para continuar monitorando.</p>
+              <p class="text-sm text-red-700">A telemetria está bloqueada. Renove para continuar monitorando.</p>
             </div>
           </div>
           <a href="/checkout.html" class="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 text-sm font-bold">
@@ -906,7 +906,7 @@
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
             </svg>
             <div>
-              <p class="font-bold text-blue-800">Assinatura Necessaria</p>
+              <p class="font-bold text-blue-800">Assinatura Necessária</p>
               <p class="text-sm text-blue-700">Assine para monitorar seus equipamentos em tempo real</p>
             </div>
           </div>
@@ -1157,8 +1157,8 @@
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z"/>
                   </svg>
                 </div>
-                <h4 class="text-lg font-bold text-amber-600 mb-1">AGUARDANDO ATIVACAO</h4>
-                <p class="text-sm text-gray-500 mb-3">O dispositivo esta online mas o sistema ainda nao foi iniciado pelo tecnico.</p>
+                <h4 class="text-lg font-bold text-amber-600 mb-1">AGUARDANDO ATIVAÇÃO</h4>
+                <p class="text-sm text-gray-500 mb-3">O dispositivo está online mas o sistema ainda não foi iniciado pelo técnico.</p>
                 <p class="text-xs text-gray-400">Acesse o IoT (192.168.4.1) → Aba Sistema → Digite a senha → START</p>
                 <p class="live-fonte text-[10px] text-gray-400 mt-2">${leituraEm ? 'Conforme a leitura de ' + leituraEm : 'Sem leitura gravada'}</p>
               </div>
@@ -1199,7 +1199,7 @@
                     <div class="live-val text-sm font-bold">${moega.text}</div>
                   </div>
                   <div ${oculto(7)} class="live-sensor text-center p-2 ${portao.class} rounded-lg border-2 ${portao.text === 'Fechado' ? 'border-green-300' : 'border-gray-200'}">
-                    <div class="text-[10px] text-gray-500 uppercase leading-tight break-words">Portao</div>
+                    <div class="text-[10px] text-gray-500 uppercase leading-tight break-words">Portão</div>
                     <div class="live-val text-sm font-bold">${portao.text}</div>
                   </div>
                 </div>
@@ -1207,7 +1207,7 @@
 
               <!-- Alerta Moega Cheia -->
               <div class="live-moega-alert mb-3 p-3 bg-red-600 rounded-lg text-white text-center animate-pulse" style="display:none">
-                <div class="font-bold text-sm">MOEGA/FOSSO CHEIO - OPERACAO PARADA</div>
+                <div class="font-bold text-sm">MOEGA/FOSSO CHEIO - OPERAÇÃO PARADA</div>
                 <div class="text-xs text-red-200">Aguardando esvaziamento para retomar ciclos</div>
               </div>
 
@@ -1225,7 +1225,7 @@
 
               <!-- Ultimo Ciclo / Ciclo Atual -->
               <div class="live-durations mb-3">
-                <div class="live-dur-title text-[10px] font-bold text-gray-500 mb-1 tracking-wider">ULTIMO CICLO${cicloQuando ? ' · ' + cicloQuando : ''}</div>
+                <div class="live-dur-title text-[10px] font-bold text-gray-500 mb-1 tracking-wider">ÚLTIMO CICLO${cicloQuando ? ' · ' + cicloQuando : ''}</div>
                 <div class="space-y-1">
                   ${['Portão','Moega/Fosso','Trava Roda','Trava Chassi','Trava Pino E','Trava Pino D'].map((name, i) => {
                     const val = ciclo ? (Number(ciclo[sensorKeys[i]]) || 0) : 0;
@@ -1522,7 +1522,7 @@
               if (cycleBox) cycleBox.className = 'live-cycle-box mb-3 p-3 bg-green-50 rounded-lg border border-green-200';
             } else {
               if (d.last_cycle && d.last_cycle.tempo_total > 0) {
-                cycleLabel.textContent = 'ULTIMO CICLO';
+                cycleLabel.textContent = 'ÚLTIMO CICLO';
                 cycleTimer.textContent = fmtDur(d.last_cycle.tempo_total);
               } else {
                 cycleLabel.textContent = 'CICLO PARADO';
@@ -1557,7 +1557,7 @@
           const sensorKeys = ['portao', 'moega', 'trava_roda', 'trava_chassi', 'trava_pino_e', 'trava_pino_d'];
           const timingKeys = ['pt_on', 'mg_on', 'tr_on', 'tc_on', 'tpe_on', 'tpd_on'];
           const desenharUltimo = (lc) => {
-            if (durTitle) durTitle.textContent = 'ULTIMO CICLO';
+            if (durTitle) durTitle.textContent = 'ÚLTIMO CICLO';
             const maxVal = Math.max(...sensorKeys.map(k => lc[k] || 0)) || 1;
             durRows.forEach((row, i) => {
               if (i >= sensorKeys.length) return;
@@ -1827,7 +1827,7 @@
         document.getElementById('teleEficiencia').textContent = eficiencia;
 
         // Tendencia (comparar com ontem)
-        document.getElementById('teleCiclosTendencia').textContent = 'ultimos 7 dias';
+        document.getElementById('teleCiclosTendencia').textContent = 'últimos 7 dias';
         if (stats.ciclosDiarios.length >= 2) {
           const hoje = parseInt(stats.ciclosHoje) || 0;
           const ontem = parseInt(stats.ciclosDiarios[stats.ciclosDiarios.length - 2]?.ciclos) || 0;
@@ -2243,7 +2243,7 @@
         return;
       }
       if (serials.length > 5) {
-        alert('Selecione no maximo 5 dispositivos.');
+        alert('Selecione no máximo 5 dispositivos.');
         return;
       }
 
@@ -2252,12 +2252,12 @@
       resultDiv.classList.remove('hidden');
 
       // Loading
-      document.getElementById('compareKPIs').innerHTML = '<div class="col-span-full text-center py-8 text-gray-400">Carregando comparacao...</div>';
+      document.getElementById('compareKPIs').innerHTML = '<div class="col-span-full text-center py-8 text-gray-400">Carregando comparação...</div>';
 
       try {
         const data = await api(`/api/compare?devices=${serials.join(',')}&days=${days}`);
         if (!data || data.blocked) {
-          document.getElementById('compareKPIs').innerHTML = '<div class="col-span-full text-center py-8 text-red-500">Assinatura necessaria para comparar</div>';
+          document.getElementById('compareKPIs').innerHTML = '<div class="col-span-full text-center py-8 text-red-500">Assinatura necessária para comparar</div>';
           return;
         }
 
@@ -2271,7 +2271,7 @@
         // Scroll suave até resultado
         resultDiv.scrollIntoView({ behavior: 'smooth', block: 'start' });
       } catch (err) {
-        console.error('Erro na comparacao:', err);
+        console.error('Erro na comparação:', err);
         document.getElementById('compareKPIs').innerHTML = '<div class="col-span-full text-center py-8 text-red-500">Erro ao carregar dados</div>';
       }
     }
@@ -2305,15 +2305,15 @@
                 <span class="text-lg font-bold text-gray-800">${d.ciclos_hoje}</span>
               </div>
               <div class="flex justify-between items-center">
-                <span class="text-xs text-gray-500">Ciclos no Periodo</span>
+                <span class="text-xs text-gray-500">Ciclos no Período</span>
                 <span class="text-lg font-bold text-gray-800">${d.total_ciclos_periodo}</span>
               </div>
               <div class="flex justify-between items-center">
-                <span class="text-xs text-gray-500">Tempo Medio</span>
+                <span class="text-xs text-gray-500">Tempo Médio</span>
                 <span class="text-sm font-bold text-gray-700">${fmtDur(d.tempo_medio)}</span>
               </div>
               <div class="flex justify-between items-center">
-                <span class="text-xs text-gray-500">Eficiencia Media</span>
+                <span class="text-xs text-gray-500">Eficiência Média</span>
                 <span class="text-sm font-bold text-gray-700">${d.eficiencia_media}%</span>
               </div>
               <div class="flex justify-between items-center">
@@ -2325,7 +2325,7 @@
                 <span class="text-sm font-bold text-red-500">${formatTime(d.pior_ciclo)}</span>
               </div>
               <div class="flex justify-between items-center pt-2 border-t">
-                <span class="text-xs text-gray-500">Horimetro</span>
+                <span class="text-xs text-gray-500">Horímetro</span>
                 <span class="text-sm font-bold text-gray-700">${d.horas_operacao}h</span>
               </div>
             </div>
@@ -2418,7 +2418,7 @@
               borderRadius: 4
             },
             {
-              label: 'Eficiencia %',
+              label: 'Eficiência %',
               data: devices.map(d => parseFloat(d.eficiencia_media)),
               backgroundColor: devices.map((_, i) => COMPARE_COLORS_BG[i]),
               borderColor: devices.map((_, i) => COMPARE_COLORS[i]),
@@ -2459,7 +2459,7 @@
               borderRadius: 4
             },
             {
-              label: 'Tempo Medio',
+              label: 'Tempo Médio',
               data: devices.map(d => Math.round(d.tempo_medio / 60)),
               backgroundColor: '#3b82f6',
               borderRadius: 4
@@ -2492,7 +2492,7 @@
       const thead = document.getElementById('compareTableHead');
       const tbody = document.getElementById('compareTableBody');
 
-      thead.innerHTML = '<tr><th class="px-4 py-3 text-left text-xs font-medium uppercase">Metrica</th>' +
+      thead.innerHTML = '<tr><th class="px-4 py-3 text-left text-xs font-medium uppercase">Métrica</th>' +
         devices.map((d, i) => `<th class="px-4 py-3 text-center text-xs font-medium uppercase" style="color:${COMPARE_COLORS[i]}">${esc(d.name)}</th>`).join('') +
         '</tr>';
 
@@ -2500,13 +2500,13 @@
         { label: 'Status', key: d => `<span class="px-2 py-1 rounded-full text-xs font-bold ${statusConexao(d.status).badge}">${statusConexao(d.status).texto}</span>` },
         { label: 'Produtividade', key: d => { const v = parseFloat(d.produtividade); return `<span class="font-bold ${v >= 100 ? 'text-green-600' : v >= 80 ? 'text-yellow-600' : 'text-red-600'}">${v}%</span>`; } },
         { label: 'Ciclos Hoje', key: d => `<span class="font-bold">${d.ciclos_hoje}</span>` },
-        { label: 'Ciclos no Periodo', key: d => `<span class="font-bold">${d.total_ciclos_periodo}</span>` },
-        { label: 'Tempo Medio Ciclo', key: d => formatTime(d.tempo_medio) },
+        { label: 'Ciclos no Período', key: d => `<span class="font-bold">${d.total_ciclos_periodo}</span>` },
+        { label: 'Tempo Médio Ciclo', key: d => formatTime(d.tempo_medio) },
         { label: 'Melhor Ciclo', key: d => `<span class="text-green-600 font-bold">${formatTime(d.melhor_ciclo)}</span>` },
         { label: 'Pior Ciclo', key: d => `<span class="text-red-500 font-bold">${formatTime(d.pior_ciclo)}</span>` },
-        { label: 'Eficiencia Media', key: d => d.eficiencia_media + '%' },
+        { label: 'Eficiência Média', key: d => d.eficiencia_media + '%' },
         { label: 'Horimetro', key: d => d.horas_operacao + 'h' },
-        { label: 'Sensor - Portao (med)', key: d => Math.round(parseFloat(d.sensores.portao) || 0) + 's' },
+        { label: 'Sensor - Portão (med)', key: d => Math.round(parseFloat(d.sensores.portao) || 0) + 's' },
         { label: 'Sensor - Moega/Fosso (méd)', key: d => Math.round(parseFloat(d.sensores.moega) || 0) + 's' },
         { label: 'Sensor - Trava Roda (med)', key: d => Math.round(parseFloat(d.sensores.trava_roda) || 0) + 's' },
         { label: 'Sensor - Trava Chassi (med)', key: d => Math.round(parseFloat(d.sensores.trava_chassi) || 0) + 's' },
