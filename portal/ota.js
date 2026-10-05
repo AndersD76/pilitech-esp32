@@ -126,7 +126,7 @@ function setupOta(app, pool, { authenticateToken, requireSuperAdmin, validateApi
       }
       // tipo display: a IoT (v10.41+) baixa e repassa ao display pelo ESP-NOW
       const fila = (pendingCommands.get(serial_number) || []).filter(c => c.cmd !== 'OTA_UPDATE');
-      fila.push({ cmd: 'OTA_UPDATE', version, timestamp: new Date().toISOString(), from: req.user.email || 'admin' });
+      fila.push({ cmd: 'OTA_UPDATE', version, tipo: fw.tipo, timestamp: new Date().toISOString(), from: req.user.email || 'admin' });
       pendingCommands.set(serial_number, fila);
       console.log(`[OTA] ${version} enfileirado para ${serial_number}`);
       res.json({ success: true, message: `Atualizacao ${version} na fila: o ${serial_number} recebe no proximo contato` });

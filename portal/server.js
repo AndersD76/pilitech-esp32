@@ -2209,6 +2209,9 @@ const liveDeviceStatus = new Map(); // serial_number -> { data, timestamp }
 const LIVE_MAX_AGE_MS = 150000;
 
 // ============ COMMAND QUEUE & FIRMWARE (CONTROLE REMOTO) ============
+// serial_number -> versao que a IoT disse ter gravado no display (evento de OTA do lote)
+const displayInstalado = new Map();
+
 // serial_number -> [{ cmd, params, timestamp }]. Em memoria e gravada no banco a cada
 // mudanca: pelo 4G o equipamento so busca os comandos no proximo contato (lote de
 // 30 min ou ate 6 h adormecido) e antes a fila se perdia a cada reinicio do portal.
@@ -2235,6 +2238,9 @@ class FilaComandos extends Map {
   // (03/10/2026: entregue e nunca executado). Fica ate o lote reportar a versao nova
   // (fwAtual), e e reentregue no maximo 3 vezes, com 20 min entre entregas (enquanto
   // baixa, a IoT nao manda lote; cada tentativa gasta ~1,4 MB do chip de 20 MB).
+  // OTA do display: o lote traz a versao da IoT, nunca a do display - sai da fila
+  // quando chega o evento "Display atualizado: ... -> <versao>" (displayInstalado).
+  // Antes ela seria regravada 3x no display.
   retirar(serial, fwAtual) {
     const cmds = this.get(serial) || [];
     if (cmds.length === 0) return [];
@@ -2244,7 +2250,8 @@ class FilaComandos extends Map {
     const ficam = [], entregar = [];
     for (const c of validos) {
       if (c.cmd !== 'OTA_UPDATE') { entregar.push(c); continue; }
-      if (fwAtual && c.version === fwAtual) { console.log(`[OTA] ${serial}: ${fwAtual} instalada`); continue; }
+      const instalada = c.tipo === 'display' ? displayInstalado.get(serial) : fwAtual;
+      if (instalada && c.version === instalada) { console.log(`[OTA] ${serial}: ${c.tipo === 'display' ? 'display ' : ''}${instalada} instalada`); continue; }
       const entregas = c.entregas || 0;
       if (entregas >= 3) { console.log(`[OTA] ${serial}: ${c.version} entregue 3x sem instalar - desisti`); continue; }
       if (c.ultimaEntrega && agora - new Date(c.ultimaEntrega).getTime() < 20 * 60 * 1000) { ficam.push(c); continue; }
@@ -2575,6 +2582,9 @@ app.post('/api/batch', validateApiKey, async (req, res) => {
         if (ehEventoDeAlerta(f[0])) {
           sendAlertPush(sn, f[0], f[1] || `Alerta: ${f[0]}`).catch(e => console.error('Push error:', e));
         }
+        // "Display atualizado: v1.3 -> <versao> (reiniciando)": a OTA do display sai da fila
+        const disp = f[2] === 'ota' && typeof f[1] === 'string' && f[1].match(/^Display atualizado: .* -> (\S+) \(reiniciando\)/);
+        if (disp) displayInstalado.set(sn, disp[1]);
       } else if (tipo === 'c') {
         await pool.query(`
           INSERT INTO cycle_data (
