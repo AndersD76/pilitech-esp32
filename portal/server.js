@@ -47,6 +47,12 @@ const BB_API_CONFIG = {
 // Valor da assinatura anual
 const SUBSCRIPTION_PRICE = 2000.00;
 
+// Meta de tempo de ciclo do tombador (05/10/2026: 12 min; antes 20). Eficiencia de um ciclo =
+// meta / tempo real, ate 200%. Calculada aqui a partir do tempo do ciclo, e nao lida do valor que
+// a IoT grava: IoT antiga (ate a v10.45) ainda manda a eficiencia contra 20 min.
+const META_CICLO_S = 12 * 60;
+const EFICIENCIA_SQL = `LEAST(200, ROUND(${META_CICLO_S} * 100.0 / NULLIF(tempo_total, 0), 1))`;
+
 // Database connection
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL || 'postgresql://neondb_owner:npg_pCqSLW9j2hKQ@ep-crimson-heart-ahcg1r28-pooler.c-3.us-east-1.aws.neon.tech/neondb?sslmode=require',
@@ -2664,16 +2670,16 @@ app.get('/api/device-stats/:serialNumber', authenticateToken, checkSubscription,
       WHERE device_id = $1 AND created_at > NOW() - INTERVAL '7 days'
     `, [deviceId]);
 
-    // Produtividade média (tempo padrão 1200 segundos = 20 min)
-    const TEMPO_PADRAO = 1200;
-    const tempoMedio = parseFloat(tempoMedioResult.rows[0].tempo_medio) || TEMPO_PADRAO;
-    const produtividadeMedia = (TEMPO_PADRAO / tempoMedio) * 100;
+    // Produtividade média: meta / tempo médio
+    const tempoMedio = parseFloat(tempoMedioResult.rows[0].tempo_medio) || META_CICLO_S;
+    const produtividadeMedia = (META_CICLO_S / tempoMedio) * 100;
 
     res.json({
       ciclosDiarios: ciclosDiariosResult.rows,
       ciclosHoje: parseInt(ciclosHojeResult.rows[0].total) || 0,
       tempoMedioCiclo: tempoMedio,
-      produtividadeMedia: produtividadeMedia
+      produtividadeMedia: produtividadeMedia,
+      metaCicloS: META_CICLO_S
     });
   } catch (err) {
     console.error('Erro ao buscar estatísticas:', err);
@@ -2715,7 +2721,7 @@ app.get('/api/cycle-data/:serialNumber', authenticateToken, checkSubscription, a
         COALESCE(trava_chassi, 0) as trava_chassi,
         COALESCE(trava_pino_e, 0) as trava_pino_e,
         COALESCE(trava_pino_d, 0) as trava_pino_d,
-        eficiencia,
+        ${EFICIENCIA_SQL} as eficiencia,
         created_at as timestamp
       FROM cycle_data
       WHERE device_id = $1
@@ -2759,7 +2765,7 @@ app.get('/api/productivity/:serialNumber', authenticateToken, checkSubscription,
       SELECT
         ciclo_numero, tempo_total, sensor0 as portao, sensor40 as moega,
         trava_roda, trava_chassi, trava_pino_e, trava_pino_d,
-        tempo_padrao, eficiencia, created_at
+        ${META_CICLO_S} as tempo_padrao, ${EFICIENCIA_SQL} as eficiencia, created_at
       FROM cycle_data
       WHERE device_id = $1 AND created_at >= NOW() - INTERVAL '${days} days'
       ORDER BY created_at DESC
@@ -2818,7 +2824,7 @@ app.get('/api/compare', authenticateToken, checkSubscription, async (req, res) =
         SELECT
           COUNT(*) as total_ciclos,
           COALESCE(AVG(tempo_total), 0) as tempo_medio,
-          COALESCE(AVG(eficiencia::numeric), 0) as eficiencia_media,
+          COALESCE(AVG(${EFICIENCIA_SQL}), 0) as eficiencia_media,
           COALESCE(MIN(tempo_total), 0) as melhor_ciclo,
           COALESCE(MAX(tempo_total), 0) as pior_ciclo
         FROM cycle_data
@@ -2867,8 +2873,7 @@ app.get('/api/compare', authenticateToken, checkSubscription, async (req, res) =
       `, [deviceId]);
 
       const stats = statsResult.rows[0];
-      const TEMPO_PADRAO = 1200;
-      const tempoMedio = parseFloat(stats.tempo_medio) || TEMPO_PADRAO;
+      const tempoMedio = parseFloat(stats.tempo_medio) || META_CICLO_S;
 
       results.push({
         serial_number: serial,
@@ -2880,7 +2885,7 @@ app.get('/api/compare', authenticateToken, checkSubscription, async (req, res) =
         total_ciclos_periodo: parseInt(stats.total_ciclos) || 0,
         tempo_medio: Math.round(tempoMedio),
         eficiencia_media: parseFloat(stats.eficiencia_media).toFixed(1),
-        produtividade: ((TEMPO_PADRAO / tempoMedio) * 100).toFixed(1),
+        produtividade: ((META_CICLO_S / tempoMedio) * 100).toFixed(1),
         melhor_ciclo: parseInt(stats.melhor_ciclo) || 0,
         pior_ciclo: parseInt(stats.pior_ciclo) || 0,
         ciclos_diarios: dailyResult.rows,
@@ -2888,7 +2893,7 @@ app.get('/api/compare', authenticateToken, checkSubscription, async (req, res) =
       });
     }
 
-    res.json({ devices: results, days });
+    res.json({ devices: results, days, metaCicloS: META_CICLO_S });
   } catch (err) {
     console.error('Erro na comparação:', err);
     res.status(500).json({ error: err.message });

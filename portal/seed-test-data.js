@@ -115,8 +115,8 @@ async function seed() {
         ts.setHours(h, m, rand(0, 59));
 
         // Tempos em segundos - tombador tipico
-        const tempoTotal = rand(600, 1800); // 10-30 min
-        const tempoPadrao = 1200; // 20 min padrao
+        const tempoTotal = rand(360, 1080); // 6-18 min
+        const tempoPadrao = 720; // meta de 12 min
         const eficiencia = Math.min(100, Math.round((tempoPadrao / tempoTotal) * 100 * 100) / 100);
 
         const portao = rand(30, 180);
