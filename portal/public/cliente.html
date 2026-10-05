@@ -2141,16 +2141,19 @@
         const produtividade = parseFloat(c.eficiencia) || (c.tempo_total > 0 ? (TEMPO_PADRAO_CICLO / c.tempo_total) * 100 : 0);
         const prodClass = produtividade >= 100 ? 'text-green-600 bg-green-50' : produtividade >= 80 ? 'text-yellow-600 bg-yellow-50' : 'text-red-600 bg-red-50';
 
-        // Encontrar sensor mais lento (6 sensores)
-        const sensores = [
-          { nome: 'Portão', tempo: c.portao || 0 },
-          { nome: 'Moega/Fosso', tempo: c.moega || 0 },
-          { nome: 'Trava Roda', tempo: c.trava_roda || 0 },
-          { nome: 'Trava Chassi', tempo: c.trava_chassi || 0 },
-          { nome: 'Trava Pino E', tempo: c.trava_pino_e || 0 },
-          { nome: 'Trava Pino D', tempo: c.trava_pino_d || 0 }
-        ];
-        const maisLento = sensores.reduce((a, b) => a.tempo > b.tempo ? a : b);
+        // Etapa mais lenta: so portao e moega/fosso. As travas ficam engatadas do comeco
+        // ao fim do ciclo, entao o tempo delas e sempre o ciclo inteiro e elas "ganhavam"
+        // sempre (05/10/2026: todo ciclo aparecia como "Trava Chassi"). Sensor desabilitado
+        // ou parado manda 0 e nao entra.
+        const etapas = [
+          { nome: 'Portão', tempo: Number(c.portao) || 0 },
+          { nome: 'Moega/Fosso', tempo: Number(c.moega) || 0 }
+        ].filter(e => e.tempo > 0);
+        const maisLento = etapas.length ? etapas.reduce((a, b) => a.tempo > b.tempo ? a : b) : null;
+        const tempoEtapa = s => s >= 60 ? `${Math.round(s / 60)} min` : `${Math.round(s)}s`;
+        const celulaEtapa = maisLento
+          ? `<span class="text-red-500">${maisLento.nome} (${tempoEtapa(maisLento.tempo)})</span>`
+          : '<span class="text-gray-400">—</span>';
 
         return `
           <tr class="hover:bg-gray-50 border-b">
@@ -2160,7 +2163,7 @@
             <td class="px-4 py-3 text-center">
               <span class="px-3 py-1 rounded-full text-sm font-bold ${prodClass}">${produtividade.toFixed(0)}%</span>
             </td>
-            <td class="px-4 py-3 text-center text-xs text-red-500 font-medium">${maisLento.nome} (${maisLento.tempo}s)</td>
+            <td class="px-4 py-3 text-center text-xs font-medium">${celulaEtapa}</td>
           </tr>
         `;
       }).join('');
