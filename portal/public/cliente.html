@@ -129,9 +129,12 @@
     </div>
   </header>
 
+  <!-- Avisos: banner fixo no topo, por cima do cabecalho. Aviso some sozinho em
+       alguns segundos; grave (alerta critico, assinatura vencida) fica ate fechar. -->
+  <div class="fixed top-3 inset-x-0 z-50 pointer-events-none space-y-2">
   <!-- Alert Banner (in-app notification) -->
-  <div id="alertBanner" class="hidden">
-    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-3">
+  <div id="alertBanner" class="hidden transition-opacity duration-500">
+    <div class="max-w-3xl mx-auto px-4 pointer-events-auto">
       <div id="alertBannerContent" class="bg-red-600 rounded-lg p-4 flex items-center justify-between shadow-lg animate-pulse">
         <div class="flex items-center gap-3">
           <svg class="w-6 h-6 text-white flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -155,13 +158,15 @@
   </div>
 
   <!-- Trial/Subscription Warning Banner -->
-  <div id="trialBanner" class="hidden">
-    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3">
+  <div id="trialBanner" class="hidden transition-opacity duration-500">
+    <div class="max-w-3xl mx-auto px-4 pointer-events-auto">
       <div id="trialBannerContent" class="rounded-lg p-4 flex items-center justify-between">
         <!-- Content will be filled by JS -->
       </div>
     </div>
   </div>
+  </div>
+
 
   <!-- Main Content -->
   <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -820,6 +825,23 @@
       }
     }
 
+    // Avisos no topo: aviso comum some sozinho em 8 s; grave fica ate o usuario fechar
+    const avisoTimers = {};
+    function mostrarAviso(id, grave) {
+      const el = document.getElementById(id);
+      clearTimeout(avisoTimers[id]);
+      el.classList.remove('hidden', 'opacity-0');
+      if (grave) return;
+      avisoTimers[id] = setTimeout(() => {
+        el.classList.add('opacity-0');
+        avisoTimers[id] = setTimeout(() => el.classList.add('hidden'), 500);
+      }, 8000);
+    }
+    function esconderAviso(id) {
+      clearTimeout(avisoTimers[id]);
+      document.getElementById(id).classList.add('hidden');
+    }
+
     // Show trial/subscription banner
     function showTrialBanner(status) {
       const banner = document.getElementById('trialBanner');
@@ -829,15 +851,22 @@
       updateSubscriptionButton(status);
 
       if (!status || status.status === 'active') {
-        banner.classList.add('hidden');
+        esconderAviso('trialBanner');
         return;
       }
 
-      banner.classList.remove('hidden');
+      // avaliacao e aviso comum: aparece uma vez por sessao e some sozinho;
+      // assinatura vencida ou inexistente e grave: fica no topo
+      const grave = status.status !== 'trial';
+      if (!grave) {
+        let jaMostrado = false;
+        try { jaMostrado = sessionStorage.getItem('pili_aviso_trial') === '1'; sessionStorage.setItem('pili_aviso_trial', '1'); } catch (e) {}
+        if (jaMostrado || !banner.classList.contains('hidden')) return;
+      }
 
       if (status.status === 'trial') {
         const daysLeft = status.trialDaysRemaining || status.daysRemaining || 0;
-        content.className = 'bg-yellow-100 border border-yellow-300 rounded-lg p-4 flex items-center justify-between';
+        content.className = 'bg-yellow-100 border border-yellow-300 rounded-lg p-4 flex items-center justify-between shadow-lg';
         content.innerHTML = `
           <div class="flex items-center gap-3">
             <svg class="w-6 h-6 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -853,7 +882,7 @@
           </a>
         `;
       } else if (status.status === 'expired') {
-        content.className = 'bg-red-100 border border-red-300 rounded-lg p-4 flex items-center justify-between';
+        content.className = 'bg-red-100 border border-red-300 rounded-lg p-4 flex items-center justify-between shadow-lg';
         content.innerHTML = `
           <div class="flex items-center gap-3">
             <svg class="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -870,7 +899,7 @@
         `;
       } else {
         // Sem assinatura (nem trial)
-        content.className = 'bg-blue-100 border border-blue-300 rounded-lg p-4 flex items-center justify-between';
+        content.className = 'bg-blue-100 border border-blue-300 rounded-lg p-4 flex items-center justify-between shadow-lg';
         content.innerHTML = `
           <div class="flex items-center gap-3">
             <svg class="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -886,6 +915,7 @@
           </a>
         `;
       }
+      mostrarAviso('trialBanner', grave);
     }
 
     // API helper
@@ -2599,7 +2629,7 @@
       };
       content.className = `${colors[type] || colors.critical} rounded-lg p-4 flex items-center justify-between shadow-lg`;
       if (type === 'critical') content.classList.add('animate-pulse');
-      banner.classList.remove('hidden');
+      mostrarAviso('alertBanner', (type || 'critical') === 'critical');
       // Auto-play sound
       try { new Audio('data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbsGczFj+a2teleS0cR6zg7LSFOh0wk9/t3KlmMhk8oOPw4rFrMxU6oOb04LBpMBc6n+fw4LBpMBc6').play(); } catch(e) {}
     }
@@ -2610,7 +2640,7 @@
     try { alertaFechadoId = sessionStorage.getItem('pili_alerta_fechado'); } catch (e) {}
 
     function dismissAlert() {
-      document.getElementById('alertBanner').classList.add('hidden');
+      esconderAviso('alertBanner');
       if (alertaNaTelaId !== null) {
         alertaFechadoId = String(alertaNaTelaId);
         try { sessionStorage.setItem('pili_alerta_fechado', alertaFechadoId); } catch (e) {}
