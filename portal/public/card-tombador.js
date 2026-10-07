@@ -112,6 +112,145 @@
     </div>`;
   }
 
+  // ---- Desenho do tombador (SVG), animado pelo estado da leitura ----
+  // Plataforma articulada na ponta da moega (HX,HY); sobe a frente do caminhao ate 40 graus.
+  const HX = 110, HY = 326;
+  function girar(px, py, ang) {                 // ponto do desenho girado com a plataforma
+    const a = ang * Math.PI / 180, dx = px - HX, dy = py - HY;
+    return [HX + dx * Math.cos(a) + dy * Math.sin(a), HY - dx * Math.sin(a) + dy * Math.cos(a)];
+  }
+  function desenhoTombador(t, hab) {
+    const tem = t && t.sensor_0_graus !== undefined && t.sensor_0_graus !== null;
+    const estado = !tem ? 'sem' : t.sensor_0_graus ? 'embaixo' : t.sensor_40_graus ? 'alto' : 'movimento';
+    const on = c => !!(t && t[c]);
+    const usa = i => !(hab && hab[i] === false);
+    const verde = '#16a34a', cinza = '#9ca3af';
+    const moegaCheia = on('moega_fosso');
+    const trRoda = on('trava_roda'), trChassi = on('trava_chassi');
+    const calco = (x, ok) => ok ? `<polygon points="${x - 10},314 ${x + 2},314 ${x + 2},302" fill="${verde}" stroke="#14532d" stroke-width="1"/>`
+                                : `<polygon points="${x - 10},314 ${x + 2},314 ${x + 2},311" fill="${cinza}"/>`;
+    const roda = (x) => `<circle cx="${x}" cy="303" r="11" fill="#111827"/><circle cx="${x}" cy="303" r="5" fill="#9ca3af"/><circle cx="${x}" cy="303" r="1.8" fill="#374151"/>`;
+    const plat = { embaixo: 'EMBAIXO (0°)', alto: 'NO ALTO (40°)', movimento: 'SUBINDO / DESCENDO', sem: 'SEM LEITURA' }[estado];
+    const corPlat = estado === 'embaixo' ? '#1f2937' : estado === 'sem' ? cinza : '#d97706';
+    const linhas = [
+      ['Sensor 0°', on('sensor_0_graus') ? 'ativo' : 'inativo', null, on('sensor_0_graus') ? verde : cinza],
+      ['Sensor 40°', on('sensor_40_graus') ? 'ativo' : 'inativo', null, on('sensor_40_graus') ? verde : cinza],
+    ];
+    if (usa(2)) linhas.push(['Trava rodas', trRoda ? 'engatada' : 'solta', null, trRoda ? verde : cinza]);
+    if (usa(3)) linhas.push(['Trava chassi', trChassi ? 'engatada' : 'solta', null, trChassi ? verde : cinza]);
+    if (usa(4)) linhas.push(['Trava pino E', on('trava_pino_e') ? 'engatada' : 'solta', null, on('trava_pino_e') ? verde : cinza]);
+    if (usa(5)) linhas.push(['Trava pino D', on('trava_pino_d') ? 'engatada' : 'solta', null, on('trava_pino_d') ? verde : cinza]);
+    if (usa(6)) linhas.push(['Moega/Fosso', moegaCheia ? 'CHEIA' : 'OK', moegaCheia ? '#dc2626' : null, moegaCheia ? '#dc2626' : verde]);
+    if (usa(7)) linhas.push(['Portão', on('portao_fechado') ? 'fechado' : 'aberto', null, on('portao_fechado') ? verde : cinza]);
+    const painel = `<text x="562" y="44" font-size="12" font-weight="700" fill="#6b7280" letter-spacing="1">PLATAFORMA</text>
+      <text x="562" y="68" font-size="17" font-weight="800" fill="${corPlat}">${plat}</text>
+      <line x1="560" y1="80" x2="740" y2="80" stroke="#e5e7eb"/>` + linhas.map(([nome, val, corTxt, led], k) => {
+      const y = 104 + k * 28;
+      return `${led ? `<circle cx="568" cy="${y - 5}" r="6" fill="${led}" stroke="#ffffff" stroke-width="1.5"/>` : ''}
+        <text x="${led ? 582 : 562}" y="${y}" font-size="14" fill="#6b7280">${nome}:</text>
+        <text x="750" y="${y}" font-size="14" font-weight="700" text-anchor="end" fill="${corTxt || '#1f2937'}">${val}</text>`;
+    }).join('');
+    // nivel do grao na moega
+    const nivel = moegaCheia ? 338 : 372;
+    const ang0 = estado === 'alto' ? 40 : estado === 'movimento' ? 20 : 0;
+    return `<div class="mb-3 rounded-xl border border-gray-200 bg-gradient-to-b from-sky-50 to-white overflow-hidden">
+      <svg class="tombador-anim w-full h-auto block" viewBox="0 0 760 400" role="img" aria-label="Tombador: plataforma ${plat}"
+           data-estado="${estado}" data-ang="${ang0}" style="font-family: inherit">
+        <defs>
+          <linearGradient id="tbAco" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#9ca3af"/><stop offset="1" stop-color="#4b5563"/></linearGradient>
+          <linearGradient id="tbCarreta" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#6b7280"/><stop offset="1" stop-color="#374151"/></linearGradient>
+          <linearGradient id="tbCabine" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ef4444"/><stop offset="1" stop-color="#991b1b"/></linearGradient>
+          <linearGradient id="tbGrao" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fbbf24"/><stop offset="1" stop-color="#d97706"/></linearGradient>
+        </defs>
+        <!-- chao, vala do cilindro e moega -->
+        <rect x="0" y="332" width="760" height="68" fill="#e7e5e4"/>
+        <line x1="0" y1="332" x2="760" y2="332" stroke="#a8a29e" stroke-width="2"/>
+        <rect x="284" y="332" width="32" height="36" fill="#78716c"/>
+        <polygon points="24,332 124,332 112,394 36,394" fill="#44403c" stroke="${moegaCheia ? '#dc2626' : '#57534e'}" stroke-width="${moegaCheia ? 4 : 2}"/>
+        <polygon points="${30 + (nivel - 332) * 0.19},${nivel} ${118 - (nivel - 332) * 0.19},${nivel} 112,394 36,394" fill="url(#tbGrao)"/>
+        <text x="74" y="389" font-size="12" font-weight="700" text-anchor="middle" fill="#ffffff">${moegaCheia ? 'CHEIA' : 'MOEGA'}</text>
+        <!-- poste do sensor de 40 graus -->
+        <line x1="436" y1="332" x2="436" y2="50" stroke="#9ca3af" stroke-width="5"/>
+        <rect x="424" y="52" width="24" height="14" rx="3" fill="#374151"/>
+        <circle class="led40" cx="436" cy="59" r="4.5" fill="${on('sensor_40_graus') ? '#22c55e' : '#6b7280'}"/>
+        <text x="454" y="64" font-size="13" font-weight="700" fill="#374151">40°</text>
+        <!-- sensor de 0 grau sob a ponta da plataforma -->
+        <rect x="484" y="327" width="22" height="7" rx="2" fill="#374151"/>
+        <circle cx="495" cy="330.5" r="3" fill="${on('sensor_0_graus') ? '#22c55e' : '#6b7280'}"/>
+        <text x="495" y="350" font-size="13" font-weight="700" text-anchor="middle" fill="#374151">0°</text>
+        <!-- cilindro hidraulico (desenhado a cada quadro) -->
+        <line class="cil-camisa" x1="300" y1="366" x2="300" y2="340" stroke="#1f2937" stroke-width="14" stroke-linecap="round"/>
+        <line class="cil-haste" x1="300" y1="340" x2="300" y2="326" stroke="#d1d5db" stroke-width="6" stroke-linecap="round"/>
+        <!-- grao saindo pela tampa traseira -->
+        <path class="fluxo" d="M0 0" stroke="#f59e0b" stroke-width="7" stroke-linecap="round" stroke-dasharray="3 7" fill="none" opacity="0"/>
+        <!-- plataforma + caminhao (giram juntos) -->
+        <g class="plat">
+          <rect x="${HX}" y="314" width="400" height="12" rx="2" fill="url(#tbAco)"/>
+          <line x1="${HX}" y1="320" x2="510" y2="320" stroke="#374151" stroke-width="1"/>
+          ${[150, 190, 230, 270, 310, 350, 390, 430, 470].map(x => `<line x1="${x}" y1="314" x2="${x}" y2="326" stroke="#4b5563" stroke-width="1"/>`).join('')}
+          <!-- carreta graneleira -->
+          <rect x="126" y="296" width="232" height="6" fill="#1f2937"/>
+          <path d="M132,232 Q238,202 344,232 Z" fill="url(#tbGrao)"/>
+          <rect x="128" y="232" width="222" height="64" rx="3" fill="url(#tbCarreta)" stroke="#1f2937" stroke-width="1.5"/>
+          ${[150, 172, 194, 216, 238, 260, 282, 304, 326].map(x => `<line x1="${x}" y1="236" x2="${x}" y2="292" stroke="#4b5563" stroke-width="1.5"/>`).join('')}
+          <rect x="122" y="230" width="7" height="68" rx="1" fill="#1f2937"/>
+          ${roda(160)}${roda(190)}${roda(220)}
+          <!-- cavalo -->
+          <rect x="352" y="296" width="118" height="6" fill="#1f2937"/>
+          <path d="M382,302 L382,246 L428,246 Q434,246 438,252 L452,270 L470,272 L470,302 Z" fill="url(#tbCabine)" stroke="#7f1d1d" stroke-width="1.5"/>
+          <path d="M390,253 L426,253 L440,270 L390,270 Z" fill="#bfdbfe" stroke="#1e3a8a" stroke-width="1"/>
+          <rect x="466" y="284" width="8" height="12" rx="2" fill="#d1d5db"/>
+          <rect x="374" y="230" width="5" height="40" rx="2" fill="#6b7280"/>
+          ${roda(400)}${roda(452)}
+          <!-- travas: calcos das rodas e gancho do chassi -->
+          ${usa(2) ? calco(150, trRoda) + calco(242, trRoda) : ''}
+          ${usa(3) ? (trChassi ? `<rect x="288" y="302" width="9" height="12" rx="1" fill="${verde}" stroke="#14532d"/>` : `<rect x="288" y="309" width="9" height="5" rx="1" fill="${cinza}"/>`) : ''}
+          ${[[4, 'trava_pino_e', 318, 'E'], [5, 'trava_pino_d', 334, 'D']].filter(([i]) => usa(i)).map(([, c, x, l]) => on(c)
+              ? `<rect x="${x}" y="300" width="7" height="14" rx="3" fill="${verde}" stroke="#14532d"/><text x="${x + 3.5}" y="296" font-size="9" font-weight="700" text-anchor="middle" fill="#14532d">${l}</text>`
+              : `<rect x="${x}" y="309" width="7" height="5" rx="2" fill="${cinza}"/><text x="${x + 3.5}" y="306" font-size="9" font-weight="700" text-anchor="middle" fill="#6b7280">${l}</text>`).join('')}
+        </g>
+        ${usa(7) ? `<!-- portao (grade) ao lado da ponta da plataforma: em pe = fechado, deitado = aberto -->
+        <g transform="${on('portao_fechado') ? '' : 'rotate(-78 516 332)'}">
+          <rect x="516" y="274" width="20" height="58" rx="2" fill="none" stroke="${on('portao_fechado') ? verde : cinza}" stroke-width="3"/>
+          ${[521, 526, 531].map(x => `<line x1="${x}" y1="276" x2="${x}" y2="330" stroke="${on('portao_fechado') ? verde : cinza}" stroke-width="2"/>`).join('')}
+        </g>
+        <text x="526" y="${on('portao_fechado') ? 266 : 318}" font-size="11" font-weight="700" text-anchor="middle" fill="${on('portao_fechado') ? verde : '#6b7280'}">PORTÃO</text>` : ''}
+        <circle cx="${HX}" cy="${HY}" r="7" fill="#1f2937" stroke="#d1d5db" stroke-width="2"/>
+        <!-- quadro de estado -->
+        <rect x="548" y="20" width="204" height="${linhas.length * 28 + 76}" rx="10" fill="#ffffff" fill-opacity="0.92" stroke="#e5e7eb"/>
+        ${painel}
+      </svg>
+    </div>`;
+  }
+  // Um laco so para todos os desenhos da pagina: angulo, cilindro e grao caindo
+  function animar(ts) {
+    document.querySelectorAll('svg.tombador-anim').forEach(svg => {
+      const est = svg.dataset.estado;
+      const alvo = est === 'alto' ? 40 : est === 'movimento' ? 20 + 16 * Math.sin(ts / 1500) : 0;
+      let ang = parseFloat(svg.dataset.ang);
+      if (!isFinite(ang)) ang = alvo;
+      ang += (alvo - ang) * 0.06;
+      svg.dataset.ang = ang;
+      const g = svg.querySelector('.plat');
+      if (g) g.setAttribute('transform', `rotate(${(-ang).toFixed(2)} ${HX} ${HY})`);
+      const [ax, ay] = girar(300, 326, ang);               // ponto do cilindro na plataforma
+      const bx = 300, by = 366, len = Math.hypot(ax - bx, ay - by) || 1;
+      const cam = Math.min(len, 30), mx = bx + (ax - bx) * cam / len, my = by + (ay - by) * cam / len;
+      const c1 = svg.querySelector('.cil-camisa'), c2 = svg.querySelector('.cil-haste');
+      if (c1) { c1.setAttribute('x2', mx.toFixed(1)); c1.setAttribute('y2', my.toFixed(1)); }
+      if (c2) { c2.setAttribute('x1', mx.toFixed(1)); c2.setAttribute('y1', my.toFixed(1)); c2.setAttribute('x2', ax.toFixed(1)); c2.setAttribute('y2', ay.toFixed(1)); }
+      const fl = svg.querySelector('.fluxo');
+      if (fl) {
+        const [tx, ty] = girar(124, 296, ang);             // tampa traseira da carreta
+        fl.setAttribute('d', `M${tx.toFixed(1)} ${ty.toFixed(1)} L${(tx - 4).toFixed(1)} 340`);
+        fl.setAttribute('opacity', ang > 15 ? '0.95' : '0');
+        fl.setAttribute('stroke-dashoffset', String(-(ts / 25) % 100));
+      }
+    });
+    requestAnimationFrame(animar);
+  }
+  if (!window.__tombadorAnimando) { window.__tombadorAnimando = true; requestAnimationFrame(animar); }
+
   // [nome, campo da leitura, campo do ciclo, rotulo ligado, rotulo desligado, alerta]
   const SENSORES = [
     ['Sensor 0°', 'sensor_0_graus', null, 'Ativo', 'Inativo', false],
@@ -234,6 +373,8 @@
             </div>
             <div class="grid grid-cols-2 sm:grid-cols-4 gap-2">${SENSORES.map((_, i) => sensorBox(i, t, hab)).join('')}</div>
           </div>
+
+          ${desenhoTombador(t, hab)}
 
           <div class="live-moega-alert mb-3 p-3 bg-red-600 rounded-lg text-white text-center animate-pulse" style="display:none">
             <div class="font-bold text-sm">MOEGA/FOSSO CHEIO - OPERAÇÃO PARADA</div>
