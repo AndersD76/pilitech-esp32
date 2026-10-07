@@ -74,21 +74,27 @@ function periodoDoPedido(q) {
   if (Date.parse(ate) - Date.parse(de) > 366 * 86400000) de = dia(Date.parse(ate) - 366 * 86400000);
   return { de, ate, hoje };
 }
-// Ciclos por dia pelo CONTADOR DA IoT ("ciclos hoje" de cada leitura), e nao pelos registros de
-// ciclo: os dados de cada ciclo saem do buffer da IoT com atraso (07/10/2026: 22 de 46 tinham
-// chegado). Leitura velha que chega atrasada com a hora da chegada tem outra base
-// (total - hoje = ciclos antes daquele dia) e fica de fora.
+// Ciclos por dia pelo CONTADOR DA IoT (total de ciclos de cada leitura), e nao pelos
+// registros de ciclo: os dados de cada ciclo saem do buffer da IoT com atraso (07/10/2026:
+// 22 de 46 tinham chegado). Ciclos do dia = maior total do dia - maior total antes dele,
+// contando a partir do ultimo reset do contador (evento "reset"/"reset_ciclos_total").
+// Leitura velha que chega atrasada tem total menor e nao muda o maximo; a soma do periodo
+// bate com o total da IoT (o "ciclos hoje" da IoT ate a v10.42 nao zerava a meia-noite).
 async function ciclosPorDiaIoT(deviceId, de, ate) {
   const r = await pool.query(`
-    WITH r AS (
-      SELECT ${DIA_BR('timestamp')} AS dia, ciclos_hoje, ciclos_total - ciclos_hoje AS base
-      FROM sensor_readings
-      WHERE device_id = $1 AND ciclos_hoje IS NOT NULL AND ciclos_total IS NOT NULL
-        AND ${DIA_BR('timestamp')} BETWEEN $2::date AND $3::date
-    ), m AS (SELECT dia, MAX(base) AS base FROM r GROUP BY dia)
-    SELECT to_char(r.dia, 'YYYY-MM-DD') AS dia, MAX(r.ciclos_hoje)::int AS ciclos
-    FROM r JOIN m ON m.dia = r.dia AND m.base = r.base
-    GROUP BY r.dia ORDER BY r.dia`, [deviceId, de, ate]);
+    WITH dias AS (SELECT generate_series($2::date, $3::date, '1 day')::date AS dia),
+    lr AS (SELECT ${DIA_BR('timestamp')} AS dia, timestamp, ciclos_total
+           FROM sensor_readings WHERE device_id = $1 AND ciclos_total IS NOT NULL)
+    SELECT to_char(d.dia, 'YYYY-MM-DD') AS dia,
+      GREATEST(COALESCE(
+        (SELECT MAX(lr.ciclos_total) FROM lr WHERE lr.dia = d.dia AND lr.timestamp > rs.em)
+        - COALESCE((SELECT MAX(lr.ciclos_total) FROM lr WHERE lr.dia < d.dia AND lr.timestamp > rs.em), 0), 0), 0)::int AS ciclos
+    FROM dias d
+    CROSS JOIN LATERAL (
+      SELECT COALESCE(MAX(el.timestamp), '-infinity'::timestamp) AS em FROM event_logs el
+      WHERE el.device_id = $1 AND el.sensor_name IN ('reset', 'reset_ciclos_total') AND ${DIA_BR('el.timestamp')} <= d.dia
+    ) rs
+    ORDER BY d.dia`, [deviceId, de, ate]);
   return r.rows;
 }
 // Sensores habilitados na IoT (ultima leitura): [0 grau, 40 graus, trava roda, trava chassi, pino E, pino D, moega, portao]

@@ -302,17 +302,7 @@
             </div>
           </div>
 
-          <!-- Alertas em tempo real -->
-          <div class="bg-white rounded-xl shadow-sm p-6 mb-6">
-            <h3 class="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
-              <svg class="w-5 h-5 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z"/></svg>
-              Alertas e Eventos Recentes
-              <span class="text-xs font-normal text-gray-400 ml-2">(últimas 24h)</span>
-            </h3>
-            <div id="telAlertsList" class="space-y-2 max-h-64 overflow-y-auto">
-              <p class="text-gray-400 text-sm text-center py-4">Carregando alertas...</p>
-            </div>
-          </div>
+          <!-- Alertas e eventos: ficam dentro do card de cada tombador -->
 
           <!-- Tombadores em tempo real -->
           <div class="bg-white rounded-xl shadow-sm p-6 mb-6">
@@ -1273,8 +1263,8 @@
         document.getElementById('telManutencoes').textContent = data.maintCount || 0;
 
         // Alertas list
-        const alertsEl = document.getElementById('telAlertsList');
-        if (data.alertas && data.alertas.length > 0) {
+        const alertsEl = document.getElementById('telAlertsList');   // (os alertas agora ficam dentro do card)
+        if (!alertsEl) { /* sem lista separada */ } else if (data.alertas && data.alertas.length > 0) {
           alertsEl.innerHTML = data.alertas.map(a => {
             const isAlert = ['ALERT', 'moega_cheia', 'alerta_critico', 'parada_emergencia', 'sensor_falha'].includes(a.event_type);
             const bgClass = isAlert ? 'bg-red-50 border-red-200' : a.event_type === 'WARNING' ? 'bg-yellow-50 border-yellow-200' : 'bg-gray-50 border-gray-200';
@@ -1302,7 +1292,7 @@
         (data.devices || []).forEach(x => { empresaPor[x.serial_number] = x.empresa_name; });
         devicesEl.innerHTML = cards.devices.length
           ? cards.devices.map(d => CardTombador.render(d, cards.leituras[d.serial_number], cards.ciclos[d.serial_number] || null,
-              cards.manutPor[d.serial_number], { empresa: empresaPor[d.serial_number] })).join('')
+              cards.manutPor[d.serial_number], { empresa: empresaPor[d.serial_number], eventos: cards.eventos[d.serial_number] })).join('')
           : '<p class="text-gray-400 text-sm text-center py-4">Nenhum tombador cadastrado</p>';
 
         // Manutencoes table

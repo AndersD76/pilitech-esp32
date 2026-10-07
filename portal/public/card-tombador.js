@@ -90,6 +90,28 @@
     return ['FORA DO 0° (SUBINDO / DESCENDO)', 'text-amber-600'];
   }
 
+  // Texto do evento como o cliente le: tempos em minutos ("em 1097 seg" -> "em 18,3 min")
+  function textoEvento(m) {
+    return String(m || '')
+      .replace(/em (\d+) seg/g, (_, s) => 'em ' + min(Number(s)))
+      .replace(/Necessario/g, 'Necessário').replace(/Necessaria/g, 'Necessária');
+  }
+  function eventosHtml(lista) {
+    const ev = Array.isArray(lista) ? lista : [];
+    const linhas = ev.map(e => {
+      const alerta = ['ALERT', 'moega_cheia', 'alerta_critico', 'parada_emergencia', 'sensor_falha'].includes(e.event_type);
+      const aviso = e.event_type === 'WARNING';
+      const cor = alerta ? 'bg-red-50 border-red-200 text-red-700' : aviso ? 'bg-yellow-50 border-yellow-200 text-yellow-800' : 'bg-gray-50 border-gray-200 text-gray-700';
+      return `<div class="flex items-start justify-between gap-2 px-2 py-1.5 rounded border ${cor}">
+        <span class="text-xs">${alerta ? '<b>ALERTA</b> · ' : aviso ? '<b>AVISO</b> · ' : ''}${esc(textoEvento(e.message))}</span>
+        <span class="text-[10px] opacity-70 whitespace-nowrap">${curto(e.timestamp)}</span></div>`;
+    }).join('');
+    return `<div class="mb-3">
+      <div class="text-[10px] font-bold text-gray-500 mb-1 tracking-wider">ALERTAS E EVENTOS · ÚLTIMAS 24 H</div>
+      <div class="space-y-1 max-h-48 overflow-y-auto pr-1">${linhas || '<p class="text-xs text-gray-400 py-2">Nenhum alerta ou evento nas últimas 24 h</p>'}</div>
+    </div>`;
+  }
+
   // [nome, campo da leitura, campo do ciclo, rotulo ligado, rotulo desligado, alerta]
   const SENSORES = [
     ['Sensor 0°', 'sensor_0_graus', null, 'Ativo', 'Inativo', false],
@@ -172,7 +194,7 @@
             ${leituraEm ? `<p class="text-xs text-gray-400 mt-1">Última leitura: ${leituraEm} · Horímetro ${horimetro(t.horas_operacao, t.minutos_operacao)}</p>` : ''}
           </div>
         </div>
-        <div class="p-4">${rodape}</div>
+        <div class="p-4">${eventosHtml(opcoes.eventos)}${rodape}</div>
       </div>`;
     }
 
@@ -260,6 +282,7 @@
             </div>
           </div>
         </div>
+        ${eventosHtml(opcoes.eventos)}
         ${rodape}
       </div>
     </div>`;
@@ -267,14 +290,16 @@
 
   // Busca tudo o que o card precisa (mesmas rotas para cliente e admin)
   async function carregar(api) {
-    const [dev, tele, ciclos, manut] = await Promise.all([
+    const [dev, tele, ciclos, manut, ev] = await Promise.all([
       api('/api/devices'), api('/api/latest-readings'), api('/api/cliente/ultimos-ciclos'), api('/api/manutencoes/status'),
+      api('/api/cliente/eventos-recentes'),
     ]);
     const leituras = {};
     ((tele && !tele.blocked && tele.data) || []).forEach(t => { leituras[t.serial_number] = t; });
     const manutPor = {};
     ((manut && manut.equipamentos) || []).forEach(e => { manutPor[e.serial_number] = e; });
-    return { dev, devices: (dev && dev.devices) || [], leituras, ciclos: (ciclos && ciclos.ciclos) || {}, manut, manutPor };
+    return { dev, devices: (dev && dev.devices) || [], leituras, ciclos: (ciclos && ciclos.ciclos) || {}, manut, manutPor,
+             eventos: (ev && ev.eventos) || {} };
   }
 
   window.CardTombador = { render, carregar, min, haQuanto };

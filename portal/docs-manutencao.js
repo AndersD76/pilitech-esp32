@@ -725,6 +725,33 @@ function setupDocsManutencao(app, pool, deps) {
     }
   });
 
+  // Alertas e eventos das ultimas 24 h de cada equipamento (vao dentro do card do tombador)
+  app.get('/api/cliente/eventos-recentes', authenticateToken, checkSubscription, async (req, res) => {
+    try {
+      if (bloqueado(req)) return res.json({ blocked: true, eventos: {} });
+      const params = [];
+      const where = filtroEscopo(req.user, params);
+      const r = await pool.query(`
+        SELECT d.serial_number, ev.timestamp, ev.event_type, ev.sensor_name, ev.message
+        FROM devices d
+        LEFT JOIN unidades un ON un.id = d.unidade_id
+        JOIN LATERAL (
+          SELECT el.timestamp, el.event_type, el.sensor_name, el.message FROM event_logs el
+          WHERE el.device_id = d.id AND el.timestamp > NOW() - INTERVAL '24 hours'
+          ORDER BY el.timestamp DESC LIMIT 30
+        ) ev ON TRUE
+        WHERE ${where}
+        ORDER BY d.serial_number, ev.timestamp DESC
+      `, params);
+      const eventos = {};
+      r.rows.forEach(({ serial_number, ...e }) => { (eventos[serial_number] = eventos[serial_number] || []).push(e); });
+      res.json({ blocked: false, eventos });
+    } catch (err) {
+      console.error('[CLIENTE eventos]', err.message);
+      res.status(500).json({ error: 'Erro ao buscar eventos' });
+    }
+  });
+
   console.log('✅ Rotas de documentos e manutenções registradas');
 }
 
