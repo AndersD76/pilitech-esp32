@@ -471,8 +471,8 @@
         <div class="bg-gradient-to-br from-gray-50 to-white border-2 border-gray-100 rounded-2xl p-5 shadow-sm">
           <div class="flex items-center justify-between mb-4">
             <div>
-              <h4 class="font-bold text-gray-800">Evolução da Produtividade</h4>
-              <p class="text-xs text-gray-500">Meta: linha vermelha = 100%</p>
+              <h4 class="font-bold text-gray-800">Tempo Médio do Ciclo por Dia</h4>
+              <p class="text-xs text-gray-500">Verde = dentro da meta de 10 min · vermelho = acima · tracejado = meta</p>
             </div>
             <span class="periodo-rotulo px-3 py-1 bg-green-100 text-green-700 rounded-full text-xs font-bold">7 DIAS</span>
           </div>
@@ -1544,7 +1544,7 @@
                   <div class="text-[9px] text-gray-400">TOTAL</div>
                 </div>
                 <div class="bg-gray-700 rounded-lg py-2">
-                  <div class="text-lg font-black text-white">${t.horas_operacao || 0}h</div>
+                  <div class="text-lg font-black text-white">${t.horimetro_ligado_min != null ? Math.floor(t.horimetro_ligado_min / 60) : (t.horas_operacao || 0)}h</div>
                   <div class="text-[9px] text-gray-400">HORIM.</div>
                 </div>
               </div>
@@ -1634,7 +1634,7 @@
              (t.paradaMoegaS > 0 ? `≈ ${caminhoes} caminhão(ões) que daria para descarregar · ` : '') + `${t.ciclosComMoega || 0} ciclo(s)`,
              t.paradaMoegaS > 0 ? 'bg-amber-50 border-amber-300 text-amber-900' : '') +
         item('Saiu do 0° sem travas', (t.ciclosSemTravas || 0), 'ciclo(s)', t.ciclosSemTravas > 0 ? 'bg-red-50 border-red-300 text-red-800' : '') +
-        item('Horímetro no período', hm(t.horimetroMin), 'plataforma fora do 0°') +
+        item('Horímetro no período', hm(t.horimetroMin), 'IoT ligada (desligada não conta)') +
         item('Ciclos com dados', `${t.ciclosRecebidos || 0} de ${stats.ciclosPeriodo || 0}`, 'os demais ainda estão no buffer da IoT');
     }
 
@@ -1893,53 +1893,86 @@
       });
     }
 
-    // Update Produtividade Chart (%)
+    // Tempo medio do ciclo por dia, em minutos, contra a meta (antes: linha de "produtividade %"
+    // curva, que inventava valor entre os dias e saia do grafico)
     function updateProdutividadeChart(data) {
       const ctx = document.getElementById('chartProdutividade');
       if (!ctx) return;
 
       if (chartProdutividade) chartProdutividade.destroy();
 
-      const labels = data.map(d => fmtDiaBR(d.dia));
-      // Produtividade = (tempo_padrao / tempo_real) * 100
-      // dia sem dado de tempo fica sem ponto (antes virava 100%)
+      const meta = TEMPO_PADRAO_CICLO / 60;
+      const labels = data.map(d => fmtDiaBR(d.dia, { day: '2-digit', month: '2-digit' }));
       const values = data.map(d => {
-        const tempoReal = parseFloat(d.tempo_medio_ciclo);
-        return tempoReal > 0 ? Math.round(Math.min(200, (TEMPO_PADRAO_CICLO / tempoReal) * 100)) : null;
+        const s = parseFloat(d.tempo_medio_ciclo);
+        return s > 0 ? Math.round(s / 6) / 10 : null;          // minutos com 1 casa
       });
+      const cor = v => v > meta ? 'rgba(220, 38, 38, 0.8)' : 'rgba(22, 163, 74, 0.8)';
+      const minTxt = v => v.toLocaleString('pt-BR') + ' min';
+
+      // linha tracejada da meta + valor em cima de cada barra ("sem ciclo" no dia vazio)
+      const metaEValores = {
+        id: 'metaEValores',
+        afterDatasetsDraw(chart) {
+          const { ctx: c, chartArea: a, scales: { x, y } } = chart;
+          const ym = y.getPixelForValue(meta);
+          c.save();
+          c.strokeStyle = 'rgb(220, 38, 38)'; c.lineWidth = 2; c.setLineDash([6, 4]);
+          c.beginPath(); c.moveTo(a.left, ym); c.lineTo(a.right, ym); c.stroke();
+          c.setLineDash([]);
+          c.fillStyle = 'rgb(220, 38, 38)'; c.font = 'bold 11px sans-serif'; c.textAlign = 'right'; c.textBaseline = 'bottom';
+          c.fillText('meta ' + minTxt(meta), a.right - 2, ym - 2);
+          c.textAlign = 'center';
+          chart.getDatasetMeta(0).data.forEach((bar, i) => {
+            const v = values[i];
+            if (v == null) {
+              c.fillStyle = '#9ca3af'; c.font = '10px sans-serif';
+              c.fillText('sem ciclo', bar.x, a.bottom - 4);
+            } else {
+              c.fillStyle = '#374151'; c.font = 'bold 11px sans-serif';
+              c.fillText(minTxt(v), bar.x, bar.y - 3);
+            }
+          });
+          c.restore();
+        }
+      };
 
       chartProdutividade = new Chart(ctx, {
-        type: 'line',
+        type: 'bar',
         data: {
           labels,
           datasets: [{
-            label: 'Produtividade %',
+            label: 'Tempo médio do ciclo',
             data: values,
-            borderColor: 'rgb(34, 197, 94)',
-            backgroundColor: 'rgba(34, 197, 94, 0.1)',
-            fill: true,
-            tension: 0.4,
-            spanGaps: true
+            backgroundColor: values.map(v => v == null ? 'transparent' : cor(v)),
+            borderRadius: 4,
+            maxBarThickness: 48
           }]
         },
         options: {
           responsive: true,
+          layout: { padding: { top: 16 } },
           plugins: {
             legend: { display: false },
-            annotation: {
-              annotations: {
-                line1: { type: 'line', yMin: 100, yMax: 100, borderColor: 'rgb(220, 38, 38)', borderWidth: 2, borderDash: [5, 5] }
+            tooltip: {
+              callbacks: {
+                label: c => {
+                  const d = data[c.dataIndex];
+                  return [`Tempo médio: ${minTxt(c.raw)} (meta ${minTxt(meta)})`,
+                          `${d.ciclos_com_tempo || 0} ciclo(s) com tempo recebido de ${d.ciclos || 0} no dia`];
+                }
               }
             }
           },
           scales: {
             y: {
               beginAtZero: true,
-              max: 150,
-              ticks: { callback: v => v + '%' }
+              suggestedMax: meta * 1.5,
+              ticks: { callback: v => v + ' min' }
             }
           }
-        }
+        },
+        plugins: [metaEValores]
       });
     }
 

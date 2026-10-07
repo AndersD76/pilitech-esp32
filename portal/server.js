@@ -115,6 +115,32 @@ function ocorrenciasDoCiclo(c, cfg) {
   };
 }
 
+// Horimetro = tempo com a IoT LIGADA (07/10/2026). Cada leitura traz o uptime: a IoT esteve
+// ligada de (leitura - uptime) ate a leitura. A uniao desses trechos e o tempo ligado:
+// desligada nao conta; ligada sem 4G conta (o uptime segue e chega na proxima leitura).
+// O horimetro do firmware (horas_operacao) conta so a plataforma fora do 0 grau.
+// ini/fim: 'YYYY-MM-DD HH:MM:SS' em UTC (como o banco grava); null = desde sempre / ate agora.
+async function minutosLigada(deviceIds, ini = null, fim = null) {
+  if (!deviceIds.length) return {};
+  const r = await pool.query(`
+    WITH iv AS (
+      SELECT device_id, timestamp - make_interval(secs => uptime_seconds) AS ini, timestamp AS fim
+      FROM sensor_readings
+      WHERE device_id = ANY($1::int[]) AND uptime_seconds > 0
+        AND ($2::timestamp IS NULL OR timestamp > $2::timestamp)),
+    o AS (SELECT device_id, ini, fim, MAX(fim) OVER (PARTITION BY device_id ORDER BY ini, fim
+                 ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING) AS fim_ant FROM iv),
+    g AS (SELECT device_id, ini, fim, SUM(CASE WHEN fim_ant IS NULL OR ini > fim_ant THEN 1 ELSE 0 END)
+                 OVER (PARTITION BY device_id ORDER BY ini, fim) AS trecho FROM o),
+    t AS (SELECT device_id, MIN(ini) AS ini, MAX(fim) AS fim FROM g GROUP BY device_id, trecho)
+    SELECT device_id, ROUND(SUM(GREATEST(EXTRACT(EPOCH FROM
+             LEAST(fim, COALESCE($3::timestamp, fim)) - GREATEST(ini, COALESCE($2::timestamp, ini))), 0)) / 60)::int AS min
+    FROM t GROUP BY device_id`, [deviceIds, ini, fim]);
+  return Object.fromEntries(r.rows.map(x => [x.device_id, x.min]));
+}
+// dia 'YYYY-MM-DD' (horario de Brasilia, sem horario de verao) -> inicio do dia em UTC
+const inicioDiaUTC = dia => new Date(`${dia}T00:00:00-03:00`).toISOString().slice(0, 19).replace('T', ' ');
+
 // Database connection
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL || 'postgresql://neondb_owner:npg_pCqSLW9j2hKQ@ep-crimson-heart-ahcg1r28-pooler.c-3.us-east-1.aws.neon.tech/neondb?sslmode=require',
@@ -1275,7 +1301,7 @@ app.get('/api/latest-readings', authenticateToken, checkSubscription, async (req
         WHERE message LIKE '%Sistema iniciado%' OR message LIKE '%Reset total%' OR message LIKE '%Sistema parado%'
         ORDER BY device_id, timestamp DESC
       )
-      SELECT d.serial_number, d.name, d.last_seen,
+      SELECT d.id AS device_id, d.serial_number, d.name, d.last_seen,
         l.timestamp as reading_timestamp,
         l.sensor_0_graus, l.sensor_40_graus,
         l.trava_roda, l.trava_chassi, l.trava_pino_e, l.trava_pino_d,
@@ -1306,10 +1332,11 @@ app.get('/api/latest-readings', authenticateToken, checkSubscription, async (req
     `;
 
     const result = await pool.query(query, params);
+    const ligada = await minutosLigada(result.rows.map(r => r.device_id));
     res.json({
       blocked: false,
       subscription: req.subscriptionStatus,
-      data: result.rows
+      data: result.rows.map(r => ({ ...r, horimetro_ligado_min: ligada[r.device_id] ?? null }))
     });
   } catch (err) {
     console.error('Erro ao buscar leituras:', err);
@@ -1577,13 +1604,17 @@ app.get('/api/stats', authenticateToken, checkSubscription, async (req, res) => 
       ) latest
     `, params);
 
+    // horimetro total = tempo com a IoT ligada (soma dos equipamentos do escopo)
+    const ids = (await pool.query(`SELECT d.id FROM devices d ${deviceJoin} ${deviceWhere}`, params)).rows.map(r => r.id);
+    const ligada = Object.values(await minutosLigada(ids)).reduce((s, m) => s + m, 0);
+
     res.json({
       blocked: false,
       subscription: req.subscriptionStatus,
       totalDevices: parseInt(devicesResult.rows[0].total),
       onlineDevices: parseInt(onlineResult.rows[0].online),
       totalCiclos: parseInt(ciclosResult.rows[0].total_ciclos),
-      totalHoras: parseInt(ciclosResult.rows[0].total_horas)
+      totalHoras: Math.floor(ligada / 60)
     });
   } catch (err) {
     console.error('Erro ao buscar stats:', err);
@@ -2745,7 +2776,9 @@ app.get('/api/device-stats/:serialNumber', authenticateToken, checkSubscription,
                          COALESCE(trava_pino_e, 0) AS trava_pino_e, COALESCE(trava_pino_d, 0) AS trava_pino_d
                   FROM cycle_data WHERE device_id = $1 AND ${CICLO_VALIDO_SQL}
                     AND ${DIA_BR('created_at')} BETWEEN $2::date AND $3::date`, [deviceId, de, ate]),
-      pool.query(`SELECT to_char(${DIA_BR('created_at')}, 'YYYY-MM-DD') AS dia, AVG(${TEMPO_CICLO_SQL}) AS tempo_medio_ciclo
+      // ciclo com tempo 0 (todo o tempo foi parada de moega cheia, ex.: #27 de 06/10) nao entra na media
+      pool.query(`SELECT to_char(${DIA_BR('created_at')}, 'YYYY-MM-DD') AS dia, AVG(NULLIF(${TEMPO_CICLO_SQL}, 0)) AS tempo_medio_ciclo,
+                         COUNT(NULLIF(${TEMPO_CICLO_SQL}, 0))::int AS ciclos_com_tempo
                   FROM cycle_data WHERE device_id = $1 AND ${CICLO_VALIDO_SQL}
                     AND ${DIA_BR('created_at')} BETWEEN $2::date AND $3::date GROUP BY 1`, [deviceId, de, ate]),
       // horimetro (minutos acumulados pela IoT): no fim do periodo - antes dele
@@ -2760,15 +2793,22 @@ app.get('/api/device-stats/:serialNumber', authenticateToken, checkSubscription,
     // todos os dias do periodo (dia sem leitura = 0 ciclos)
     const contagem = Object.fromEntries(porDia.map(r => [r.dia, r.ciclos]));
     const tempoDia = Object.fromEntries(temposDia.rows.map(r => [r.dia, parseFloat(r.tempo_medio_ciclo)]));
+    const nTempoDia = Object.fromEntries(temposDia.rows.map(r => [r.dia, r.ciclos_com_tempo]));
     const ciclosDiarios = [];
     for (let t = Date.parse(de); t <= Date.parse(ate); t += 86400000) {
       const dia = new Date(t).toISOString().slice(0, 10);
-      ciclosDiarios.push({ dia, ciclos: contagem[dia] || 0, tempo_medio_ciclo: tempoDia[dia] || null });
+      ciclosDiarios.push({ dia, ciclos: contagem[dia] || 0, tempo_medio_ciclo: tempoDia[dia] || null,
+                           ciclos_com_tempo: nTempoDia[dia] || 0 });
     }
     const ciclos = ciclosR.rows;
-    const tempoMedio = ciclos.length ? ciclos.reduce((s, c) => s + Number(c.tempo_ciclo), 0) / ciclos.length : 0;
+    const comTempo = ciclos.filter(c => Number(c.tempo_ciclo) > 0);
+    const tempoMedio = comTempo.length ? comTempo.reduce((s, c) => s + Number(c.tempo_ciclo), 0) / comTempo.length : 0;
     const h = horR.rows[0] || {};
-    const horimetroMin = Math.max(0, (Number(h.ate_fim) || 0) - (h.antes != null ? Number(h.antes) : (Number(h.primeiro) || 0)));
+    // horimetro do firmware: minutos com a plataforma fora do 0 grau
+    const plataformaForaMin = Math.max(0, (Number(h.ate_fim) || 0) - (h.antes != null ? Number(h.antes) : (Number(h.primeiro) || 0)));
+    // horimetro: tempo com a IoT ligada dentro do periodo
+    const diaSeguinte = new Date(Date.parse(ate) + 86400000).toISOString().slice(0, 10);
+    const horimetroMin = (await minutosLigada([deviceId], inicioDiaUTC(de), inicioDiaUTC(diaSeguinte)))[deviceId] || 0;
 
     res.json({
       periodo: { de, ate },
@@ -2784,7 +2824,8 @@ app.get('/api/device-stats/:serialNumber', authenticateToken, checkSubscription,
         paradaMoegaS: Math.round(ciclos.reduce((s, c) => s + Number(c.moega), 0)),
         ciclosComMoega: ciclos.filter(c => ocorrenciasDoCiclo(c, cfg).moega_cheia).length,
         ciclosSemTravas: ciclos.filter(c => ocorrenciasDoCiclo(c, cfg).sem_travas).length,
-        horimetroMin,
+        horimetroMin,                                                    // IoT ligada no periodo
+        plataformaForaMin,
       },
       metaCicloS: META_CICLO_S
     });

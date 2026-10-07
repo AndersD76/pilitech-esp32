@@ -57,6 +57,12 @@
     if (h === null || h === undefined) return '-';
     return Number(h).toLocaleString('pt-BR') + 'h' + String(Number(m) || 0).padStart(2, '0') + 'm';
   }
+  // horimetro = tempo com a IoT ligada (calculado no portal pelo uptime das leituras)
+  function horimetroLigada(t) {
+    const min = t && t.horimetro_ligado_min;
+    if (min === null || min === undefined) return horimetro(t && t.horas_operacao, t && t.minutos_operacao);
+    return horimetro(Math.floor(min / 60), min % 60);
+  }
   function manutTag(m) {
     if (!m || m.status === 'sem_dados') return '';
     if (m.status === 'vencida') return `<span class="px-2 py-1 rounded-full text-xs font-bold bg-red-100 text-red-700" title="${m.horas_desde_manutencao} h desde a última manutenção">Manutenção vencida</span>`;
@@ -119,106 +125,132 @@
     const a = ang * Math.PI / 180, dx = px - HX, dy = py - HY;
     return [HX + dx * Math.cos(a) + dy * Math.sin(a), HY - dx * Math.sin(a) + dy * Math.cos(a)];
   }
+  const CIL_X = 250, CIL_BASE = 388;            // cilindro: preso na plataforma em (CIL_X, 326), base no fundo do fosso
   function desenhoTombador(t, hab) {
     const tem = t && t.sensor_0_graus !== undefined && t.sensor_0_graus !== null;
     const estado = !tem ? 'sem' : t.sensor_0_graus ? 'embaixo' : t.sensor_40_graus ? 'alto' : 'movimento';
     const on = c => !!(t && t[c]);
     const usa = i => !(hab && hab[i] === false);
-    const verde = '#16a34a', cinza = '#9ca3af';
-    const moegaCheia = on('moega_fosso');
+    const verde = '#16a34a', cinza = '#9ca3af', vermelho = '#dc2626';
+    const cheio = on('moega_fosso');               // um sensor so para moega e fosso
     const trRoda = on('trava_roda'), trChassi = on('trava_chassi');
-    const calco = (x, ok) => ok ? `<polygon points="${x - 10},314 ${x + 2},314 ${x + 2},302" fill="${verde}" stroke="#14532d" stroke-width="1"/>`
-                                : `<polygon points="${x - 10},314 ${x + 2},314 ${x + 2},311" fill="${cinza}"/>`;
-    const roda = (x) => `<circle cx="${x}" cy="303" r="11" fill="#111827"/><circle cx="${x}" cy="303" r="5" fill="#9ca3af"/><circle cx="${x}" cy="303" r="1.8" fill="#374151"/>`;
-    const plat = { embaixo: 'EMBAIXO (0°)', alto: 'NO ALTO (40°)', movimento: 'SUBINDO / DESCENDO', sem: 'SEM LEITURA' }[estado];
-    const corPlat = estado === 'embaixo' ? '#1f2937' : estado === 'sem' ? cinza : '#d97706';
-    const linhas = [
-      ['Sensor 0°', on('sensor_0_graus') ? 'ativo' : 'inativo', null, on('sensor_0_graus') ? verde : cinza],
-      ['Sensor 40°', on('sensor_40_graus') ? 'ativo' : 'inativo', null, on('sensor_40_graus') ? verde : cinza],
-    ];
-    if (usa(2)) linhas.push(['Trava rodas', trRoda ? 'engatada' : 'solta', null, trRoda ? verde : cinza]);
-    if (usa(3)) linhas.push(['Trava chassi', trChassi ? 'engatada' : 'solta', null, trChassi ? verde : cinza]);
-    if (usa(4)) linhas.push(['Trava pino E', on('trava_pino_e') ? 'engatada' : 'solta', null, on('trava_pino_e') ? verde : cinza]);
-    if (usa(5)) linhas.push(['Trava pino D', on('trava_pino_d') ? 'engatada' : 'solta', null, on('trava_pino_d') ? verde : cinza]);
-    if (usa(6)) linhas.push(['Moega/Fosso', moegaCheia ? 'CHEIA' : 'OK', moegaCheia ? '#dc2626' : null, moegaCheia ? '#dc2626' : verde]);
-    if (usa(7)) linhas.push(['Portão', on('portao_fechado') ? 'fechado' : 'aberto', null, on('portao_fechado') ? verde : cinza]);
-    const painel = `<text x="562" y="44" font-size="12" font-weight="700" fill="#6b7280" letter-spacing="1">PLATAFORMA</text>
-      <text x="562" y="68" font-size="17" font-weight="800" fill="${corPlat}">${plat}</text>
-      <line x1="560" y1="80" x2="740" y2="80" stroke="#e5e7eb"/>` + linhas.map(([nome, val, corTxt, led], k) => {
-      const y = 104 + k * 28;
-      return `${led ? `<circle cx="568" cy="${y - 5}" r="6" fill="${led}" stroke="#ffffff" stroke-width="1.5"/>` : ''}
-        <text x="${led ? 582 : 562}" y="${y}" font-size="14" fill="#6b7280">${nome}:</text>
-        <text x="750" y="${y}" font-size="14" font-weight="700" text-anchor="end" fill="${corTxt || '#1f2937'}">${val}</text>`;
-    }).join('');
-    // nivel do grao na moega
-    const nivel = moegaCheia ? 338 : 372;
+    // luzinha do sensor (igual a do 0 e do 40): caixinha escura + LED aceso/apagado
+    const led = (x, y, aceso, cor = '#22c55e') => `<rect x="${x - 9}" y="${y - 5}" width="18" height="10" rx="2.5" fill="#374151"/>
+        ${aceso ? `<circle cx="${x}" cy="${y}" r="7" fill="${cor}" opacity="0.3"/>` : ''}
+        <circle cx="${x}" cy="${y}" r="3.4" fill="${aceso ? cor : '#6b7280'}"/>`;
+    const rotulo = (x, l1, l2, ok) => `<text x="${x}" y="343" font-size="10.5" font-weight="700" text-anchor="middle" fill="${ok ? verde : '#6b7280'}">${l1}<tspan x="${x}" dy="11">${l2}</tspan></text>`;
+    // fenda no piso de onde a trava sobe
+    const fenda = (x1, x2) => `<rect x="${x1}" y="313" width="${x2 - x1}" height="2.5" rx="1" fill="#111827"/>`;
+    // trava roda: calco atras do pneu de tras (segura o caminhao quando a plataforma inclina
+    // para o lado da moega). Engatada = levantada encostando no pneu; solta = baixada no piso
+    const calco = ok => fenda(132, 149) + (ok
+      ? `<polygon points="133,314 148,314 148,299 144,296 140,297" fill="${verde}" stroke="#14532d" stroke-width="1.2" stroke-linejoin="round"/>
+         <line x1="137" y1="309" x2="145" y2="309" stroke="#ffffff" stroke-width="1.5" opacity="0.5"/>`
+      : `<rect x="133" y="310.5" width="15" height="3.5" rx="1" fill="${cinza}" stroke="#6b7280" stroke-width="1"/>`);
+    // trava chassi: quadradinho que sobe ate a longarina do cavalo (embaixo do engate);
+    // solta = baixado no piso
+    const blocoChassi = ok => fenda(361, 377) + (ok
+      ? `<rect x="362" y="300" width="14" height="14" rx="1.5" fill="${verde}" stroke="#14532d" stroke-width="1.2"/>
+         <line x1="365" y1="304" x2="373" y2="304" stroke="#ffffff" stroke-width="1.5" opacity="0.5"/>`
+      : `<rect x="362" y="310.5" width="14" height="3.5" rx="1" fill="${cinza}" stroke="#6b7280" stroke-width="1"/>`);
+    const roda = x => `<circle cx="${x}" cy="303" r="11" fill="#111827"/><circle cx="${x}" cy="303" r="8.2" fill="none" stroke="#374151" stroke-width="1.2"/>
+        <circle cx="${x}" cy="303" r="5.6" fill="#d1d5db"/><circle cx="${x}" cy="303" r="2.4" fill="#6b7280"/>`;
+    const paralama = (x1, x2) => `<path d="M${x1},301 Q${x1},288 ${x1 + 13},288 L${x2 - 13},288 Q${x2},288 ${x2},301" fill="none" stroke="#111827" stroke-width="3" stroke-linecap="round"/>`;
+    const plat = { embaixo: 'embaixo (0°)', alto: 'no alto (40°)', movimento: 'subindo / descendo', sem: 'sem leitura' }[estado];
+    const nivel = cheio ? 338 : 372;               // nivel do grao na moega
     const ang0 = estado === 'alto' ? 40 : estado === 'movimento' ? 20 : 0;
+    const portaoOk = on('portao_fechado');
     return `<div class="mb-3 rounded-xl border border-gray-200 bg-gradient-to-b from-sky-50 to-white overflow-hidden">
-      <svg class="tombador-anim w-full h-auto block" viewBox="0 0 760 400" role="img" aria-label="Tombador: plataforma ${plat}"
-           data-estado="${estado}" data-ang="${ang0}" style="font-family: inherit">
+      <svg class="tombador-anim w-full h-auto block" viewBox="10 16 556 384" role="img" aria-label="Tombador: plataforma ${plat}"
+           data-estado="${estado}" data-ang="${ang0}" style="font-family: inherit; max-height: 230px">
         <defs>
           <linearGradient id="tbAco" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#9ca3af"/><stop offset="1" stop-color="#4b5563"/></linearGradient>
-          <linearGradient id="tbCarreta" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#6b7280"/><stop offset="1" stop-color="#374151"/></linearGradient>
-          <linearGradient id="tbCabine" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ef4444"/><stop offset="1" stop-color="#991b1b"/></linearGradient>
+          <linearGradient id="tbCarreta" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#e5e7eb"/><stop offset="1" stop-color="#9ca3af"/></linearGradient>
+          <linearGradient id="tbCabine" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ef4444"/><stop offset="1" stop-color="#b91c1c"/></linearGradient>
+          <linearGradient id="tbVidro" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#e0f2fe"/><stop offset="1" stop-color="#7dd3fc"/></linearGradient>
           <linearGradient id="tbGrao" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fbbf24"/><stop offset="1" stop-color="#d97706"/></linearGradient>
         </defs>
-        <!-- chao, vala do cilindro e moega -->
-        <rect x="0" y="332" width="760" height="68" fill="#e7e5e4"/>
-        <line x1="0" y1="332" x2="760" y2="332" stroke="#a8a29e" stroke-width="2"/>
-        <rect x="284" y="332" width="32" height="36" fill="#78716c"/>
-        <polygon points="24,332 124,332 112,394 36,394" fill="#44403c" stroke="${moegaCheia ? '#dc2626' : '#57534e'}" stroke-width="${moegaCheia ? 4 : 2}"/>
+        <!-- chao -->
+        <rect x="-3000" y="332" width="7000" height="80" fill="#e7e5e4"/>
+        <line x1="-3000" y1="332" x2="4000" y2="332" stroke="#a8a29e" stroke-width="2"/>
+        <!-- moega (recebe o grao) -->
+        <polygon points="24,332 124,332 112,394 36,394" fill="#44403c" stroke="${cheio ? vermelho : '#57534e'}" stroke-width="${cheio ? 4 : 2}"/>
         <polygon points="${30 + (nivel - 332) * 0.19},${nivel} ${118 - (nivel - 332) * 0.19},${nivel} 112,394 36,394" fill="url(#tbGrao)"/>
-        <text x="74" y="389" font-size="12" font-weight="700" text-anchor="middle" fill="#ffffff">${moegaCheia ? 'CHEIA' : 'MOEGA'}</text>
+        <text x="74" y="390" font-size="15" font-weight="700" text-anchor="middle" fill="#ffffff">${cheio ? 'CHEIA' : 'MOEGA'}</text>
+        ${usa(6) ? led(42, 342, cheio, '#ef4444') : ''}
+        <!-- fosso (vala dos cilindros, embaixo da plataforma) -->
+        <rect x="206" y="332" width="88" height="64" fill="#57534e" stroke="${cheio ? vermelho : '#44403c'}" stroke-width="${cheio ? 4 : 2}"/>
+        <text x="225" y="391" font-size="11" font-weight="700" text-anchor="middle" fill="#ffffff">FOSSO</text>
+        ${usa(6) ? led(224, 343, cheio, '#ef4444') : ''}
         <!-- poste do sensor de 40 graus -->
         <line x1="436" y1="332" x2="436" y2="50" stroke="#9ca3af" stroke-width="5"/>
         <rect x="424" y="52" width="24" height="14" rx="3" fill="#374151"/>
-        <circle class="led40" cx="436" cy="59" r="4.5" fill="${on('sensor_40_graus') ? '#22c55e' : '#6b7280'}"/>
-        <text x="454" y="64" font-size="13" font-weight="700" fill="#374151">40°</text>
+        ${on('sensor_40_graus') ? '<circle cx="436" cy="59" r="8" fill="#22c55e" opacity="0.3"/>' : ''}
+        <circle cx="436" cy="59" r="4.5" fill="${on('sensor_40_graus') ? '#22c55e' : '#6b7280'}"/>
+        <text x="454" y="66" font-size="17" font-weight="700" fill="#374151">40°</text>
         <!-- sensor de 0 grau sob a ponta da plataforma -->
-        <rect x="484" y="327" width="22" height="7" rx="2" fill="#374151"/>
-        <circle cx="495" cy="330.5" r="3" fill="${on('sensor_0_graus') ? '#22c55e' : '#6b7280'}"/>
-        <text x="495" y="350" font-size="13" font-weight="700" text-anchor="middle" fill="#374151">0°</text>
-        <!-- cilindro hidraulico (desenhado a cada quadro) -->
-        <line class="cil-camisa" x1="300" y1="366" x2="300" y2="340" stroke="#1f2937" stroke-width="14" stroke-linecap="round"/>
-        <line class="cil-haste" x1="300" y1="340" x2="300" y2="326" stroke="#d1d5db" stroke-width="6" stroke-linecap="round"/>
+        ${led(495, 330, on('sensor_0_graus'))}
+        <text x="495" y="354" font-size="17" font-weight="700" text-anchor="middle" fill="#374151">0°</text>
+        <!-- cilindro hidraulico no fosso (desenhado a cada quadro) -->
+        <line class="cil-camisa" x1="${CIL_X}" y1="${CIL_BASE}" x2="${CIL_X}" y2="354" stroke="#1f2937" stroke-width="14" stroke-linecap="round"/>
+        <line class="cil-haste" x1="${CIL_X}" y1="354" x2="${CIL_X}" y2="326" stroke="#d1d5db" stroke-width="6" stroke-linecap="round"/>
         <!-- grao saindo pela tampa traseira -->
         <path class="fluxo" d="M0 0" stroke="#f59e0b" stroke-width="7" stroke-linecap="round" stroke-dasharray="3 7" fill="none" opacity="0"/>
         <!-- plataforma + caminhao (giram juntos) -->
         <g class="plat">
           <rect x="${HX}" y="314" width="400" height="12" rx="2" fill="url(#tbAco)"/>
           <line x1="${HX}" y1="320" x2="510" y2="320" stroke="#374151" stroke-width="1"/>
-          ${[150, 190, 230, 270, 310, 350, 390, 430, 470].map(x => `<line x1="${x}" y1="314" x2="${x}" y2="326" stroke="#4b5563" stroke-width="1"/>`).join('')}
+          ${[170, 210, 250, 290, 330, 410, 450, 490].map(x => `<line x1="${x}" y1="314" x2="${x}" y2="326" stroke="#4b5563" stroke-width="1"/>`).join('')}
           <!-- carreta graneleira -->
-          <rect x="126" y="296" width="232" height="6" fill="#1f2937"/>
-          <path d="M132,232 Q238,202 344,232 Z" fill="url(#tbGrao)"/>
-          <rect x="128" y="232" width="222" height="64" rx="3" fill="url(#tbCarreta)" stroke="#1f2937" stroke-width="1.5"/>
-          ${[150, 172, 194, 216, 238, 260, 282, 304, 326].map(x => `<line x1="${x}" y1="236" x2="${x}" y2="292" stroke="#4b5563" stroke-width="1.5"/>`).join('')}
-          <rect x="122" y="230" width="7" height="68" rx="1" fill="#1f2937"/>
+          <rect x="126" y="294" width="232" height="6" fill="#1f2937"/>
+          <path d="M132,234 Q240,204 346,234 Z" fill="url(#tbGrao)"/>
+          <rect x="128" y="236" width="222" height="54" rx="2" fill="url(#tbCarreta)" stroke="#4b5563" stroke-width="1.2"/>
+          <rect x="126" y="232" width="226" height="5" rx="1.5" fill="#374151"/>
+          <line x1="128" y1="263" x2="350" y2="263" stroke="#9ca3af" stroke-width="1"/>
+          ${[156, 186, 216, 246, 276, 306, 336].map(x => `<rect x="${x - 1.5}" y="237" width="3" height="53" fill="#6b7280"/>`).join('')}
+          <rect x="128" y="283" width="222" height="4" fill="#ffffff"/>
+          <line x1="128" y1="285" x2="350" y2="285" stroke="#dc2626" stroke-width="4" stroke-dasharray="9 9"/>
+          <rect x="121" y="230" width="8" height="66" rx="1.5" fill="#1f2937"/>
+          <rect x="120" y="280" width="5" height="8" rx="1" fill="#ef4444"/>
+          ${paralama(146, 234)}
           ${roda(160)}${roda(190)}${roda(220)}
-          <!-- cavalo -->
-          <rect x="352" y="296" width="118" height="6" fill="#1f2937"/>
-          <path d="M382,302 L382,246 L428,246 Q434,246 438,252 L452,270 L470,272 L470,302 Z" fill="url(#tbCabine)" stroke="#7f1d1d" stroke-width="1.5"/>
-          <path d="M390,253 L426,253 L440,270 L390,270 Z" fill="#bfdbfe" stroke="#1e3a8a" stroke-width="1"/>
-          <rect x="466" y="284" width="8" height="12" rx="2" fill="#d1d5db"/>
-          <rect x="374" y="230" width="5" height="40" rx="2" fill="#6b7280"/>
+          <!-- cavalo mecanico -->
+          <rect x="352" y="294" width="118" height="6" fill="#1f2937"/>
+          <rect x="352" y="289" width="30" height="5" rx="1" fill="#4b5563"/>
+          <rect x="379" y="222" width="5" height="70" rx="2" fill="#9ca3af"/>
+          <rect x="378" y="220" width="7" height="5" rx="1.5" fill="#6b7280"/>
+          <path d="M392,236 L398,221 L452,221 L460,236 Z" fill="#f3f4f6" stroke="#9ca3af" stroke-width="1"/>
+          <path d="M388,294 L388,244 Q388,236 396,236 L458,236 Q465,236 467,244 L473,272 L474,294 Z" fill="url(#tbCabine)" stroke="#7f1d1d" stroke-width="1.5"/>
+          <path d="M398,244 L436,244 L436,266 L398,266 Z" fill="url(#tbVidro)" stroke="#1e3a8a" stroke-width="1"/>
+          <path d="M458,244 L464,244 L470,270 L462,270 Z" fill="url(#tbVidro)" stroke="#1e3a8a" stroke-width="1"/>
+          <rect x="394" y="240" width="48" height="50" rx="3" fill="none" stroke="#7f1d1d" stroke-width="1"/>
+          <rect x="430" y="271" width="8" height="2.5" rx="1" fill="#7f1d1d"/>
+          <line x1="466" y1="250" x2="476" y2="247" stroke="#374151" stroke-width="1.5"/>
+          <rect x="474" y="243" width="4" height="12" rx="1.5" fill="#374151"/>
+          <rect x="467" y="276" width="8" height="6" rx="1.5" fill="#fde68a" stroke="#a16207" stroke-width="0.8"/>
+          <rect x="462" y="287" width="16" height="8" rx="2" fill="#374151"/>
+          <rect x="398" y="287" width="18" height="3" rx="1" fill="#1f2937"/>
+          <rect x="416" y="290" width="22" height="9" rx="4" fill="#d1d5db" stroke="#6b7280" stroke-width="0.8"/>
+          ${paralama(386, 414)}${paralama(438, 466)}
           ${roda(400)}${roda(452)}
-          <!-- travas: calcos das rodas e gancho do chassi -->
-          ${usa(2) ? calco(150, trRoda) + calco(242, trRoda) : ''}
-          ${usa(3) ? (trChassi ? `<rect x="288" y="302" width="9" height="12" rx="1" fill="${verde}" stroke="#14532d"/>` : `<rect x="288" y="309" width="9" height="5" rx="1" fill="${cinza}"/>`) : ''}
-          ${[[4, 'trava_pino_e', 318, 'E'], [5, 'trava_pino_d', 334, 'D']].filter(([i]) => usa(i)).map(([, c, x, l]) => on(c)
+          <!-- travas (cada uma com a luzinha do sensor na lateral da plataforma) -->
+          ${usa(2) ? calco(trRoda) + led(146, 320, trRoda) + rotulo(146, 'TRAVA', 'RODA', trRoda) : ''}
+          ${usa(3) ? blocoChassi(trChassi) + led(369, 320, trChassi) + rotulo(369, 'TRAVA', 'CHASSI', trChassi) : ''}
+          ${[[4, 'trava_pino_e', 318, 'E'], [5, 'trava_pino_d', 334, 'D']].filter(([i]) => usa(i)).map(([, c, x, l]) => (on(c)
               ? `<rect x="${x}" y="300" width="7" height="14" rx="3" fill="${verde}" stroke="#14532d"/><text x="${x + 3.5}" y="296" font-size="9" font-weight="700" text-anchor="middle" fill="#14532d">${l}</text>`
-              : `<rect x="${x}" y="309" width="7" height="5" rx="2" fill="${cinza}"/><text x="${x + 3.5}" y="306" font-size="9" font-weight="700" text-anchor="middle" fill="#6b7280">${l}</text>`).join('')}
+              : `<rect x="${x}" y="309" width="7" height="5" rx="2" fill="${cinza}"/><text x="${x + 3.5}" y="306" font-size="9" font-weight="700" text-anchor="middle" fill="#6b7280">${l}</text>`)
+              + `<rect x="${x - 2.5}" y="316" width="12" height="8" rx="2" fill="#374151"/>
+                 ${on(c) ? `<circle cx="${x + 3.5}" cy="320" r="6" fill="#22c55e" opacity="0.3"/>` : ''}
+                 <circle cx="${x + 3.5}" cy="320" r="2.8" fill="${on(c) ? '#22c55e' : '#6b7280'}"/>`).join('')}
         </g>
         ${usa(7) ? `<!-- portao (grade) ao lado da ponta da plataforma: em pe = fechado, deitado = aberto -->
-        <g transform="${on('portao_fechado') ? '' : 'rotate(-78 516 332)'}">
-          <rect x="516" y="274" width="20" height="58" rx="2" fill="none" stroke="${on('portao_fechado') ? verde : cinza}" stroke-width="3"/>
-          ${[521, 526, 531].map(x => `<line x1="${x}" y1="276" x2="${x}" y2="330" stroke="${on('portao_fechado') ? verde : cinza}" stroke-width="2"/>`).join('')}
+        <g transform="${portaoOk ? '' : 'rotate(-78 516 332)'}">
+          <rect x="516" y="274" width="20" height="58" rx="2" fill="none" stroke="${portaoOk ? verde : cinza}" stroke-width="3"/>
+          ${[521, 526, 531].map(x => `<line x1="${x}" y1="276" x2="${x}" y2="330" stroke="${portaoOk ? verde : cinza}" stroke-width="2"/>`).join('')}
         </g>
-        <text x="526" y="${on('portao_fechado') ? 266 : 318}" font-size="11" font-weight="700" text-anchor="middle" fill="${on('portao_fechado') ? verde : '#6b7280'}">PORTÃO</text>` : ''}
+        ${led(552, 327, portaoOk)}
+        <text x="${portaoOk ? 526 : 538}" y="${portaoOk ? 264 : 357}" font-size="${portaoOk ? 14 : 12.5}" font-weight="700" text-anchor="middle" fill="${portaoOk ? verde : '#6b7280'}">PORTÃO</text>` : ''}
         <circle cx="${HX}" cy="${HY}" r="7" fill="#1f2937" stroke="#d1d5db" stroke-width="2"/>
-        <!-- quadro de estado -->
-        <rect x="548" y="20" width="204" height="${linhas.length * 28 + 76}" rx="10" fill="#ffffff" fill-opacity="0.92" stroke="#e5e7eb"/>
-        ${painel}
       </svg>
     </div>`;
   }
@@ -233,9 +265,9 @@
       svg.dataset.ang = ang;
       const g = svg.querySelector('.plat');
       if (g) g.setAttribute('transform', `rotate(${(-ang).toFixed(2)} ${HX} ${HY})`);
-      const [ax, ay] = girar(300, 326, ang);               // ponto do cilindro na plataforma
-      const bx = 300, by = 366, len = Math.hypot(ax - bx, ay - by) || 1;
-      const cam = Math.min(len, 30), mx = bx + (ax - bx) * cam / len, my = by + (ay - by) * cam / len;
+      const [ax, ay] = girar(CIL_X, 326, ang);             // ponto do cilindro na plataforma
+      const bx = CIL_X, by = CIL_BASE, len = Math.hypot(ax - bx, ay - by) || 1;
+      const cam = Math.min(len, 34), mx = bx + (ax - bx) * cam / len, my = by + (ay - by) * cam / len;
       const c1 = svg.querySelector('.cil-camisa'), c2 = svg.querySelector('.cil-haste');
       if (c1) { c1.setAttribute('x2', mx.toFixed(1)); c1.setAttribute('y2', my.toFixed(1)); }
       if (c2) { c2.setAttribute('x1', mx.toFixed(1)); c2.setAttribute('y1', my.toFixed(1)); c2.setAttribute('x2', ax.toFixed(1)); c2.setAttribute('y2', ay.toFixed(1)); }
@@ -330,7 +362,7 @@
             <h4 class="text-sm font-bold text-red-300 tracking-wider mb-2">EQUIPAMENTO OFFLINE</h4>
             <p class="text-xs text-gray-300">Sem energia ou sem conexão</p>
             <p class="text-xs text-gray-300 mt-6">Último sinal: ${visto}</p>
-            ${leituraEm ? `<p class="text-xs text-gray-400 mt-1">Última leitura: ${leituraEm} · Horímetro ${horimetro(t.horas_operacao, t.minutos_operacao)}</p>` : ''}
+            ${leituraEm ? `<p class="text-xs text-gray-400 mt-1">Última leitura: ${leituraEm} · Horímetro ${horimetroLigada(t)}</p>` : ''}
           </div>
         </div>
         <div class="p-4">${eventosHtml(opcoes.eventos)}${rodape}</div>
@@ -418,8 +450,8 @@
               <div class="text-xs text-gray-500">Ciclos Total</div>
             </div>
             <div class="text-center p-3 bg-pili-red/10 rounded-lg">
-              <div class="text-sm sm:text-xl whitespace-nowrap font-bold text-pili-red">${horimetro(t.horas_operacao, t.minutos_operacao)}</div>
-              <div class="text-xs text-gray-500">Horímetro</div>
+              <div class="text-sm sm:text-xl whitespace-nowrap font-bold text-pili-red">${horimetroLigada(t)}</div>
+              <div class="text-xs text-gray-500">Horímetro · IoT ligada</div>
             </div>
           </div>
         </div>
