@@ -2682,7 +2682,7 @@ app.post('/api/batch', validateApiKey, async (req, res) => {
       return res.status(400).json({ error: 'crc inválido' });
     }
 
-    const { sn, kb, it, fw } = req.body;
+    const { sn, kb, it, fw, lm } = req.body;   // lm = plano do chip em MB (IoT v10.48; sem lm = 20)
     if (!sn || !Array.isArray(it)) return res.status(400).json({ error: 'sn e it obrigatórios' });
 
     let dev = await pool.query('SELECT id FROM devices WHERE serial_number = $1', [sn]);
@@ -2771,7 +2771,7 @@ app.post('/api/batch', validateApiKey, async (req, res) => {
     }
 
     if (typeof kb === 'number') {
-      dataUsage.set(sn, { kb, at: new Date().toISOString() });
+      dataUsage.set(sn, { kb, mb: Number.isInteger(lm) && lm > 0 ? lm : 20, at: new Date().toISOString() });
       pool.query('INSERT INTO pilitech_consumo_4g (device_id, kb, itens, fw) VALUES ($1, $2, $3, $4)',
                  [deviceId, Math.round(kb), it.length, typeof fw === 'string' ? fw.slice(0, 20) : null])
         .catch(e => console.error('consumo 4g:', e.message));

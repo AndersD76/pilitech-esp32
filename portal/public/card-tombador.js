@@ -72,10 +72,11 @@
   // Consumo do chip 4G no mes (plano de 20 MB), informado pela IoT em cada lote
   function consumoTag(c) {
     if (!c || typeof c.kb !== 'number') return '';
-    const pct = Math.round(c.kb * 100 / (20 * 1024));
+    const plano = Number(c.mb) > 0 ? Number(c.mb) : 20;    // plano do chip que a IoT informa (v10.48)
+    const pct = Math.round(c.kb * 100 / (plano * 1024));
     const cor = pct >= 90 ? 'bg-red-100 text-red-700' : pct >= 70 ? 'bg-orange-100 text-orange-700' : 'bg-gray-100 text-gray-700';
     const mb = c.kb >= 1024 ? (c.kb / 1024).toFixed(1).replace('.', ',') + ' MB' : c.kb + ' KB';
-    return `<span class="px-2 py-1 rounded-full text-xs font-medium ${cor}" title="Atualizado em ${dataBR(c.at)}">Chip 4G: ${mb} de 20 MB no mês (${pct}%)</span>`;
+    return `<span class="px-2 py-1 rounded-full text-xs font-medium ${cor}" title="Atualizado em ${dataBR(c.at)}">Chip 4G: ${mb} de ${plano.toLocaleString('pt-BR')} MB no mês (${pct}%)</span>`;
   }
   function assinaturaTag(sub, devSub) {
     sub = sub || {}; devSub = devSub || {};
