@@ -1166,6 +1166,18 @@ app.get('/api/devices', authenticateToken, checkSubscription, async (req, res) =
 });
 
 // Vincular dispositivo a empresa/unidade
+// Empresa dona do equipamento (pela unidade ou pelo vinculo direto); undefined = nao existe
+async function empresaDoEquipamento(serial) {
+  const r = await pool.query(`SELECT COALESCE(u.empresa_id, d.empresa_id) AS empresa_id
+                              FROM devices d LEFT JOIN unidades u ON d.unidade_id = u.id
+                              WHERE d.serial_number = $1`, [serial]);
+  return r.rows.length ? r.rows[0].empresa_id : undefined;
+}
+
+// Vincular: o super admin poe o equipamento em qualquer empresa/unidade. O admin de empresa
+// (07/10/2026) so mexe em equipamento que ja e da empresa dele e so poe em unidade dela -
+// antes ele podia puxar equipamento de outra empresa, ou mandar so empresa_id e mover
+// qualquer equipamento para qualquer empresa.
 app.post('/api/devices/:serialNumber/vincular', authenticateToken, requireAdmin, async (req, res) => {
   try {
     const { serialNumber } = req.params;
@@ -1177,6 +1189,15 @@ app.post('/api/devices/:serialNumber/vincular', authenticateToken, requireAdmin,
 
     let finalEmpresaId = empresa_id;
 
+    if (req.user.role === 'admin_empresa') {
+      const dona = await empresaDoEquipamento(serialNumber);
+      if (dona === undefined) return res.status(404).json({ error: 'Dispositivo não encontrado' });
+      if (dona == null || Number(dona) !== Number(req.user.empresa_id)) {
+        return res.status(403).json({ error: 'Dispositivo não pertence à sua empresa' });
+      }
+      if (!unidade_id) return res.status(400).json({ error: 'Selecione uma unidade da sua empresa' });
+    }
+
     // Se tem unidade, verificar se pertence à empresa do admin
     if (unidade_id) {
       if (req.user.role === 'admin_empresa') {
@@ -1184,7 +1205,7 @@ app.post('/api/devices/:serialNumber/vincular', authenticateToken, requireAdmin,
           'SELECT empresa_id FROM unidades WHERE id = $1',
           [unidade_id]
         );
-        if (unidadeResult.rows.length === 0 || unidadeResult.rows[0].empresa_id !== req.user.empresa_id) {
+        if (unidadeResult.rows.length === 0 || Number(unidadeResult.rows[0].empresa_id) !== Number(req.user.empresa_id)) {
           return res.status(403).json({ error: 'Unidade não pertence à sua empresa' });
         }
         finalEmpresaId = unidadeResult.rows[0].empresa_id;
@@ -1237,10 +1258,23 @@ app.delete('/api/devices/:serialNumber', authenticateToken, requireSuperAdmin, a
   }
 });
 
-// Desvincular dispositivo de unidade
+// Desvincular dispositivo de unidade. O super admin tira da empresa tambem; o admin de
+// empresa (07/10/2026) so desvincula equipamento da empresa dele e o equipamento continua
+// na empresa (antes desvinculava o de qualquer empresa, que sumia do portal do dono).
 app.post('/api/devices/:serialNumber/desvincular', authenticateToken, requireAdmin, async (req, res) => {
   try {
     const { serialNumber } = req.params;
+
+    if (req.user.role === 'admin_empresa') {
+      const dona = await empresaDoEquipamento(serialNumber);
+      if (dona === undefined) return res.status(404).json({ error: 'Dispositivo não encontrado' });
+      if (dona == null || Number(dona) !== Number(req.user.empresa_id)) {
+        return res.status(403).json({ error: 'Dispositivo não pertence à sua empresa' });
+      }
+      await pool.query('UPDATE devices SET unidade_id = NULL, empresa_id = $1 WHERE serial_number = $2',
+                       [dona, serialNumber]);
+      return res.json({ success: true, message: 'Dispositivo desvinculado da unidade' });
+    }
 
     await pool.query(
       'UPDATE devices SET unidade_id = NULL, empresa_id = NULL WHERE serial_number = $1',
