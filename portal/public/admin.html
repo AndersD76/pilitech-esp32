@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>PILI TECH - Portal Administrativo</title>
   <script src="https://cdn.tailwindcss.com"></script>
+  <script src="/card-tombador.js"></script>
   <script>
     // ===== Horarios: o banco grava em UTC (timestamp without time zone).
     // Sem marcar o fuso, o navegador lia como hora local e mostrava +3h.
@@ -319,7 +320,7 @@
               <svg class="w-5 h-5 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z"/></svg>
               Todos os Tombadores — Tempo Real
             </h3>
-            <div id="telDevicesLive" class="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4">
+            <div id="telDevicesLive" class="grid grid-cols-1 gap-4">
               <p class="text-gray-400 text-sm text-center py-4 col-span-full">Carregando...</p>
             </div>
           </div>
@@ -1294,53 +1295,15 @@
           alertsEl.innerHTML = '<p class="text-gray-400 text-sm text-center py-4">Nenhum alerta nas últimas 24h</p>';
         }
 
-        // Devices live
+        // Tombadores: o MESMO card do portal do cliente (public/card-tombador.js), um por linha
         const devicesEl = document.getElementById('telDevicesLive');
-        if (data.devices && data.devices.length > 0) {
-          devicesEl.innerHTML = data.devices.map(d => {
-            const live = (data.liveData || {})[d.serial_number];   // ao vivo: so com WiFi
-            const st = statusConexao(d.status_conexao);
-            const isOnline = d.status_conexao === 'online';
-            const statusColor = st.dot;
-            const statusText = st.texto;
-            // sensores: ao vivo (WiFi) ou a ultima leitura gravada (4G manda em lote)
-            const sens = live || d.ultima_leitura;
-            const sensorsHtml = sens ? [
-              { n: '0°', v: sens.sensor_0_graus }, { n: '40°', v: sens.sensor_40_graus },
-              { n: 'TR', v: sens.trava_roda }, { n: 'TC', v: sens.trava_chassi },
-              { n: 'PE', v: sens.trava_pino_e }, { n: 'PD', v: sens.trava_pino_d },
-              { n: 'MG', v: sens.moega_fosso }, { n: 'PT', v: sens.portao_fechado }
-            ].map(s => {
-              const cls = s.n === 'MG' ? (s.v ? 'bg-red-500 text-white' : 'bg-gray-100 text-gray-400') : (s.v ? 'bg-green-500 text-white' : 'bg-gray-100 text-gray-400');
-              return `<span class="px-1.5 py-0.5 rounded text-[10px] font-bold ${cls}">${s.n}</span>`;
-            }).join('') + (live ? '' : `<span class="text-[10px] text-gray-400 ml-1 self-center">última leitura ${fmtDataBR(sens.timestamp, { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}</span>`)
-              : '<span class="text-xs text-gray-400">Nenhuma leitura recebida</span>';
-
-            const ciclosHoje = live ? (live.ciclos_hoje || 0) : (d.ciclos_hoje || 0);
-            const ciclosTotal = live ? (live.ciclos_total || 0) : (d.ciclos_total || 0);
-            const horas = live ? (live.horas_operacao || 0) : (d.horas_operacao || 0);
-            const moegaAlert = live && live.moega_fosso && !live.cycle_in_progress;
-
-            return `<div class="border rounded-lg p-4 ${moegaAlert ? 'border-red-400 bg-red-50' : 'border-gray-200'}">
-              <div class="flex items-center justify-between mb-2">
-                <div>
-                  <p class="font-bold text-sm text-gray-800">${d.name || d.serial_number}</p>
-                  <p class="text-[10px] text-gray-400">${d.serial_number} — ${d.empresa_name || 'N/A'} / ${d.unidade_name || 'N/A'}</p>
-                </div>
-                <span class="flex items-center gap-1 text-xs font-bold ${st.cor}">
-                  <span class="w-2 h-2 rounded-full ${statusColor}"></span>${statusText}
-                </span>
-              </div>
-              <div class="flex gap-1 mb-2 flex-wrap">${sensorsHtml}</div>
-              ${moegaAlert ? '<div class="bg-red-600 text-white text-xs font-bold p-1.5 rounded text-center mb-2 animate-pulse">MOEGA CHEIA — PARADA</div>' : ''}
-              <div class="grid grid-cols-3 gap-2 text-center">
-                <div class="bg-gray-50 rounded p-1.5"><p class="text-lg font-bold text-pili-red">${ciclosHoje}</p><p class="text-[9px] text-gray-400">HOJE</p></div>
-                <div class="bg-gray-50 rounded p-1.5"><p class="text-lg font-bold text-gray-700">${ciclosTotal}</p><p class="text-[9px] text-gray-400">TOTAL</p></div>
-                <div class="bg-gray-50 rounded p-1.5"><p class="text-lg font-bold text-blue-600">${horas}h</p><p class="text-[9px] text-gray-400">HORIM.</p></div>
-              </div>
-            </div>`;
-          }).join('');
-        }
+        const cards = await CardTombador.carregar(api);
+        const empresaPor = {};
+        (data.devices || []).forEach(x => { empresaPor[x.serial_number] = x.empresa_name; });
+        devicesEl.innerHTML = cards.devices.length
+          ? cards.devices.map(d => CardTombador.render(d, cards.leituras[d.serial_number], cards.ciclos[d.serial_number] || null,
+              cards.manutPor[d.serial_number], { empresa: empresaPor[d.serial_number] })).join('')
+          : '<p class="text-gray-400 text-sm text-center py-4">Nenhum tombador cadastrado</p>';
 
         // Manutencoes table
         const maintEl = document.getElementById('telMaintList');

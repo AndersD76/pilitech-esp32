@@ -60,6 +60,55 @@ const TRIAL_DIAS = 365;
 const TEMPO_CICLO_SQL = `GREATEST(tempo_total - COALESCE(sensor40, 0), 0)`;
 const EFICIENCIA_SQL = `LEAST(200, ROUND(${META_CICLO_S} * 100.0 / NULLIF(${TEMPO_CICLO_SQL}, 0), 1))`;
 
+// ---- Dashboard por periodo: ?de=AAAA-MM-DD&ate=AAAA-MM-DD (dias de Brasilia; padrao: 7 dias) ----
+const DIA_BR = col => `((${col}) AT TIME ZONE 'UTC' AT TIME ZONE 'America/Sao_Paulo')::date`;
+// Menos de 1 min nao e ciclo: e o sensor de 0 grau oscilando (07/10/2026: ciclo #42 com 0 s).
+const CICLO_VALIDO_SQL = 'tempo_total >= 60';
+function periodoDoPedido(q) {
+  const ok = s => typeof s === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(s) && !isNaN(Date.parse(s));
+  const dia = ms => new Date(ms).toISOString().slice(0, 10);
+  const hoje = dia(Date.now() - 3 * 3600 * 1000);                     // Brasilia (sem horario de verao)
+  let ate = ok(q.ate) ? q.ate : hoje;
+  let de = ok(q.de) ? q.de : dia(Date.parse(ate) - 6 * 86400000);
+  if (de > ate) [de, ate] = [ate, de];
+  if (Date.parse(ate) - Date.parse(de) > 366 * 86400000) de = dia(Date.parse(ate) - 366 * 86400000);
+  return { de, ate, hoje };
+}
+// Ciclos por dia pelo CONTADOR DA IoT ("ciclos hoje" de cada leitura), e nao pelos registros de
+// ciclo: os dados de cada ciclo saem do buffer da IoT com atraso (07/10/2026: 22 de 46 tinham
+// chegado). Leitura velha que chega atrasada com a hora da chegada tem outra base
+// (total - hoje = ciclos antes daquele dia) e fica de fora.
+async function ciclosPorDiaIoT(deviceId, de, ate) {
+  const r = await pool.query(`
+    WITH r AS (
+      SELECT ${DIA_BR('timestamp')} AS dia, ciclos_hoje, ciclos_total - ciclos_hoje AS base
+      FROM sensor_readings
+      WHERE device_id = $1 AND ciclos_hoje IS NOT NULL AND ciclos_total IS NOT NULL
+        AND ${DIA_BR('timestamp')} BETWEEN $2::date AND $3::date
+    ), m AS (SELECT dia, MAX(base) AS base FROM r GROUP BY dia)
+    SELECT to_char(r.dia, 'YYYY-MM-DD') AS dia, MAX(r.ciclos_hoje)::int AS ciclos
+    FROM r JOIN m ON m.dia = r.dia AND m.base = r.base
+    GROUP BY r.dia ORDER BY r.dia`, [deviceId, de, ate]);
+  return r.rows;
+}
+// Sensores habilitados na IoT (ultima leitura): [0 grau, 40 graus, trava roda, trava chassi, pino E, pino D, moega, portao]
+async function sensoresHabilitados(deviceId) {
+  const r = await pool.query(`SELECT sensor_config FROM sensor_readings WHERE device_id = $1 AND sensor_config IS NOT NULL
+                              ORDER BY timestamp DESC LIMIT 1`, [deviceId]);
+  const cfg = r.rows[0] && r.rows[0].sensor_config;
+  return Array.isArray(cfg) ? cfg : [true, true, true, true, true, true, true, true];
+}
+// Ocorrencias do ciclo: saiu do 0 grau sem trava habilitada engatada (tempo da trava menor que o
+// do ciclo) e moega/fosso cheio durante o ciclo
+function ocorrenciasDoCiclo(c, cfg) {
+  const travas = [['trava_roda', 2], ['trava_chassi', 3], ['trava_pino_e', 4], ['trava_pino_d', 5]];
+  const total = Number(c.tempo_total) || 0;
+  return {
+    sem_travas: travas.some(([k, i]) => cfg[i] !== false && (Number(c[k]) || 0) < total - 5),
+    moega_cheia: (Number(c.moega ?? c.sensor40) || 0) > 0,
+  };
+}
+
 // Database connection
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL || 'postgresql://neondb_owner:npg_pCqSLW9j2hKQ@ep-crimson-heart-ahcg1r28-pooler.c-3.us-east-1.aws.neon.tech/neondb?sslmode=require',
@@ -1197,6 +1246,9 @@ app.get('/api/latest-readings', authenticateToken, checkSubscription, async (req
     }
 
     const query = `
+      -- Ultima leitura = a de MAIOR total de ciclos (o total so cresce) entre as das ultimas 48 h:
+      -- leitura velha que sai do buffer da IoT com atraso chega com a hora da chegada e virava
+      -- "a ultima" (07/10/2026: card mostrou 1 hoje / 12 total). Sem leitura em 48 h: a mais nova.
       WITH latest AS (
         SELECT DISTINCT ON (device_id)
           device_id, timestamp, sensor_0_graus, sensor_40_graus,
@@ -1205,7 +1257,9 @@ app.get('/api/latest-readings', authenticateToken, checkSubscription, async (req
           ciclos_hoje, ciclos_total, horas_operacao, minutos_operacao,
           free_heap, uptime_seconds, wifi_connected, sistema_ativo
         FROM sensor_readings
-        ORDER BY device_id, timestamp DESC
+        ORDER BY device_id, (timestamp > NOW() - INTERVAL '48 hours') DESC,
+                 CASE WHEN timestamp > NOW() - INTERVAL '48 hours' THEN ciclos_total END DESC NULLS LAST,
+                 timestamp DESC
       ),
       latest_event AS (
         SELECT DISTINCT ON (device_id)
@@ -1328,14 +1382,25 @@ app.get('/api/admin/telemetria', authenticateToken, requireSuperAdmin, async (re
         (SELECT row_to_json(x) FROM (
            SELECT sr.timestamp, sr.sensor_0_graus, sr.sensor_40_graus, sr.trava_roda, sr.trava_chassi,
                   sr.trava_pino_e, sr.trava_pino_d, sr.moega_fosso, sr.portao_fechado
-           FROM sensor_readings sr WHERE sr.device_id = d.id ORDER BY sr.timestamp DESC LIMIT 1) x
+           FROM sensor_readings sr WHERE sr.device_id = d.id
+           ORDER BY (sr.timestamp > NOW() - INTERVAL '48 hours') DESC,
+                    CASE WHEN sr.timestamp > NOW() - INTERVAL '48 hours' THEN sr.ciclos_total END DESC NULLS LAST,
+                    sr.timestamp DESC LIMIT 1) x
         ) as ultima_leitura,
-        (SELECT COUNT(*) FROM cycle_data cd WHERE cd.device_id = d.id AND (cd.created_at AT TIME ZONE 'UTC' AT TIME ZONE 'America/Sao_Paulo')::date = (NOW() AT TIME ZONE 'America/Sao_Paulo')::date) as ciclos_hoje,
-        (SELECT ciclos_total FROM sensor_readings sr WHERE sr.device_id = d.id ORDER BY sr.timestamp DESC LIMIT 1) as ciclos_total,
-        (SELECT horas_operacao FROM sensor_readings sr WHERE sr.device_id = d.id ORDER BY sr.timestamp DESC LIMIT 1) as horas_operacao
+        -- mesmos numeros do portal do cliente: contador da IoT na leitura de maior total
+        ul.ciclos_hoje, ul.ciclos_total, ul.horas_operacao
       FROM devices d
       LEFT JOIN unidades u ON d.unidade_id = u.id
       LEFT JOIN empresas e ON u.empresa_id = e.id
+      LEFT JOIN LATERAL (
+        SELECT CASE WHEN ${DIA_BR('sr.timestamp')} = (NOW() AT TIME ZONE 'America/Sao_Paulo')::date THEN sr.ciclos_hoje ELSE 0 END AS ciclos_hoje,
+               sr.ciclos_total, sr.horas_operacao
+        FROM sensor_readings sr WHERE sr.device_id = d.id
+        ORDER BY (sr.timestamp > NOW() - INTERVAL '48 hours') DESC,
+                 CASE WHEN sr.timestamp > NOW() - INTERVAL '48 hours' THEN sr.ciclos_total END DESC NULLS LAST,
+                 sr.timestamp DESC
+        LIMIT 1
+      ) ul ON TRUE
       ORDER BY d.last_seen DESC NULLS LAST
     `);
 
@@ -1390,7 +1455,10 @@ app.get('/api/admin/device-details/:serial', authenticateToken, requireSuperAdmi
         (SELECT row_to_json(x) FROM (
            SELECT sr.timestamp, sr.ciclos_hoje, sr.ciclos_total, sr.horas_operacao, sr.minutos_operacao,
                   sr.uptime_seconds, sr.free_heap
-           FROM sensor_readings sr WHERE sr.device_id = d.id ORDER BY sr.timestamp DESC LIMIT 1) x
+           FROM sensor_readings sr WHERE sr.device_id = d.id
+           ORDER BY (sr.timestamp > NOW() - INTERVAL '48 hours') DESC,
+                    CASE WHEN sr.timestamp > NOW() - INTERVAL '48 hours' THEN sr.ciclos_total END DESC NULLS LAST,
+                    sr.timestamp DESC LIMIT 1) x
         ) as ultima_leitura,
         NULL::text as last_firmware   -- sensor_readings nao guarda firmware_version (a coluna nao existe)
       FROM devices d
@@ -2660,46 +2728,58 @@ app.get('/api/device-stats/:serialNumber', authenticateToken, checkSubscription,
     }
 
     const deviceId = deviceResult.rows[0].id;
+    const { de, ate, hoje } = periodoDoPedido(req.query);
 
-    // Ciclos por dia (últimos 7 dias)
-    const ciclosDiariosResult = await pool.query(`
-      SELECT
-        (created_at AT TIME ZONE 'UTC' AT TIME ZONE 'America/Sao_Paulo')::date as dia,
-        COUNT(*) as ciclos,
-        AVG(${TEMPO_CICLO_SQL}) as tempo_medio_ciclo,
-        COALESCE(SUM(sensor40), 0) as parada_moega
-      FROM cycle_data
-      WHERE device_id = $1 AND created_at > NOW() - INTERVAL '7 days'
-      GROUP BY (created_at AT TIME ZONE 'UTC' AT TIME ZONE 'America/Sao_Paulo')::date
-      ORDER BY dia ASC
-    `, [deviceId]);
+    const [porDia, hojeIoT, cfg, ciclosR, temposDia, horR, totalR] = await Promise.all([
+      ciclosPorDiaIoT(deviceId, de, ate),
+      ciclosPorDiaIoT(deviceId, hoje, hoje),
+      sensoresHabilitados(deviceId),
+      pool.query(`SELECT tempo_total, ${TEMPO_CICLO_SQL} AS tempo_ciclo, COALESCE(sensor40, 0) AS moega,
+                         COALESCE(trava_roda, 0) AS trava_roda, COALESCE(trava_chassi, 0) AS trava_chassi,
+                         COALESCE(trava_pino_e, 0) AS trava_pino_e, COALESCE(trava_pino_d, 0) AS trava_pino_d
+                  FROM cycle_data WHERE device_id = $1 AND ${CICLO_VALIDO_SQL}
+                    AND ${DIA_BR('created_at')} BETWEEN $2::date AND $3::date`, [deviceId, de, ate]),
+      pool.query(`SELECT to_char(${DIA_BR('created_at')}, 'YYYY-MM-DD') AS dia, AVG(${TEMPO_CICLO_SQL}) AS tempo_medio_ciclo
+                  FROM cycle_data WHERE device_id = $1 AND ${CICLO_VALIDO_SQL}
+                    AND ${DIA_BR('created_at')} BETWEEN $2::date AND $3::date GROUP BY 1`, [deviceId, de, ate]),
+      // horimetro (minutos acumulados pela IoT): no fim do periodo - antes dele
+      pool.query(`SELECT MAX(h) FILTER (WHERE d <= $3::date) AS ate_fim, MAX(h) FILTER (WHERE d < $2::date) AS antes,
+                         MIN(h) FILTER (WHERE d BETWEEN $2::date AND $3::date) AS primeiro
+                  FROM (SELECT ${DIA_BR('timestamp')} AS d, horas_operacao * 60 + COALESCE(minutos_operacao, 0) AS h
+                        FROM sensor_readings WHERE device_id = $1 AND horas_operacao IS NOT NULL) x`, [deviceId, de, ate]),
+      pool.query(`SELECT MAX(ciclos_total)::int AS total FROM sensor_readings
+                  WHERE device_id = $1 AND timestamp > NOW() - INTERVAL '30 days'`, [deviceId]),
+    ]);
 
-    // Ciclos hoje
-    const ciclosHojeResult = await pool.query(`
-      SELECT COUNT(*) as total
-      FROM cycle_data
-      WHERE device_id = $1 AND (created_at AT TIME ZONE 'UTC' AT TIME ZONE 'America/Sao_Paulo')::date = (NOW() AT TIME ZONE 'America/Sao_Paulo')::date
-    `, [deviceId]);
-
-    // Tempo médio geral
-    const tempoMedioResult = await pool.query(`
-      SELECT AVG(${TEMPO_CICLO_SQL}) as tempo_medio, COALESCE(SUM(sensor40), 0) as parada_moega,
-             COUNT(*) FILTER (WHERE sensor40 > 0) as ciclos_com_parada
-      FROM cycle_data
-      WHERE device_id = $1 AND created_at > NOW() - INTERVAL '7 days'
-    `, [deviceId]);
-
-    // Produtividade média: meta / tempo médio
-    const tempoMedio = parseFloat(tempoMedioResult.rows[0].tempo_medio) || META_CICLO_S;
-    const produtividadeMedia = (META_CICLO_S / tempoMedio) * 100;
+    // todos os dias do periodo (dia sem leitura = 0 ciclos)
+    const contagem = Object.fromEntries(porDia.map(r => [r.dia, r.ciclos]));
+    const tempoDia = Object.fromEntries(temposDia.rows.map(r => [r.dia, parseFloat(r.tempo_medio_ciclo)]));
+    const ciclosDiarios = [];
+    for (let t = Date.parse(de); t <= Date.parse(ate); t += 86400000) {
+      const dia = new Date(t).toISOString().slice(0, 10);
+      ciclosDiarios.push({ dia, ciclos: contagem[dia] || 0, tempo_medio_ciclo: tempoDia[dia] || null });
+    }
+    const ciclos = ciclosR.rows;
+    const tempoMedio = ciclos.length ? ciclos.reduce((s, c) => s + Number(c.tempo_ciclo), 0) / ciclos.length : 0;
+    const h = horR.rows[0] || {};
+    const horimetroMin = Math.max(0, (Number(h.ate_fim) || 0) - (h.antes != null ? Number(h.antes) : (Number(h.primeiro) || 0)));
 
     res.json({
-      ciclosDiarios: ciclosDiariosResult.rows,
-      ciclosHoje: parseInt(ciclosHojeResult.rows[0].total) || 0,
-      tempoMedioCiclo: tempoMedio,
-      produtividadeMedia: produtividadeMedia,
-      paradaMoegaS: parseInt(tempoMedioResult.rows[0].parada_moega) || 0,      // 7 dias, so alarme da moega
-      ciclosComParadaMoega: parseInt(tempoMedioResult.rows[0].ciclos_com_parada) || 0,
+      periodo: { de, ate },
+      ciclosDiarios,
+      ciclosHoje: (hojeIoT[0] && hojeIoT[0].ciclos) || 0,              // contador da IoT
+      ciclosPeriodo: ciclosDiarios.reduce((s, d) => s + d.ciclos, 0),   // contador da IoT
+      ciclosTotal: (totalR.rows[0] && totalR.rows[0].total) || 0,
+      tempoMedioCiclo: tempoMedio,                                       // so ciclos recebidos, sem a parada da moega
+      produtividadeMedia: tempoMedio > 0 ? (META_CICLO_S / tempoMedio) * 100 : null,
+      totais: {
+        ciclosRecebidos: ciclos.length,                                  // com dados de tempo ja no portal
+        tempoCicloS: Math.round(ciclos.reduce((s, c) => s + Number(c.tempo_ciclo), 0)),
+        paradaMoegaS: Math.round(ciclos.reduce((s, c) => s + Number(c.moega), 0)),
+        ciclosComMoega: ciclos.filter(c => ocorrenciasDoCiclo(c, cfg).moega_cheia).length,
+        ciclosSemTravas: ciclos.filter(c => ocorrenciasDoCiclo(c, cfg).sem_travas).length,
+        horimetroMin,
+      },
       metaCicloS: META_CICLO_S
     });
   } catch (err) {
@@ -2731,8 +2811,9 @@ app.get('/api/cycle-data/:serialNumber', authenticateToken, checkSubscription, a
 
     const deviceId = deviceResult.rows[0].id;
 
-    // Buscar últimos 50 ciclos com duração por sensor
-    const cyclesResult = await pool.query(`
+    // Ciclos do periodo (menos de 1 min = sensor oscilando, fica de fora), com as ocorrencias
+    const { de, ate } = periodoDoPedido(req.query);
+    const [cyclesResult, cfg] = await Promise.all([pool.query(`
       SELECT
         ciclo_numero,
         tempo_total,
@@ -2747,12 +2828,12 @@ app.get('/api/cycle-data/:serialNumber', authenticateToken, checkSubscription, a
         ${EFICIENCIA_SQL} as eficiencia,
         created_at as timestamp
       FROM cycle_data
-      WHERE device_id = $1
+      WHERE device_id = $1 AND ${CICLO_VALIDO_SQL} AND ${DIA_BR('created_at')} BETWEEN $2::date AND $3::date
       ORDER BY created_at DESC
-      LIMIT 50
-    `, [deviceId]);
+      LIMIT 1000
+    `, [deviceId, de, ate]), sensoresHabilitados(deviceId)]);
 
-    res.json(cyclesResult.rows);
+    res.json(cyclesResult.rows.map(c => ({ ...c, ...ocorrenciasDoCiclo(c, cfg) })));
   } catch (err) {
     console.error('Erro ao buscar dados de ciclos:', err);
     res.status(500).json({ error: err.message });

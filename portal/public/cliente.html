@@ -6,6 +6,7 @@
   <title>PILI TECH - Portal do Cliente</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="/card-tombador.js"></script>
   <script>
     // ===== Horarios: o banco grava em UTC (timestamp without time zone).
     // Sem marcar o fuso, o navegador lia como hora local e mostrava +3h.
@@ -52,14 +53,12 @@
       var d = new Date(+p[0], +p[1] - 1, +p[2]);
       return d.toLocaleDateString('pt-BR', opts || { weekday: 'short', day: 'numeric' });
     }
-    // Duracao em segundos (o IoT e o banco mandam os tempos de ciclo em SEGUNDOS)
+    // Duracao: o IoT e o banco mandam em SEGUNDOS; o portal mostra tudo em MINUTOS (4,7 min)
     function fmtDur(seg) {
-      seg = Math.round(Number(seg) || 0);
+      seg = Number(seg) || 0;
       if (seg <= 0) return '-';
-      if (seg < 60) return seg + 's';
-      var m = Math.floor(seg / 60), s = seg % 60;
-      if (m < 60) return m + 'min' + (s ? ' ' + String(s).padStart(2, '0') + 's' : '');
-      return Math.floor(m / 60) + 'h ' + String(m % 60).padStart(2, '0') + 'min';
+      var m = seg / 60;
+      return (m >= 100 ? Math.round(m) : Math.round(m * 10) / 10).toLocaleString('pt-BR') + ' min';
     }
     function esc(v) {
       return String(v === null || v === undefined ? '' : v)
@@ -386,6 +385,22 @@
         </select>
       </div>
 
+      <!-- Periodo: vale para indicadores, graficos, totais e historico -->
+      <div class="flex flex-wrap items-center gap-2 mb-4 p-3 bg-gray-50 rounded-xl border border-gray-200">
+        <span class="text-xs font-bold text-gray-500 mr-1">PERÍODO:</span>
+        <button type="button" data-periodo="hoje" onclick="escolherPeriodo('hoje')" class="periodo-btn px-3 py-1.5 rounded-lg text-xs font-bold border">Hoje</button>
+        <button type="button" data-periodo="7" onclick="escolherPeriodo('7')" class="periodo-btn px-3 py-1.5 rounded-lg text-xs font-bold border">7 dias</button>
+        <button type="button" data-periodo="30" onclick="escolherPeriodo('30')" class="periodo-btn px-3 py-1.5 rounded-lg text-xs font-bold border">30 dias</button>
+        <button type="button" data-periodo="mes" onclick="escolherPeriodo('mes')" class="periodo-btn px-3 py-1.5 rounded-lg text-xs font-bold border">Este mês</button>
+        <button type="button" data-periodo="mes_ant" onclick="escolherPeriodo('mes_ant')" class="periodo-btn px-3 py-1.5 rounded-lg text-xs font-bold border">Mês passado</button>
+        <div class="flex flex-wrap items-center gap-1 sm:ml-auto">
+          <input type="date" id="periodoDe" class="px-2 py-1 border border-gray-300 rounded-lg text-xs">
+          <span class="text-xs text-gray-500">até</span>
+          <input type="date" id="periodoAte" class="px-2 py-1 border border-gray-300 rounded-lg text-xs">
+          <button type="button" data-periodo="livre" onclick="aplicarPeriodoPersonalizado()" class="periodo-btn px-3 py-1.5 rounded-lg text-xs font-bold border">Aplicar</button>
+        </div>
+      </div>
+
       <!-- DASHBOARD PRINCIPAL - KPIs -->
       <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4 mb-6">
         <!-- Gauge de Produtividade -->
@@ -429,10 +444,10 @@
             <svg class="w-5 h-5 opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
             </svg>
-            <span class="text-xs font-medium opacity-80">CICLOS SEMANA</span>
+            <span class="text-xs font-medium opacity-80">CICLOS NO PERÍODO</span>
           </div>
           <div class="text-xl sm:text-3xl font-black" id="teleCiclosSemana">-</div>
-          <div class="text-xs opacity-70">últimos 7 dias</div>
+          <div class="text-xs opacity-70 periodo-rotulo-texto">últimos 7 dias</div>
         </div>
 
         <div class="bg-gradient-to-br from-emerald-500 to-emerald-600 rounded-2xl p-5 text-white shadow-lg">
@@ -447,6 +462,9 @@
         </div>
       </div>
 
+      <!-- TOTAIS DO PERIODO -->
+      <div id="totaisPeriodo" class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 mb-6"></div>
+
       <!-- GRAFICOS PROFISSIONAIS -->
       <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
         <!-- Grafico de Area - Produtividade -->
@@ -456,7 +474,7 @@
               <h4 class="font-bold text-gray-800">Evolução da Produtividade</h4>
               <p class="text-xs text-gray-500">Meta: linha vermelha = 100%</p>
             </div>
-            <span class="px-3 py-1 bg-green-100 text-green-700 rounded-full text-xs font-bold">7 DIAS</span>
+            <span class="periodo-rotulo px-3 py-1 bg-green-100 text-green-700 rounded-full text-xs font-bold">7 DIAS</span>
           </div>
           <canvas id="chartProdutividade" height="180"></canvas>
         </div>
@@ -468,7 +486,7 @@
               <h4 class="font-bold text-gray-800">Ciclos por Dia</h4>
               <p class="text-xs text-gray-500">Volume de produção diário</p>
             </div>
-            <span class="px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-xs font-bold">7 DIAS</span>
+            <span class="periodo-rotulo px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-xs font-bold">7 DIAS</span>
           </div>
           <canvas id="chartCiclos" height="180"></canvas>
         </div>
@@ -645,7 +663,7 @@
               <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Ciclo #</th>
               <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Tempo do Ciclo</th>
               <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Produtividade</th>
-              <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Parada Moega</th>
+              <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Ocorrências</th>
             </tr>
           </thead>
           <tbody id="cyclesTable" class="divide-y divide-gray-200">
@@ -1044,228 +1062,10 @@
       return Number(h).toLocaleString('pt-BR') + 'h' + String(Number(min) || 0).padStart(2, '0') + 'm';
     }
 
+    // Card do tombador: o mesmo do admin (public/card-tombador.js)
     function renderDeviceCard(d, t) {
-      const st = statusConexao(d.status_conexao);
-      const isOnline = d.status_conexao === 'online';
-      const isIdle = d.status_conexao === 'idle';
-      const lastSeen = d.last_seen ? fmtDataBR(d.last_seen) : 'Nunca';
-      const fmtCurto = v => fmtDataBR(v, { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
-      const leituraEm = t.reading_timestamp ? fmtCurto(t.reading_timestamp) : null;
-      const leituraHoje = ehHojeBR(t.reading_timestamp);
-      const ciclo = ultimosCiclos[d.serial_number] || null;
-      const serialUrl = encodeURIComponent(d.serial_number);
-
-      // Helper para status do sensor (verde/vermelho)
-      const sensorStatus = (val, activeLabel = 'Ativo', inactiveLabel = 'Inativo') => {
-        if (val === undefined || val === null) return { class: 'bg-gray-100 text-gray-400', text: '-' };
-        return val
-          ? { class: 'bg-green-100 text-green-700', text: activeLabel }
-          : { class: 'bg-red-100 text-red-700', text: inactiveLabel };
-      };
-      // Alerta invertido: branco normal, VERMELHO quando ativo (cheio/alerta)
-      const alertStatus = (val, alertLabel, normalLabel) => {
-        if (val === undefined || val === null) return { class: 'bg-gray-100 text-gray-400', text: '-' };
-        return val
-          ? { class: 'bg-red-100 text-red-700 font-bold', text: alertLabel }
-          : { class: 'bg-white text-gray-500 border-gray-200', text: normalLabel };
-      };
-
-      const sistemaAtivo = t.sistema_ativo === true;
-      const aguardandoAtivacao = isOnline && !sistemaAtivo;
-      const s0 = sensorStatus(t.sensor_0_graus);
-      const s40 = sensorStatus(t.sensor_40_graus);
-      const tRoda = sensorStatus(t.trava_roda);
-      const tChassi = sensorStatus(t.trava_chassi);
-      const tPinoE = sensorStatus(t.trava_pino_e);
-      const tPinoD = sensorStatus(t.trava_pino_d);
-      const moega = alertStatus(t.moega_fosso, 'CHEIO!', 'OK');
-      const portao = sensorStatus(t.portao_fechado, 'Fechado', 'Aberto');
-      // Sensores desabilitados na configuracao da IoT (sensor_config da ultima leitura) nao aparecem
-      const hab = Array.isArray(t.sensor_config) ? t.sensor_config : null;
-      const oculto = i => (hab && hab[i] === false) ? 'style="display:none"' : '';
-
-      // Subscription tag - só mostrar se NÃO ativo
-      let subTag = '';
-      const subSt = subscriptionStatus || {};
-      const devSub = d.subscription_info || {};
-      const effStatus = subSt.status || devSub.status || (subSt.active ? 'active' : (devSub.active ? 'active' : ''));
-      if (effStatus === 'trial') {
-        const daysLeft = subSt.trialDaysRemaining || Math.max(0, Math.ceil((new Date(devSub.expires_at || subSt.expiresAt) - new Date()) / (1000*60*60*24)));
-        subTag = `<span class="px-2 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-700">Avaliação: ${daysLeft}d</span>`;
-      } else if (effStatus !== 'active') {
-        subTag = `<span class="px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-700">Sem assinatura</span>`;
-      }
-
-      // Rodape: assinatura, manutencao, documentos (pagina publica do QR do display) e ultimo contato
-      const rodape = `
-              <div class="flex flex-wrap items-center justify-between gap-2 pt-3 border-t border-gray-100">
-                <div class="flex flex-wrap items-center gap-2">${subTag}${manutTag(manutPorSerial[d.serial_number])}</div>
-                <div class="flex items-center gap-3">
-                  <a href="/docs/${serialUrl}" target="_blank" rel="noopener" class="inline-flex items-center gap-1 px-3 py-1 text-xs font-medium border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50" title="Manuais e documentos deste tombador">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
-                    Documentos
-                  </a>
-                  <p class="text-xs text-gray-400">Visto: ${lastSeen}</p>
-                </div>
-              </div>`;
-
-      // Ultimo ciclo gravado no banco (tempos em segundos)
-      const sensorKeys = ['portao','moega','trava_roda','trava_chassi','trava_pino_e','trava_pino_d'];
-      const cicloMax = ciclo ? Math.max(Number(ciclo.tempo_total) || 0, ...sensorKeys.map(k => Number(ciclo[k]) || 0), 1) : 1;
-      const cicloQuando = ciclo && ciclo.created_at ? fmtCurto(ciclo.created_at) : '';
-
-      return `
-          <div class="border-2 ${isOnline ? 'border-green-200' : 'border-gray-200'} rounded-xl overflow-hidden" data-serial="${esc(d.serial_number)}" data-status="${esc(d.status_conexao || 'offline')}">
-            <!-- Header -->
-            <div class="bg-gradient-to-r from-pili-red to-pili-darkred p-4 text-white">
-              <div class="flex items-center justify-between">
-                <div>
-                  <h4 class="font-bold text-lg">${esc(d.name || 'Tombador')}</h4>
-                  <p class="text-sm text-white/80">S/N: ${esc(d.serial_number)} | ${esc(d.unidade_nome || 'Sem unidade')}</p>
-                </div>
-                <div class="flex items-center gap-2">
-                  <span class="live-dot w-3 h-3 rounded-full ${st.dot}"></span>
-                  <span class="live-status-label px-3 py-1 rounded-full text-xs font-bold bg-white/20">${st.texto}</span>
-                </div>
-              </div>
-            </div>
-
-            ${!isOnline && !isIdle ? `
-            <!-- EQUIPAMENTO OFFLINE -->
-            <div class="offline-screen rounded-b-xl p-6 text-center" style="min-height: 280px;">
-              <div class="flex flex-col items-center justify-center h-full py-8">
-                <div class="mb-6 opacity-60">
-                  <svg class="w-20 h-20 text-gray-400 mx-auto" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-                    <path d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z"/>
-                  </svg>
-                </div>
-                <h3 class="text-xl font-bold text-gray-200 tracking-widest mb-2">PILI TECH</h3>
-                <div class="w-16 h-0.5 bg-gray-500 mx-auto mb-4"></div>
-                <h4 class="text-sm font-bold text-red-300 tracking-wider mb-2">EQUIPAMENTO OFFLINE</h4>
-                <p class="text-xs text-gray-300">Sem energia ou sem conexão</p>
-                <p class="text-xs text-gray-300 mt-6">Último sinal: ${lastSeen}</p>
-                ${leituraEm ? `<p class="text-xs text-gray-400 mt-1">Última leitura: ${leituraEm} · Horímetro ${fmtHorimetro(t.horas_operacao, t.minutos_operacao)}</p>` : ''}
-              </div>
-            </div>
-            <div class="p-4">${rodape}</div>
-            ` : `
-            <div class="p-4">
-              <!-- Aguardando Ativação (o ao vivo troca para o conteudo quando o sistema e iniciado) -->
-              <div class="live-activation text-center py-8" style="${aguardandoAtivacao ? '' : 'display:none'}">
-                <div class="inline-flex items-center justify-center w-16 h-16 rounded-full bg-amber-100 mb-4">
-                  <svg class="w-8 h-8 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z"/>
-                  </svg>
-                </div>
-                <h4 class="text-lg font-bold text-amber-600 mb-1">AGUARDANDO ATIVAÇÃO</h4>
-                <p class="text-sm text-gray-500 mb-3">O dispositivo está online mas o sistema ainda não foi iniciado pelo técnico.</p>
-                <p class="text-xs text-gray-400">Acesse o IoT (192.168.4.1) → Aba Sistema → Digite a senha → START</p>
-                <p class="live-fonte text-[10px] text-gray-400 mt-2">${leituraEm ? 'Conforme a leitura de ' + leituraEm : 'Sem leitura gravada'}</p>
-              </div>
-              <div class="live-content" style="${aguardandoAtivacao ? 'display:none' : ''}">
-              <!-- 8 Sensores -->
-              <div class="mb-3">
-                <div class="flex items-center justify-between mb-2">
-                  <div class="text-xs font-bold text-gray-500">SENSORES DO SISTEMA</div>
-                  <span class="live-fonte text-[10px] text-gray-400">${leituraEm ? 'Leitura de ' + leituraEm : 'Sem leitura gravada'}</span>
-                </div>
-                <div class="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                  <div ${oculto(0)} class="live-sensor text-center p-2 ${s0.class} rounded-lg border-2 ${s0.text === 'Ativo' ? 'border-green-300' : 'border-gray-200'}">
-                    <div class="text-[10px] text-gray-500 uppercase leading-tight break-words">Sensor 0°</div>
-                    <div class="live-val text-sm font-bold">${s0.text}</div>
-                  </div>
-                  <div ${oculto(1)} class="live-sensor text-center p-2 ${s40.class} rounded-lg border-2 ${s40.text === 'Ativo' ? 'border-green-300' : 'border-gray-200'}">
-                    <div class="text-[10px] text-gray-500 uppercase leading-tight break-words">Sensor 40°</div>
-                    <div class="live-val text-sm font-bold">${s40.text}</div>
-                  </div>
-                  <div ${oculto(2)} class="live-sensor text-center p-2 ${tRoda.class} rounded-lg border-2 ${tRoda.text === 'Ativo' ? 'border-green-300' : 'border-gray-200'}">
-                    <div class="text-[10px] text-gray-500 uppercase leading-tight break-words">Trava Rodas</div>
-                    <div class="live-val text-sm font-bold">${tRoda.text}</div>
-                  </div>
-                  <div ${oculto(3)} class="live-sensor text-center p-2 ${tChassi.class} rounded-lg border-2 ${tChassi.text === 'Ativo' ? 'border-green-300' : 'border-gray-200'}">
-                    <div class="text-[10px] text-gray-500 uppercase leading-tight break-words">Trava Chassi</div>
-                    <div class="live-val text-sm font-bold">${tChassi.text}</div>
-                  </div>
-                  <div ${oculto(4)} class="live-sensor text-center p-2 ${tPinoE.class} rounded-lg border-2 ${tPinoE.text === 'Ativo' ? 'border-green-300' : 'border-gray-200'}">
-                    <div class="text-[10px] text-gray-500 uppercase leading-tight break-words">Trava Pino E</div>
-                    <div class="live-val text-sm font-bold">${tPinoE.text}</div>
-                  </div>
-                  <div ${oculto(5)} class="live-sensor text-center p-2 ${tPinoD.class} rounded-lg border-2 ${tPinoD.text === 'Ativo' ? 'border-green-300' : 'border-gray-200'}">
-                    <div class="text-[10px] text-gray-500 uppercase leading-tight break-words">Trava Pino D</div>
-                    <div class="live-val text-sm font-bold">${tPinoD.text}</div>
-                  </div>
-                  <div ${oculto(6)} class="live-sensor text-center p-2 ${moega.class} rounded-lg border-2 ${moega.text === 'CHEIO!' ? 'border-red-400' : 'border-gray-200'}">
-                    <div class="text-[10px] text-gray-500 uppercase leading-tight break-words">Moega/Fosso</div>
-                    <div class="live-val text-sm font-bold">${moega.text}</div>
-                  </div>
-                  <div ${oculto(7)} class="live-sensor text-center p-2 ${portao.class} rounded-lg border-2 ${portao.text === 'Fechado' ? 'border-green-300' : 'border-gray-200'}">
-                    <div class="text-[10px] text-gray-500 uppercase leading-tight break-words">Portão</div>
-                    <div class="live-val text-sm font-bold">${portao.text}</div>
-                  </div>
-                </div>
-              </div>
-
-              <!-- Alerta Moega Cheia -->
-              <div class="live-moega-alert mb-3 p-3 bg-red-600 rounded-lg text-white text-center animate-pulse" style="display:none">
-                <div class="font-bold text-sm">MOEGA/FOSSO CHEIO - OPERAÇÃO PARADA</div>
-                <div class="text-xs text-red-200">Aguardando esvaziamento para retomar ciclos</div>
-              </div>
-
-              <!-- Ciclo + Plataforma (ao vivo so com WiFi; sem ele, o ultimo ciclo gravado) -->
-              <div class="live-cycle-box mb-3 p-3 bg-gray-50 rounded-lg">
-                <div class="flex justify-between items-center">
-                  <span class="live-cycle-label text-xs font-bold text-gray-500">${ciclo ? 'ÚLTIMO CICLO GRAVADO' : 'SEM CICLO GRAVADO'}</span>
-                  <span class="live-cycle-timer text-lg font-bold text-gray-400 font-mono">${ciclo ? fmtDur(ciclo.tempo_total) : '--:--'}</span>
-                </div>
-                <div class="flex justify-between items-center mt-1 pt-1 border-t border-gray-200">
-                  <span class="live-platform text-[10px] font-bold text-gray-400">PLATAFORMA: sem dado ao vivo</span>
-                  <span class="text-[10px] text-gray-400">${cicloQuando}</span>
-                </div>
-              </div>
-
-              <!-- Ultimo Ciclo / Ciclo Atual -->
-              <div class="live-durations mb-3">
-                <div class="live-dur-title text-[10px] font-bold text-gray-500 mb-1 tracking-wider">ÚLTIMO CICLO${cicloQuando ? ' · ' + cicloQuando : ''}</div>
-                <div class="space-y-1">
-                  ${['Portão','Moega/Fosso','Trava Roda','Trava Chassi','Trava Pino E','Trava Pino D'].map((name, i) => {
-                    const val = ciclo ? (Number(ciclo[sensorKeys[i]]) || 0) : 0;
-                    const pct = Math.min(Math.round((val / cicloMax) * 100), 100);
-                    return `<div class="live-dur-row flex items-center gap-2 ${i % 2 === 1 ? 'bg-gray-50' : ''} px-2 py-1 rounded" data-sensor="${sensorKeys[i]}">
-                      <span class="text-xs text-gray-600 w-24 shrink-0">${name}</span>
-                      <span class="live-dur-val text-xs font-bold w-16 text-right">${fmtDur(val)}</span>
-                      <div class="flex-1 bg-gray-200 h-2.5 rounded-full overflow-hidden"><div class="live-dur-bar h-full bg-red-600 rounded-full transition-all" style="width:${pct}%"></div></div>
-                    </div>`;
-                  }).join('')}
-                  <div class="flex items-center gap-2 px-2 pt-1 border-t-2 border-gray-200">
-                    <span class="text-xs font-bold text-gray-700 w-24">TOTAL CICLO</span>
-                    <span class="live-dur-total text-xs font-bold text-red-600">${ciclo ? fmtDur(ciclo.tempo_total) : '-'}</span>
-                  </div>
-                </div>
-              </div>
-
-              <!-- Producao e Horimetro -->
-              <div class="live-stats grid grid-cols-3 gap-3 mb-3">
-                <div class="text-center p-3 bg-pili-red/10 rounded-lg" title="${leituraHoje ? '' : 'Sem leitura hoje'}">
-                  <div class="text-xl font-bold text-pili-red">${leituraHoje ? (t.ciclos_hoje || 0) : '-'}</div>
-                  <div class="text-xs text-gray-500">Ciclos Hoje</div>
-                </div>
-                <div class="text-center p-3 bg-pili-red/10 rounded-lg">
-                  <div class="text-xl font-bold text-pili-red">${(t.ciclos_total || 0).toLocaleString('pt-BR')}</div>
-                  <div class="text-xs text-gray-500">Ciclos Total</div>
-                </div>
-                <div class="text-center p-3 bg-pili-red/10 rounded-lg">
-                  <div class="text-sm sm:text-xl whitespace-nowrap font-bold text-pili-red">${fmtHorimetro(t.horas_operacao, t.minutos_operacao)}</div>
-                  <div class="text-xs text-gray-500">Horímetro</div>
-                </div>
-              </div>
-              </div>
-
-              <!-- Footer -->
-              ${rodape}
-            </div>
-            `}
-          </div>
-        `;
+      return CardTombador.render(d, t, ultimosCiclos[d.serial_number] || null, manutPorSerial[d.serial_number],
+                                 { assinatura: subscriptionStatus });
     }
 
     // ========== MANUTENCAO PREVENTIVA ==========
@@ -1470,11 +1270,8 @@
           const isAlertSensor = [false, false, false, false, false, false, true, false];
           sensors.forEach((el, i) => {
             if (i < vals.length) {
-              // Esconder sensores desabilitados
-              if (d.sensor_config && i < d.sensor_config.length && !d.sensor_config[i]) {
-                el.style.display = 'none';
-                return;
-              }
+              // Sensor desabilitado na IoT: fica com "Desabilitado" (desenhado pelo card)
+              if (el.dataset.desabilitado || (d.sensor_config && i < d.sensor_config.length && !d.sensor_config[i])) return;
               el.style.display = '';
               const isOn = vals[i] === true;
               let cls;
@@ -1780,27 +1577,97 @@
       document.getElementById('cyclesTable').innerHTML = `<tr><td colspan="5" class="px-4 py-8 text-center text-gray-500">${esc(mensagem || 'Nenhum ciclo registrado')}</td></tr>`;
     }
 
+    // ---- Periodo do dashboard (dias de Brasilia) ----
+    let periodoAtual = { tipo: '7' };
+    const hojeBRStr = () => new Date().toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' });
+    const somaDias = (s, n) => { const d = new Date(s + 'T12:00:00Z'); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };
+    const diaCurto = s => s.slice(8, 10) + '/' + s.slice(5, 7) + '/' + s.slice(0, 4);
+    function intervaloPeriodo() {
+      const hoje = hojeBRStr();
+      switch (periodoAtual.tipo) {
+        case 'hoje': return { de: hoje, ate: hoje, rotulo: 'HOJE', texto: 'hoje' };
+        case '30': return { de: somaDias(hoje, -29), ate: hoje, rotulo: '30 DIAS', texto: 'últimos 30 dias' };
+        case 'mes': return { de: hoje.slice(0, 8) + '01', ate: hoje, rotulo: 'ESTE MÊS', texto: 'este mês' };
+        case 'mes_ant': {
+          const fim = somaDias(hoje.slice(0, 8) + '01', -1);
+          return { de: fim.slice(0, 8) + '01', ate: fim, rotulo: 'MÊS PASSADO', texto: 'mês passado' };
+        }
+        case 'livre': return { de: periodoAtual.de, ate: periodoAtual.ate, rotulo: `${diaCurto(periodoAtual.de)} A ${diaCurto(periodoAtual.ate)}`,
+                               texto: `${diaCurto(periodoAtual.de)} a ${diaCurto(periodoAtual.ate)}` };
+        default: return { de: somaDias(hoje, -6), ate: hoje, rotulo: '7 DIAS', texto: 'últimos 7 dias' };
+      }
+    }
+    function marcarPeriodo() {
+      document.querySelectorAll('.periodo-btn').forEach(b => {
+        const ativo = b.dataset.periodo === periodoAtual.tipo;
+        b.className = 'periodo-btn px-3 py-1.5 rounded-lg text-xs font-bold border ' +
+          (ativo ? 'bg-pili-red text-white border-pili-red' : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-100');
+      });
+      const p = intervaloPeriodo();
+      const de = document.getElementById('periodoDe'), ate = document.getElementById('periodoAte');
+      if (de && ate) { de.value = p.de; ate.value = p.ate; }
+    }
+    function escolherPeriodo(tipo) { periodoAtual = { tipo }; marcarPeriodo(); loadTelemetry(); }
+    function aplicarPeriodoPersonalizado() {
+      const de = document.getElementById('periodoDe').value, ate = document.getElementById('periodoAte').value;
+      if (!de || !ate) return;
+      periodoAtual = de <= ate ? { tipo: 'livre', de, ate } : { tipo: 'livre', de: ate, ate: de };
+      marcarPeriodo(); loadTelemetry();
+    }
+    document.addEventListener('DOMContentLoaded', marcarPeriodo);
+
+    // Totais do periodo. Ciclos: contador da IoT. Tempos: ciclos com dados ja recebidos.
+    // Moega cheia = tempo perdido (vazao da moega), convertido em caminhoes que daria para descarregar.
+    function renderTotais(stats, p) {
+      const el = document.getElementById('totaisPeriodo');
+      if (!el) return;
+      const t = stats.totais || {};
+      const medio = Number(stats.tempoMedioCiclo) || 0;
+      const caminhoes = medio > 0 ? Math.floor((t.paradaMoegaS || 0) / medio) : 0;
+      const hm = m => `${Math.floor((m || 0) / 60)}h${String(Math.round(m || 0) % 60).padStart(2, '0')}m`;
+      const item = (titulo, valor, sub, cor) => `<div class="rounded-xl p-3 border ${cor || 'bg-gray-50 border-gray-200'}">
+          <div class="text-[11px] font-bold uppercase opacity-70">${titulo}</div>
+          <div class="text-xl font-black">${valor}</div>
+          ${sub ? `<div class="text-[11px] opacity-70">${sub}</div>` : ''}</div>`;
+      el.innerHTML = `<div class="col-span-full text-xs font-bold text-gray-500">TOTAIS DO PERÍODO · ${esc(p.texto.toUpperCase())}</div>` +
+        item('Ciclos', (stats.ciclosPeriodo || 0).toLocaleString('pt-BR'), 'contador da IoT') +
+        item('Tempo em ciclo', fmtDur(t.tempoCicloS) === '-' ? '0 min' : fmtDur(t.tempoCicloS), 'sem a parada da moega') +
+        item('Tempo perdido · moega cheia', fmtDur(t.paradaMoegaS) === '-' ? '0 min' : fmtDur(t.paradaMoegaS),
+             (t.paradaMoegaS > 0 ? `≈ ${caminhoes} caminhão(ões) que daria para descarregar · ` : '') + `${t.ciclosComMoega || 0} ciclo(s)`,
+             t.paradaMoegaS > 0 ? 'bg-amber-50 border-amber-300 text-amber-900' : '') +
+        item('Saiu do 0° sem travas', (t.ciclosSemTravas || 0), 'ciclo(s)', t.ciclosSemTravas > 0 ? 'bg-red-50 border-red-300 text-red-800' : '') +
+        item('Horímetro no período', hm(t.horimetroMin), 'plataforma fora do 0°') +
+        item('Ciclos com dados', `${t.ciclosRecebidos || 0} de ${stats.ciclosPeriodo || 0}`, 'os demais ainda estão no buffer da IoT');
+    }
+
     // Load telemetry data
     async function loadTelemetry() {
       const serialNumber = document.getElementById('deviceSelector').value;
       if (!serialNumber) return;
       const serialUrl = encodeURIComponent(serialNumber);
 
+      const p = intervaloPeriodo();
+      const qs = `?de=${p.de}&ate=${p.ate}`;
+      document.querySelectorAll('.periodo-rotulo').forEach(el => { el.textContent = p.rotulo; });
+      document.querySelectorAll('.periodo-rotulo-texto').forEach(el => { el.textContent = p.texto; });
+
       // Load device stats
-      const stats = await api('/api/device-stats/' + serialUrl);
+      const stats = await api('/api/device-stats/' + serialUrl + qs);
       if (document.getElementById('deviceSelector').value !== serialNumber) return;   // trocou no meio
       if (!stats || stats.error) { limparTelemetria('Erro ao carregar'); return; }
       if (stats.blocked) { limparTelemetria('Assinatura necessária'); return; }
 
-      const temCiclos = (stats.ciclosDiarios || []).length > 0;
+      renderTotais(stats, p);
+      const temCiclos = (stats.ciclosPeriodo || 0) > 0 || ((stats.totais || {}).ciclosRecebidos || 0) > 0;
       if (!temCiclos) {
-        // sem ciclos em 7 dias: nada de "100%" de produtividade sem producao
-        limparTelemetria('Nenhum ciclo nos últimos 7 dias');
+        // sem ciclos no periodo: nada de "100%" de produtividade sem producao
+        limparTelemetria('Nenhum ciclo no período');
         document.getElementById('teleCiclosHoje').textContent = stats.ciclosHoje || 0;
         document.getElementById('teleCiclosSemana').textContent = 0;
+        updateCiclosChart(stats.ciclosDiarios || []);
       } else {
-        // Calcular produtividade media
-        const prodMedia = stats.produtividadeMedia || 100;
+        // Calcular produtividade media (ciclos com dados recebidos; sem eles, sem numero)
+        const prodMedia = stats.produtividadeMedia || 0;
         document.getElementById('teleProdutividade').textContent = prodMedia.toFixed(0) + '%';
 
         // Atualizar gauge circular
@@ -1818,17 +1685,16 @@
         // Ciclos hoje
         document.getElementById('teleCiclosHoje').textContent = stats.ciclosHoje || 0;
 
-        // Ciclos semana
-        const ciclosSemana = stats.ciclosDiarios.reduce((sum, d) => sum + parseInt(d.ciclos || 0), 0);
-        document.getElementById('teleCiclosSemana').textContent = ciclosSemana;
+        // Ciclos no periodo (contador da IoT)
+        document.getElementById('teleCiclosSemana').textContent = (stats.ciclosPeriodo || 0).toLocaleString('pt-BR');
 
         // Eficiencia
-        const eficiencia = prodMedia >= 100 ? '+' + (prodMedia - 100).toFixed(0) + '%' : '-' + (100 - prodMedia).toFixed(0) + '%';
+        const eficiencia = !prodMedia ? '-' : prodMedia >= 100 ? '+' + (prodMedia - 100).toFixed(0) + '%' : '-' + (100 - prodMedia).toFixed(0) + '%';
         document.getElementById('teleEficiencia').textContent = eficiencia;
 
         // Tendencia (comparar com ontem)
-        document.getElementById('teleCiclosTendencia').textContent = 'últimos 7 dias';
-        if (stats.ciclosDiarios.length >= 2) {
+        document.getElementById('teleCiclosTendencia').textContent = 'contador da IoT';
+        if (p.ate === hojeBRStr() && stats.ciclosDiarios.length >= 2) {
           const hoje = parseInt(stats.ciclosHoje) || 0;
           const ontem = parseInt(stats.ciclosDiarios[stats.ciclosDiarios.length - 2]?.ciclos) || 0;
           const diff = hoje - ontem;
@@ -1842,7 +1708,7 @@
       }
 
       // Load cycle data for timeline and table
-      const cycleData = await api('/api/cycle-data/' + serialUrl);
+      const cycleData = await api('/api/cycle-data/' + serialUrl + qs);
       if (document.getElementById('deviceSelector').value !== serialNumber) return;
       if (Array.isArray(cycleData) && cycleData.length > 0) {
         updateTimelineEtapas(cycleData[0]);
@@ -1850,15 +1716,11 @@
         updateCyclesTable(cycleData);
         updatePizzaChart(cycleData);
         updateIndicadores(cycleData);
-      } else if (temCiclos) {
+      } else {
         updateCyclesTable([]);
       }
-
-      // Load productivity data for hourly chart
-      const prodData = await api('/api/productivity/' + serialNumber + '?days=1');
-      if (prodData && prodData.cycles) {
-        updateHorarioChart(prodData.cycles);
-      }
+      // ciclos por hora do dia, no periodo escolhido
+      updateHorarioChart(Array.isArray(cycleData) ? cycleData : []);
     }
 
     // Update Pizza/Doughnut Chart (tempo por fase)
@@ -1889,7 +1751,7 @@
       });
 
       const labels = Object.keys(sensores);
-      const values = Object.values(sensores).map(v => Math.round(v / count));
+      const values = Object.values(sensores).map(v => Math.round(v / count / 6) / 10);   // minutos
 
       chartPizza = new Chart(ctx, {
         type: 'doughnut',
@@ -1904,7 +1766,8 @@
         options: {
           responsive: true,
           plugins: {
-            legend: { position: 'bottom', labels: { boxWidth: 12, padding: 8, font: { size: 10 } } }
+            legend: { position: 'bottom', labels: { boxWidth: 12, padding: 8, font: { size: 10 } } },
+            tooltip: { callbacks: { label: c => `${c.label}: ${c.parsed.toLocaleString('pt-BR')} min` } }
           }
         }
       });
@@ -1922,10 +1785,8 @@
       for (let i = 0; i < 24; i++) hourly[i] = 0;
 
       cycles.forEach(c => {
-        if (c.created_at) {
-          const hour = new Date(c.created_at).getHours();
-          hourly[hour]++;
-        }
+        const d = _paraDataUTC(c.timestamp || c.created_at);      // hora de Brasilia
+        if (d) hourly[parseInt(d.toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo', hour: '2-digit', hour12: false }), 10) % 24]++;
       });
 
       const labels = Object.keys(hourly).map(h => h + 'h');
@@ -1988,7 +1849,7 @@
       const mediaTempo = temposTotal.reduce((a, b) => a + b, 0) / count;
       const variancia = temposTotal.reduce((sum, t) => sum + Math.pow(t - mediaTempo, 2), 0) / count;
       const desvio = Math.sqrt(variancia);
-      document.getElementById('desvioPadrao').textContent = Math.round(desvio) + 's';
+      document.getElementById('desvioPadrao').textContent = fmtDur(desvio);
 
       // Ciclos acima da meta
       const acimaMeta = data.filter(c => (Number(c.tempo_ciclo ?? c.tempo_total) || 0) <= TEMPO_PADRAO_CICLO).length;
@@ -2043,9 +1904,10 @@
 
       const labels = data.map(d => fmtDiaBR(d.dia));
       // Produtividade = (tempo_padrao / tempo_real) * 100
+      // dia sem dado de tempo fica sem ponto (antes virava 100%)
       const values = data.map(d => {
-        const tempoReal = parseFloat(d.tempo_medio_ciclo) || TEMPO_PADRAO_CICLO;
-        return Math.min(200, (TEMPO_PADRAO_CICLO / tempoReal) * 100);
+        const tempoReal = parseFloat(d.tempo_medio_ciclo);
+        return tempoReal > 0 ? Math.round(Math.min(200, (TEMPO_PADRAO_CICLO / tempoReal) * 100)) : null;
       });
 
       chartProdutividade = new Chart(ctx, {
@@ -2058,7 +1920,8 @@
             borderColor: 'rgb(34, 197, 94)',
             backgroundColor: 'rgba(34, 197, 94, 0.1)',
             fill: true,
-            tension: 0.4
+            tension: 0.4,
+            spanGaps: true
           }]
         },
         options: {
@@ -2104,7 +1967,7 @@
         const opacity = Math.max(0.4, pct / 100);
         return `
           <div class="bg-pili-red rounded p-2 text-center transition-all" style="opacity:${opacity}">
-            <div class="text-xs font-bold text-white">${e.tempo}s</div>
+            <div class="text-xs font-bold text-white">${fmtDur(e.tempo) === '-' ? '0 min' : fmtDur(e.tempo)}</div>
             <div class="text-[8px] text-white/80">${e.nome}</div>
           </div>
         `;
@@ -2131,7 +1994,7 @@
         sensorMedia[5] += c.trava_pino_d || 0;
       });
 
-      const values = sensorMedia.map(v => Math.round(v / count) || 0);
+      const values = sensorMedia.map(v => Math.round(v / count / 6) / 10 || 0);   // minutos
       const labels = ['Portão', 'Moega/Fosso', 'Tr.Roda', 'Tr.Chassi', 'Tr.Pino E', 'Tr.Pino D'];
 
       chartEtapas = new Chart(ctx, {
@@ -2139,7 +2002,7 @@
         data: {
           labels,
           datasets: [{
-            label: 'Tempo (s)',
+            label: 'Tempo (min)',
             data: values,
             backgroundColor: 'rgba(220, 38, 38, 0.8)',
             borderColor: 'rgba(220, 38, 38, 1)',
@@ -2151,7 +2014,7 @@
           responsive: true,
           plugins: { legend: { display: false } },
           scales: {
-            y: { beginAtZero: true, title: { display: true, text: 'Segundos' }, grid: { color: 'rgba(0,0,0,0.05)' } },
+            y: { beginAtZero: true, title: { display: true, text: 'Minutos' }, grid: { color: 'rgba(0,0,0,0.05)' } },
             x: { ticks: { font: { size: 9 } } }
           }
         }
@@ -2164,26 +2027,27 @@
       if (!tbody) return;
 
       if (!data || data.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="5" class="px-4 py-8 text-center text-gray-500">Nenhum ciclo registrado</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="5" class="px-4 py-8 text-center text-gray-500">Nenhum ciclo com dados no período</td></tr>';
         return;
       }
 
-      tbody.innerHTML = data.slice(0, 20).map(c => {
+      tbody.innerHTML = data.slice(0, 200).map(c => {
         // tempo do ciclo = total - parada da moega (moega cheia e so alarme, nao e ciclo)
         const tempoCiclo = Number(c.tempo_ciclo ?? c.tempo_total) || 0;
         const produtividade = parseFloat(c.eficiencia) || (tempoCiclo > 0 ? Math.min(200, (TEMPO_PADRAO_CICLO / tempoCiclo) * 100) : 0);
         const prodClass = produtividade >= 100 ? 'text-green-600 bg-green-50' : produtividade >= 80 ? 'text-yellow-600 bg-yellow-50' : 'text-red-600 bg-red-50';
 
         const parada = Number(c.parada_moega) || 0;
-        const celulaParada = parada > 0
-          ? `<span class="text-red-500">Moega cheia (${parada >= 60 ? Math.round(parada / 60) + ' min' : Math.round(parada) + 's'})</span>`
-          : '<span class="text-gray-400">—</span>';
+        const ocorr = [];
+        if (parada > 0) ocorr.push(`<span class="px-2 py-0.5 rounded bg-amber-100 text-amber-800">Moega cheia ${fmtDur(parada)}</span>`);
+        if (c.sem_travas) ocorr.push('<span class="px-2 py-0.5 rounded bg-red-100 text-red-700">Saiu do 0° sem travas</span>');
+        const celulaParada = ocorr.length ? `<div class="flex flex-wrap justify-center gap-1">${ocorr.join('')}</div>` : '<span class="text-gray-400">—</span>';
 
         return `
           <tr class="hover:bg-gray-50 border-b">
             <td class="px-4 py-3 text-xs text-gray-600">${fmtDataBR(c.timestamp)}</td>
             <td class="px-4 py-3 text-center font-bold text-gray-800">#${c.ciclo_numero || '-'}</td>
-            <td class="px-4 py-3 text-center font-medium">${Math.round(tempoCiclo / 60)} min</td>
+            <td class="px-4 py-3 text-center font-medium">${fmtDur(tempoCiclo)}</td>
             <td class="px-4 py-3 text-center">
               <span class="px-3 py-1 rounded-full text-sm font-bold ${prodClass}">${produtividade.toFixed(0)}%</span>
             </td>
