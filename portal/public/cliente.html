@@ -1296,8 +1296,8 @@
                 <div class="text-xs text-gray-500">Ciclos Total</div>
               </div>
               <div class="text-center p-3 bg-pili-red/10 rounded-lg">
-                <div class="text-sm sm:text-xl whitespace-nowrap font-bold text-pili-red">${fmtHorimetro(Number(d.horas_operacao) || 0, d.minutos_operacao)}</div>
-                <div class="text-xs text-gray-500">Horímetro</div>
+                <div class="text-sm sm:text-xl whitespace-nowrap font-bold text-pili-red">${card.dataset.horimetro || fmtHorimetro(Number(d.horas_operacao) || 0, d.minutos_operacao)}</div>
+                <div class="text-xs text-gray-500">Horímetro · IoT ligada</div>
               </div>
             `;
           }
@@ -1634,6 +1634,10 @@
              (t.paradaMoegaS > 0 ? `≈ ${caminhoes} caminhão(ões) que daria para descarregar · ` : '') + `${t.ciclosComMoega || 0} ciclo(s)`,
              t.paradaMoegaS > 0 ? 'bg-amber-50 border-amber-300 text-amber-900' : '') +
         item('Saiu do 0° sem travas', (t.ciclosSemTravas || 0), 'ciclo(s)', t.ciclosSemTravas > 0 ? 'bg-red-50 border-red-300 text-red-800' : '') +
+        item('Saiu do 0° com moega cheia', (t.ciclosSaiuMoegaCheia || 0), 'ciclo(s) · a partir da IoT 10.48',
+             t.ciclosSaiuMoegaCheia > 0 ? 'bg-red-50 border-red-300 text-red-800' : '') +
+        item('Bateu no 40°', t.batidas40 == null ? '-' : t.batidas40.toLocaleString('pt-BR'),
+             t.batidas40 == null ? 'a IoT conta a partir da versão 10.48' : 'vez(es) no período') +
         item('Horímetro no período', hm(t.horimetroMin), 'IoT ligada (desligada não conta)') +
         item('Ciclos com dados', `${t.ciclosRecebidos || 0} de ${stats.ciclosPeriodo || 0}`, 'os demais ainda estão no buffer da IoT');
     }
@@ -2072,6 +2076,8 @@
         const ocorr = [];
         if (parada > 0) ocorr.push(`<span class="px-2 py-0.5 rounded bg-amber-100 text-amber-800">Moega cheia ${fmtDur(parada)}</span>`);
         if (c.sem_travas) ocorr.push('<span class="px-2 py-0.5 rounded bg-red-100 text-red-700">Saiu do 0° sem travas</span>');
+        if (c.saiu_moega_cheia) ocorr.push('<span class="px-2 py-0.5 rounded bg-red-100 text-red-700">Saiu do 0° com moega cheia</span>');
+        if (c.batidas_40 > 1) ocorr.push(`<span class="px-2 py-0.5 rounded bg-slate-100 text-slate-700">Bateu no 40° ${c.batidas_40}x</span>`);
         const celulaParada = ocorr.length ? `<div class="flex flex-wrap justify-center gap-1">${ocorr.join('')}</div>` : '<span class="text-gray-400">—</span>';
 
         return `

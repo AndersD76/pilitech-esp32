@@ -701,7 +701,8 @@ function setupDocsManutencao(app, pool, deps) {
       const where = filtroEscopo(req.user, params);
       const r = await pool.query(`
         SELECT d.serial_number, c.ciclo_numero, c.tempo_total, c.portao, c.moega,
-          c.trava_roda, c.trava_chassi, c.trava_pino_e, c.trava_pino_d, c.eficiencia, c.created_at
+          c.trava_roda, c.trava_chassi, c.trava_pino_e, c.trava_pino_d, c.eficiencia, c.created_at,
+          c.batidas_40, c.saiu_sem_travas, c.saiu_moega_cheia
         FROM devices d
         LEFT JOIN unidades un ON un.id = d.unidade_id
         JOIN LATERAL (
@@ -709,7 +710,8 @@ function setupDocsManutencao(app, pool, deps) {
             COALESCE(cd.sensor0, 0) AS portao, COALESCE(cd.sensor40, 0) AS moega,
             COALESCE(cd.trava_roda, 0) AS trava_roda, COALESCE(cd.trava_chassi, 0) AS trava_chassi,
             COALESCE(cd.trava_pino_e, 0) AS trava_pino_e, COALESCE(cd.trava_pino_d, 0) AS trava_pino_d,
-            cd.eficiencia, cd.created_at
+            cd.eficiencia, cd.created_at,
+            cd.batidas_40, cd.saiu_sem_travas, cd.saiu_moega_cheia   -- IoT v10.48+
           FROM cycle_data cd
           WHERE cd.device_id = d.id
           ORDER BY cd.created_at DESC, cd.id DESC LIMIT 1

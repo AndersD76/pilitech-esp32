@@ -110,8 +110,11 @@ function ocorrenciasDoCiclo(c, cfg) {
   const travas = [['trava_roda', 2], ['trava_chassi', 3], ['trava_pino_e', 4], ['trava_pino_d', 5]];
   const total = Number(c.tempo_total) || 0;
   return {
-    sem_travas: travas.some(([k, i]) => cfg[i] !== false && (Number(c[k]) || 0) < total - 5),
+    // IoT v10.48+ diz na hora da saida (saiu_sem_travas); antes, deduzido dos tempos das travas
+    sem_travas: c.saiu_sem_travas === true ||
+                (c.saiu_sem_travas == null && travas.some(([k, i]) => cfg[i] !== false && (Number(c[k]) || 0) < total - 5)),
     moega_cheia: (Number(c.moega ?? c.sensor40) || 0) > 0,
+    saiu_moega_cheia: c.saiu_moega_cheia === true,
   };
 }
 
@@ -2568,8 +2571,9 @@ app.post('/api/cycle-data', validateApiKey, async (req, res) => {
     const {
       serial_number, ciclo_numero, tempo_total, portao, moega,
       trava_roda, trava_chassi, trava_pino_e, trava_pino_d,
-      tempo_padrao, eficiencia
+      tempo_padrao, eficiencia, batidas_40, flags
     } = req.body;
+    const v48 = Number.isInteger(batidas_40);   // IoT v10.48+: batidas no 40 e alarmes da saida
 
     const deviceResult = await pool.query(
       'SELECT id FROM devices WHERE serial_number = $1',
@@ -2584,12 +2588,13 @@ app.post('/api/cycle-data', validateApiKey, async (req, res) => {
       INSERT INTO cycle_data (
         device_id, ciclo_numero, tempo_total, sensor0, sensor40,
         trava_roda, trava_chassi, trava_pino_e, trava_pino_d,
-        tempo_padrao, eficiencia
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+        tempo_padrao, eficiencia, batidas_40, saiu_sem_travas, saiu_moega_cheia
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
     `, [
       deviceResult.rows[0].id, ciclo_numero, tempo_total, portao,
       moega, trava_roda, trava_chassi,
-      trava_pino_e, trava_pino_d, tempo_padrao, eficiencia
+      trava_pino_e, trava_pino_d, tempo_padrao, eficiencia,
+      v48 ? batidas_40 : null, v48 ? ((flags | 0) & 1) === 1 : null, v48 ? ((flags | 0) & 2) === 2 : null
     ]);
 
     console.log(`📊 Ciclo #${ciclo_numero} registrado - ${tempo_total}s - Eficiência: ${eficiencia}%`);
@@ -2680,12 +2685,14 @@ app.post('/api/batch', validateApiKey, async (req, res) => {
             device_id, timestamp, sensor_0_graus, sensor_40_graus, trava_roda, trava_chassi,
             trava_pino_e, trava_pino_d, moega_fosso, portao_fechado,
             ciclos_hoje, ciclos_total, horas_operacao, minutos_operacao,
-            uptime_seconds, wifi_connected, sistema_ativo, sensor_config
-          ) VALUES ($1, NOW() - ($2 * INTERVAL '1 second'), $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, false, $16, $17)
+            uptime_seconds, wifi_connected, sistema_ativo, sensor_config, batidas_40_total
+          ) VALUES ($1, NOW() - ($2 * INTERVAL '1 second'), $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, false, $16, $17, $18)
         `, [deviceId, seg, b(f[0]), b(f[1]), b(f[2]), b(f[3]), b(f[4]), b(f[5]), b(f[6]), b(f[7]),
             f[8], f[9], f[10], f[11], f[13], b(f[12]) || false,
             // f[14] (IoT v10.41+): sensores habilitados em bits -> [true, false, ...]
-            Number.isInteger(f[14]) ? JSON.stringify([0, 1, 2, 3, 4, 5, 6, 7].map(i => ((f[14] >> i) & 1) === 1)) : null]);
+            Number.isInteger(f[14]) ? JSON.stringify([0, 1, 2, 3, 4, 5, 6, 7].map(i => ((f[14] >> i) & 1) === 1)) : null,
+            // f[15] (IoT v10.48+): vezes que a plataforma bateu no 40 (total)
+            Number.isInteger(f[15]) ? f[15] : null]);
       } else if (tipo === 'e') {
         await pool.query(`
           INSERT INTO event_logs (device_id, timestamp, event_type, message, sensor_name, sensor_value)
@@ -2698,12 +2705,26 @@ app.post('/api/batch', validateApiKey, async (req, res) => {
         const disp = f[2] === 'ota' && typeof f[1] === 'string' && f[1].match(/^Display atualizado: .* -> (\S+) \(reiniciando\)/);
         if (disp) displayInstalado.set(sn, disp[1]);
       } else if (tipo === 'c') {
+        // f[10], f[11] (IoT v10.48+): batidas no 40 no ciclo e alarmes da saida do 0 grau
+        // (bit0 = saiu sem travas, bit1 = saiu com a moega/fosso cheio)
+        const v48 = Number.isInteger(f[10]);
+        const flags = Number.isInteger(f[11]) ? f[11] : 0;
         await pool.query(`
           INSERT INTO cycle_data (
             device_id, created_at, ciclo_numero, tempo_total, sensor0, sensor40,
-            trava_roda, trava_chassi, trava_pino_e, trava_pino_d, tempo_padrao, eficiencia
-          ) VALUES ($1, NOW() - ($2 * INTERVAL '1 second'), $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
-        `, [deviceId, seg, f[0], f[1], f[2], f[3], f[4], f[5], f[6], f[7], f[8], f[9]]);
+            trava_roda, trava_chassi, trava_pino_e, trava_pino_d, tempo_padrao, eficiencia,
+            batidas_40, saiu_sem_travas, saiu_moega_cheia
+          ) VALUES ($1, NOW() - ($2 * INTERVAL '1 second'), $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+        `, [deviceId, seg, f[0], f[1], f[2], f[3], f[4], f[5], f[6], f[7], f[8], f[9],
+            v48 ? f[10] : null, v48 ? (flags & 1) === 1 : null, v48 ? (flags & 2) === 2 : null]);
+        // a v10.48 nao manda mais o evento "Ciclo completo" pelo 4G (um item a menos por
+        // ciclo no chip): o portal grava o evento a partir do ciclo
+        if (v48) {
+          await pool.query(`
+            INSERT INTO event_logs (device_id, timestamp, event_type, message, sensor_name, sensor_value)
+            VALUES ($1, NOW() - ($2 * INTERVAL '1 second'), 'INFO', $3, 'ciclo_completo', true)
+          `, [deviceId, seg, `Ciclo completo em ${f[1]} seg - Total: ${f[0]}`]);
+        }
       } else if (tipo === 'm') {
         await pool.query(`
           INSERT INTO maintenances (device_id, timestamp, technician, description, horas_operacao)
@@ -2715,7 +2736,12 @@ app.post('/api/batch', validateApiKey, async (req, res) => {
       gravados++;
     }
 
-    if (typeof kb === 'number') dataUsage.set(sn, { kb, at: new Date().toISOString() });
+    if (typeof kb === 'number') {
+      dataUsage.set(sn, { kb, at: new Date().toISOString() });
+      pool.query('INSERT INTO pilitech_consumo_4g (device_id, kb, itens, fw) VALUES ($1, $2, $3, $4)',
+                 [deviceId, Math.round(kb), it.length, typeof fw === 'string' ? fw.slice(0, 20) : null])
+        .catch(e => console.error('consumo 4g:', e.message));
+    }
     console.log(`📦 Lote de ${sn}: ${gravados}/${it.length} itens gravados, consumo 4G ${kb} KB no mês`);
 
     // d = contadores do buffer (IoT v10.46+): [no boot, gravados, confirmados, pendentes,
@@ -2767,13 +2793,14 @@ app.get('/api/device-stats/:serialNumber', authenticateToken, checkSubscription,
     const deviceId = deviceResult.rows[0].id;
     const { de, ate, hoje } = periodoDoPedido(req.query);
 
-    const [porDia, hojeIoT, cfg, ciclosR, temposDia, horR, totalR] = await Promise.all([
+    const [porDia, hojeIoT, cfg, ciclosR, temposDia, horR, totalR, b40R] = await Promise.all([
       ciclosPorDiaIoT(deviceId, de, ate),
       ciclosPorDiaIoT(deviceId, hoje, hoje),
       sensoresHabilitados(deviceId),
       pool.query(`SELECT tempo_total, ${TEMPO_CICLO_SQL} AS tempo_ciclo, COALESCE(sensor40, 0) AS moega,
                          COALESCE(trava_roda, 0) AS trava_roda, COALESCE(trava_chassi, 0) AS trava_chassi,
-                         COALESCE(trava_pino_e, 0) AS trava_pino_e, COALESCE(trava_pino_d, 0) AS trava_pino_d
+                         COALESCE(trava_pino_e, 0) AS trava_pino_e, COALESCE(trava_pino_d, 0) AS trava_pino_d,
+                         saiu_sem_travas, saiu_moega_cheia
                   FROM cycle_data WHERE device_id = $1 AND ${CICLO_VALIDO_SQL}
                     AND ${DIA_BR('created_at')} BETWEEN $2::date AND $3::date`, [deviceId, de, ate]),
       // ciclo com tempo 0 (todo o tempo foi parada de moega cheia, ex.: #27 de 06/10) nao entra na media
@@ -2788,6 +2815,10 @@ app.get('/api/device-stats/:serialNumber', authenticateToken, checkSubscription,
                         FROM sensor_readings WHERE device_id = $1 AND horas_operacao IS NOT NULL) x`, [deviceId, de, ate]),
       pool.query(`SELECT MAX(ciclos_total)::int AS total FROM sensor_readings
                   WHERE device_id = $1 AND timestamp > NOW() - INTERVAL '30 days'`, [deviceId]),
+      // batidas no 40 (contador da IoT v10.48+): no fim do periodo - antes dele
+      pool.query(`SELECT MAX(b) FILTER (WHERE d <= $3::date) AS ate_fim, MAX(b) FILTER (WHERE d < $2::date) AS antes
+                  FROM (SELECT ${DIA_BR('timestamp')} AS d, batidas_40_total AS b
+                        FROM sensor_readings WHERE device_id = $1 AND batidas_40_total IS NOT NULL) x`, [deviceId, de, ate]),
     ]);
 
     // todos os dias do periodo (dia sem leitura = 0 ciclos)
@@ -2826,6 +2857,10 @@ app.get('/api/device-stats/:serialNumber', authenticateToken, checkSubscription,
         ciclosSemTravas: ciclos.filter(c => ocorrenciasDoCiclo(c, cfg).sem_travas).length,
         horimetroMin,                                                    // IoT ligada no periodo
         plataformaForaMin,
+        ciclosSaiuMoegaCheia: ciclos.filter(c => c.saiu_moega_cheia === true).length,   // IoT v10.48+
+        // vezes que bateu no 40 no periodo (IoT v10.48+; null = IoT ainda nao conta)
+        batidas40: b40R.rows[0] && b40R.rows[0].ate_fim != null
+          ? Math.max(0, Number(b40R.rows[0].ate_fim) - (Number(b40R.rows[0].antes) || 0)) : null,
       },
       metaCicloS: META_CICLO_S
     });
@@ -2873,6 +2908,7 @@ app.get('/api/cycle-data/:serialNumber', authenticateToken, checkSubscription, a
         COALESCE(trava_pino_e, 0) as trava_pino_e,
         COALESCE(trava_pino_d, 0) as trava_pino_d,
         ${EFICIENCIA_SQL} as eficiencia,
+        batidas_40, saiu_sem_travas, saiu_moega_cheia,
         created_at as timestamp
       FROM cycle_data
       WHERE device_id = $1 AND ${CICLO_VALIDO_SQL} AND ${DIA_BR('created_at')} BETWEEN $2::date AND $3::date
@@ -3026,6 +3062,7 @@ app.get('/api/compare', authenticateToken, checkSubscription, async (req, res) =
 
       const stats = statsResult.rows[0];
       const tempoMedio = parseFloat(stats.tempo_medio) || META_CICLO_S;
+      const ligadaMin = (await minutosLigada([deviceId]))[deviceId];   // horimetro = IoT ligada
 
       results.push({
         serial_number: serial,
@@ -3033,7 +3070,7 @@ app.get('/api/compare', authenticateToken, checkSubscription, async (req, res) =
         status: lastReading.rows[0]?.status || 'offline',
         ciclos_hoje: parseInt(hojeResult.rows[0].ciclos_hoje) || 0,
         ciclos_total: parseInt(lastReading.rows[0]?.ciclos_total) || parseInt(stats.total_ciclos) || 0,
-        horas_operacao: parseInt(lastReading.rows[0]?.horas_operacao) || 0,
+        horas_operacao: ligadaMin != null ? Math.floor(ligadaMin / 60) : (parseInt(lastReading.rows[0]?.horas_operacao) || 0),
         total_ciclos_periodo: parseInt(stats.total_ciclos) || 0,
         tempo_medio: Math.round(tempoMedio),
         parada_moega: parseInt(stats.parada_moega) || 0,
@@ -3201,6 +3238,23 @@ async function initDatabase() {
       )
     `);
     await pool.query('CREATE INDEX IF NOT EXISTS pilitech_lote_diag_dev ON pilitech_lote_diag (device_id, recebido_em)');
+
+    // IoT v10.48: batidas no 40 e alarmes da saida do 0 grau (por ciclo e total na leitura)
+    await pool.query(`ALTER TABLE cycle_data ADD COLUMN IF NOT EXISTS batidas_40 INTEGER,
+                        ADD COLUMN IF NOT EXISTS saiu_sem_travas BOOLEAN,
+                        ADD COLUMN IF NOT EXISTS saiu_moega_cheia BOOLEAN`);
+    await pool.query('ALTER TABLE sensor_readings ADD COLUMN IF NOT EXISTS batidas_40_total INTEGER');
+    // Consumo do chip 4G que a IoT informa em cada lote: mostra o ritmo de gasto (antes so
+    // ficava na memoria do servidor e sumia a cada deploy)
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS pilitech_consumo_4g (
+        id SERIAL PRIMARY KEY,
+        device_id INTEGER NOT NULL,
+        recebido_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        kb INTEGER, itens INTEGER, fw VARCHAR(20)
+      )
+    `);
+    await pool.query('CREATE INDEX IF NOT EXISTS pilitech_consumo_4g_dev ON pilitech_consumo_4g (device_id, recebido_em)');
 
     // Apagar assinaturas pendentes antigas (limpeza)
     await pool.query(`DELETE FROM subscriptions WHERE status = 'pending' AND created_at < NOW() - INTERVAL '7 days'`);

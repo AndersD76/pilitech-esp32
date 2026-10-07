@@ -373,7 +373,11 @@
     const total = ciclo ? Number(ciclo.tempo_total) || 0 : 0;
     const moega = ciclo ? Number(ciclo.moega) || 0 : 0;
     const tempoCiclo = Math.max(0, total - moega);
-    const semTravas = ciclo && [2, 3, 4, 5].some(i => !(hab && hab[i] === false) && (Number(ciclo[SENSORES[i][2]]) || 0) < total - 5);
+    // IoT v10.48+ informa na hora da saida; antes, deduzido dos tempos das travas
+    const semTravas = ciclo && (ciclo.saiu_sem_travas === true || (ciclo.saiu_sem_travas == null &&
+      [2, 3, 4, 5].some(i => !(hab && hab[i] === false) && (Number(ciclo[SENSORES[i][2]]) || 0) < total - 5)));
+    const saiuCheia = ciclo && ciclo.saiu_moega_cheia === true;
+    const b40 = ciclo ? Number(ciclo.batidas_40) || 0 : 0;
     const cicloQuando = ciclo && ciclo.created_at ? curto(ciclo.created_at) : '';
     const [plat, platCor] = plataforma(t);
     const linhasTempo = ORDEM_TEMPOS.map((i, k) => {
@@ -388,7 +392,7 @@
       </div>`;
     }).join('');
 
-    return `<div class="border-2 ${online ? 'border-green-200' : 'border-gray-200'} rounded-xl overflow-hidden" data-serial="${esc(d.serial_number)}" data-status="${esc(d.status_conexao || 'offline')}">
+    return `<div class="border-2 ${online ? 'border-green-200' : 'border-gray-200'} rounded-xl overflow-hidden" data-serial="${esc(d.serial_number)}" data-status="${esc(d.status_conexao || 'offline')}" data-horimetro="${esc(horimetroLigada(t))}">
       ${cabecalho}
       <div class="p-4">
         <div class="live-activation text-center py-8" style="${aguardando ? '' : 'display:none'}">
@@ -418,9 +422,11 @@
               <span class="live-cycle-label text-xs font-bold text-gray-500">${ciclo ? `ÚLTIMO CICLO${ciclo.ciclo_numero ? ' #' + esc(ciclo.ciclo_numero) : ''}` : 'SEM CICLO GRAVADO'}</span>
               <span class="live-cycle-timer text-lg font-bold text-gray-700 font-mono" title="Tempo do ciclo sem a parada da moega">${ciclo ? min(tempoCiclo) : '-'}</span>
             </div>
-            ${ciclo && (moega > 0 || semTravas) ? `<div class="flex flex-wrap gap-2 mt-1">
+            ${ciclo && (moega > 0 || semTravas || saiuCheia || b40 > 1) ? `<div class="flex flex-wrap gap-2 mt-1">
               ${moega > 0 ? `<span class="px-2 py-0.5 rounded text-[11px] font-bold bg-amber-100 text-amber-700">Parada moega cheia: ${min(moega)}</span>` : ''}
               ${semTravas ? '<span class="px-2 py-0.5 rounded text-[11px] font-bold bg-red-100 text-red-700">Saiu do 0° sem travas</span>' : ''}
+              ${saiuCheia ? '<span class="px-2 py-0.5 rounded text-[11px] font-bold bg-red-100 text-red-700">Saiu do 0° com moega cheia</span>' : ''}
+              ${b40 > 1 ? `<span class="px-2 py-0.5 rounded text-[11px] font-bold bg-slate-100 text-slate-700">Bateu no 40° ${b40}x</span>` : ''}
             </div>` : ''}
             <div class="flex justify-between items-center mt-1 pt-1 border-t border-gray-200">
               <span class="live-platform text-[10px] font-bold ${platCor}">PLATAFORMA: ${plat}${leituraEm ? ' · ' + haQuanto(t.reading_timestamp) : ''}</span>
