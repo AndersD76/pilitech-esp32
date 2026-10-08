@@ -458,7 +458,7 @@
             <span class="text-xs font-medium opacity-80">EFICIÊNCIA</span>
           </div>
           <div class="text-xl sm:text-3xl font-black" id="teleEficiencia">-</div>
-          <div class="text-xs opacity-70">vs meta 10min</div>
+          <div class="text-xs opacity-70">vs meta 6 min</div>
         </div>
       </div>
 
@@ -472,7 +472,7 @@
           <div class="flex items-center justify-between mb-4">
             <div>
               <h4 class="font-bold text-gray-800">Tempo Médio do Ciclo por Dia</h4>
-              <p class="text-xs text-gray-500">Verde = dentro da meta de 10 min · vermelho = acima · tracejado = meta</p>
+              <p class="text-xs text-gray-500">Verde = dentro da meta de 6 min · vermelho = acima · tracejado = meta</p>
             </div>
             <span class="periodo-rotulo px-3 py-1 bg-green-100 text-green-700 rounded-full text-xs font-bold">7 DIAS</span>
           </div>
@@ -538,7 +538,7 @@
             </div>
             <div>
               <div class="flex justify-between text-sm mb-1">
-                <span class="text-gray-400">Ciclos acima da meta</span>
+                <span class="text-gray-400">Ciclos dentro da meta</span>
                 <span class="font-bold text-green-400" id="ciclosAcimaMeta">-</span>
               </div>
             </div>
@@ -621,7 +621,7 @@
           <!-- Radar - Tempo por Sensor -->
           <div class="bg-gradient-to-br from-gray-50 to-white border-2 border-gray-100 rounded-2xl p-5 shadow-sm">
             <h4 class="font-bold text-gray-800 mb-1">Perfil de Sensores</h4>
-            <p class="text-xs text-gray-500 mb-4">Tempo médio ON por sensor (segundos)</p>
+            <p class="text-xs text-gray-500 mb-4">Tempo médio ON por sensor (minutos)</p>
             <canvas id="chartCompareRadar" height="200"></canvas>
           </div>
         </div>
@@ -630,7 +630,7 @@
           <!-- Barras - Produtividade -->
           <div class="bg-gradient-to-br from-gray-50 to-white border-2 border-gray-100 rounded-2xl p-5 shadow-sm">
             <h4 class="font-bold text-gray-800 mb-1">Produtividade & Eficiência</h4>
-            <p class="text-xs text-gray-500 mb-4">Percentual vs meta de 10 minutos</p>
+            <p class="text-xs text-gray-500 mb-4">Percentual vs meta de 6 minutos</p>
             <canvas id="chartCompareProd" height="200"></canvas>
           </div>
 
@@ -1556,7 +1556,80 @@
 
     // ========== TELEMETRIA E PRODUTIVIDADE ==========
     let chartCiclos, chartProdutividade, chartEtapas, chartPizza, chartHorario;
-    const TEMPO_PADRAO_CICLO = 10 * 60; // meta de ciclo: 10 minutos em segundos (igual a META_CICLO_S do server.js)
+    const TEMPO_PADRAO_CICLO = 6 * 60; // meta de ciclo: 6 minutos em segundos (igual a META_CICLO_S do server.js)
+
+    // Texto branco em fatia escura, vinho em fatia clara
+    function corTextoSobre(cor) {
+      const m = /^#?([0-9a-f]{6})$/i.exec(String(cor || ''));
+      if (!m) return '#ffffff';
+      const n = parseInt(m[1], 16);
+      return (0.299 * (n >> 16) + 0.587 * ((n >> 8) & 255) + 0.114 * (n & 255)) > 140 ? '#7f1d1d' : '#ffffff';
+    }
+
+    // Valor escrito em cada barra, ponto ou fatia (padrao de todos os graficos). Opcoes: fmt (texto
+    // do valor), zero (escreve o 0; senao pula), vazio (texto no pe da barra sem valor) e meta
+    // {valor, texto} (linha tracejada vermelha). Rotulo que encostaria em outro e pulado.
+    function rotulosValores({ fmt = v => v.toLocaleString('pt-BR'), zero = true, vazio = null, meta = null } = {}) {
+      return {
+        id: 'rotulosValores',
+        afterDatasetsDraw(chart) {
+          const { ctx: c, chartArea: a } = chart;
+          const tipo = chart.config.type;
+          const usados = [];
+          const livre = (x, y, w, h) => {
+            const r = { x1: x - w / 2 - 2, x2: x + w / 2 + 2, y1: y - h, y2: y };
+            if (usados.some(u => r.x1 < u.x2 && r.x2 > u.x1 && r.y1 < u.y2 && r.y2 > u.y1)) return false;
+            usados.push(r);
+            return true;
+          };
+          c.save();
+          if (meta) {
+            const ym = chart.scales.y.getPixelForValue(meta.valor);
+            c.strokeStyle = 'rgb(220, 38, 38)'; c.lineWidth = 2; c.setLineDash([6, 4]);
+            c.beginPath(); c.moveTo(a.left, ym); c.lineTo(a.right, ym); c.stroke();
+            c.setLineDash([]);
+            c.font = 'bold 11px sans-serif'; c.textAlign = 'right'; c.textBaseline = 'bottom';
+            const wm = c.measureText(meta.texto).width;
+            c.fillStyle = 'rgba(255, 255, 255, 0.85)';            // legivel mesmo em cima de uma barra
+            c.fillRect(a.right - wm - 5, ym - 15, wm + 5, 13);
+            c.fillStyle = 'rgb(220, 38, 38)';
+            c.fillText(meta.texto, a.right - 2, ym - 2);
+            usados.push({ x1: a.right - wm - 5, x2: a.right, y1: ym - 15, y2: ym });
+          }
+          c.textAlign = 'center';
+          chart.data.datasets.forEach((ds, di) => {
+            const m = chart.getDatasetMeta(di);
+            if (m.hidden) return;
+            m.data.forEach((el, i) => {
+              const v = ds.data[i];
+              c.textBaseline = 'bottom';
+              if (v == null || !isFinite(v)) {
+                if (vazio && tipo === 'bar') { c.fillStyle = '#9ca3af'; c.font = '10px sans-serif'; c.fillText(vazio, el.x, a.bottom - 4); }
+                return;
+              }
+              if (!v && !zero) return;
+              const txt = fmt(v);
+              if (tipo === 'doughnut' || tipo === 'pie') {      // dentro da fatia; fatia fina fica sem
+                const total = ds.data.reduce((s, x) => s + (Number(x) || 0), 0);
+                if (!chart.getDataVisibility(i) || !total || v / total < 0.05) return;
+                const p = el.tooltipPosition();
+                c.font = 'bold 11px sans-serif'; c.textBaseline = 'middle';
+                c.fillStyle = corTextoSobre(Array.isArray(ds.backgroundColor) ? ds.backgroundColor[i] : ds.backgroundColor);
+                c.fillText(txt, p.x, p.y);
+                return;
+              }
+              c.font = (v ? 'bold ' : '') + '11px sans-serif';
+              const x = el.x, y = el.y - (tipo === 'bar' ? 3 : 7);
+              if (!livre(x, y, c.measureText(txt).width, 13)) return;
+              c.fillStyle = v ? '#374151' : '#9ca3af';
+              c.fillText(txt, x, y);
+            });
+          });
+          c.restore();
+        }
+      };
+    }
+    const minRotulo = v => v.toLocaleString('pt-BR') + ' min';
 
     // O seletor do dashboard e preenchido pelo loadDevices() (mantendo a escolha a cada
     // atualizacao); antes havia um segundo preenchimento aqui que apagava a selecao.
@@ -1771,7 +1844,8 @@
             legend: { position: 'bottom', labels: { boxWidth: 12, padding: 8, font: { size: 10 } } },
             tooltip: { callbacks: { label: c => `${c.label}: ${c.parsed.toLocaleString('pt-BR')} min` } }
           }
-        }
+        },
+        plugins: [rotulosValores({ fmt: minRotulo, zero: false })]
       });
     }
 
@@ -1809,9 +1883,11 @@
         },
         options: {
           responsive: true,
+          layout: { padding: { top: 18 } },
           plugins: { legend: { display: false } },
-          scales: { y: { beginAtZero: true } }
-        }
+          scales: { y: { beginAtZero: true, ticks: { precision: 0 } } }
+        },
+        plugins: [rotulosValores({ zero: false })]     // so as horas com ciclo
       });
     }
 
@@ -1891,9 +1967,11 @@
         },
         options: {
           responsive: true,
+          layout: { padding: { top: 16 } },
           plugins: { legend: { display: false } },
-          scales: { y: { beginAtZero: true } }
-        }
+          scales: { y: { beginAtZero: true, ticks: { precision: 0 } } }
+        },
+        plugins: [rotulosValores()]
       });
     }
 
@@ -1912,34 +1990,7 @@
         return s > 0 ? Math.round(s / 6) / 10 : null;          // minutos com 1 casa
       });
       const cor = v => v > meta ? 'rgba(220, 38, 38, 0.8)' : 'rgba(22, 163, 74, 0.8)';
-      const minTxt = v => v.toLocaleString('pt-BR') + ' min';
-
-      // linha tracejada da meta + valor em cima de cada barra ("sem ciclo" no dia vazio)
-      const metaEValores = {
-        id: 'metaEValores',
-        afterDatasetsDraw(chart) {
-          const { ctx: c, chartArea: a, scales: { x, y } } = chart;
-          const ym = y.getPixelForValue(meta);
-          c.save();
-          c.strokeStyle = 'rgb(220, 38, 38)'; c.lineWidth = 2; c.setLineDash([6, 4]);
-          c.beginPath(); c.moveTo(a.left, ym); c.lineTo(a.right, ym); c.stroke();
-          c.setLineDash([]);
-          c.fillStyle = 'rgb(220, 38, 38)'; c.font = 'bold 11px sans-serif'; c.textAlign = 'right'; c.textBaseline = 'bottom';
-          c.fillText('meta ' + minTxt(meta), a.right - 2, ym - 2);
-          c.textAlign = 'center';
-          chart.getDatasetMeta(0).data.forEach((bar, i) => {
-            const v = values[i];
-            if (v == null) {
-              c.fillStyle = '#9ca3af'; c.font = '10px sans-serif';
-              c.fillText('sem ciclo', bar.x, a.bottom - 4);
-            } else {
-              c.fillStyle = '#374151'; c.font = 'bold 11px sans-serif';
-              c.fillText(minTxt(v), bar.x, bar.y - 3);
-            }
-          });
-          c.restore();
-        }
-      };
+      const minTxt = minRotulo;
 
       chartProdutividade = new Chart(ctx, {
         type: 'bar',
@@ -1976,7 +2027,8 @@
             }
           }
         },
-        plugins: [metaEValores]
+        // linha tracejada da meta + valor em cima de cada barra ("sem ciclo" no dia vazio)
+        plugins: [rotulosValores({ fmt: minTxt, vazio: 'sem ciclo', meta: { valor: meta, texto: 'meta ' + minTxt(meta) } })]
       });
     }
 
@@ -2047,12 +2099,14 @@
         },
         options: {
           responsive: true,
+          layout: { padding: { top: 16 } },
           plugins: { legend: { display: false } },
           scales: {
             y: { beginAtZero: true, title: { display: true, text: 'Minutos' }, grid: { color: 'rgba(0,0,0,0.05)' } },
             x: { ticks: { font: { size: 9 } } }
           }
-        }
+        },
+        plugins: [rotulosValores({ fmt: minRotulo })]
       });
     }
 
@@ -2267,10 +2321,12 @@
         data: { labels: labelsPtBR, datasets },
         options: {
           responsive: true,
+          layout: { padding: { top: 18 } },
           interaction: { mode: 'index', intersect: false },
           plugins: { legend: { position: 'bottom', labels: { boxWidth: 12, padding: 15, font: { size: 11 } } } },
-          scales: { y: { beginAtZero: true, title: { display: true, text: 'Ciclos' } } }
-        }
+          scales: { y: { beginAtZero: true, ticks: { precision: 0 }, title: { display: true, text: 'Ciclos' } } }
+        },
+        plugins: [rotulosValores({ zero: false })]
       });
     }
 
@@ -2284,7 +2340,7 @@
 
       const datasets = devices.map((d, i) => ({
         label: d.name,
-        data: sensorKeys.map(k => Math.round(parseFloat(d.sensores[k]) || 0)),
+        data: sensorKeys.map(k => Math.round((parseFloat(d.sensores[k]) || 0) / 6) / 10),   // minutos
         borderColor: COMPARE_COLORS[i],
         backgroundColor: COMPARE_COLORS_BG[i],
         borderWidth: 2,
@@ -2296,9 +2352,13 @@
         data: { labels, datasets },
         options: {
           responsive: true,
-          plugins: { legend: { position: 'bottom', labels: { boxWidth: 12, padding: 15, font: { size: 11 } } } },
-          scales: { r: { beginAtZero: true, ticks: { stepSize: 20 } } }
-        }
+          plugins: {
+            legend: { position: 'bottom', labels: { boxWidth: 12, padding: 15, font: { size: 11 } } },
+            tooltip: { callbacks: { label: c => `${c.dataset.label}: ${minRotulo(c.raw)}` } }
+          },
+          scales: { r: { beginAtZero: true } }
+        },
+        plugins: [rotulosValores({ fmt: minRotulo, zero: false })]
       });
     }
 
@@ -2330,16 +2390,11 @@
         },
         options: {
           responsive: true,
-          plugins: {
-            legend: { position: 'bottom', labels: { boxWidth: 12, font: { size: 11 } } },
-            annotation: {
-              annotations: {
-                metaLine: { type: 'line', yMin: 100, yMax: 100, borderColor: '#000', borderWidth: 1, borderDash: [4, 4], label: { display: true, content: 'Meta 100%', position: 'end', font: { size: 10 } } }
-              }
-            }
-          },
-          scales: { y: { beginAtZero: true, title: { display: true, text: '%' } } }
-        }
+          layout: { padding: { top: 16 } },
+          plugins: { legend: { position: 'bottom', labels: { boxWidth: 12, font: { size: 11 } } } },
+          scales: { y: { beginAtZero: true, suggestedMax: 120, title: { display: true, text: '%' } } }
+        },
+        plugins: [rotulosValores({ fmt: v => Math.round(v) + '%', meta: { valor: 100, texto: 'meta 100%' } })]
       });
     }
 
@@ -2355,19 +2410,19 @@
           datasets: [
             {
               label: 'Melhor Ciclo',
-              data: devices.map(d => Math.round(d.melhor_ciclo / 60)),
+              data: devices.map(d => Math.round(d.melhor_ciclo / 6) / 10),
               backgroundColor: '#22c55e',
               borderRadius: 4
             },
             {
               label: 'Tempo Médio',
-              data: devices.map(d => Math.round(d.tempo_medio / 60)),
+              data: devices.map(d => Math.round(d.tempo_medio / 6) / 10),
               backgroundColor: '#3b82f6',
               borderRadius: 4
             },
             {
               label: 'Pior Ciclo',
-              data: devices.map(d => Math.round(d.pior_ciclo / 60)),
+              data: devices.map(d => Math.round(d.pior_ciclo / 6) / 10),
               backgroundColor: '#ef4444',
               borderRadius: 4
             }
@@ -2375,16 +2430,11 @@
         },
         options: {
           responsive: true,
-          plugins: {
-            legend: { position: 'bottom', labels: { boxWidth: 12, font: { size: 11 } } },
-            annotation: {
-              annotations: {
-                metaLine: { type: 'line', yMin: TEMPO_PADRAO_CICLO / 60, yMax: TEMPO_PADRAO_CICLO / 60, borderColor: '#000', borderWidth: 1, borderDash: [4, 4], label: { display: true, content: `Meta ${TEMPO_PADRAO_CICLO / 60}min`, position: 'end', font: { size: 10 } } }
-              }
-            }
-          },
-          scales: { y: { beginAtZero: true, title: { display: true, text: 'Minutos' } } }
-        }
+          layout: { padding: { top: 16 } },
+          plugins: { legend: { position: 'bottom', labels: { boxWidth: 12, font: { size: 11 } } } },
+          scales: { y: { beginAtZero: true, suggestedMax: TEMPO_PADRAO_CICLO / 60 * 1.5, title: { display: true, text: 'Minutos' } } }
+        },
+        plugins: [rotulosValores({ fmt: minRotulo, meta: { valor: TEMPO_PADRAO_CICLO / 60, texto: 'meta ' + minRotulo(TEMPO_PADRAO_CICLO / 60) } })]
       });
     }
 

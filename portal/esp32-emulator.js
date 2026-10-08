@@ -397,8 +397,8 @@ async function runCycle() {
     state.minutos_operacao = state.minutos_operacao % 60;
   }
 
-  // Calculate efficiency (tempo_padrao = 600s = meta de 10 min)
-  const tempoPadrao = 600;
+  // Calculate efficiency (tempo_padrao = 360s = meta de 6 min)
+  const tempoPadrao = 360;
   // In emulator, cycles are fast due to speed multiplier, so scale back
   const realEquivalent = tempoTotal * CONFIG.speed;
   const eficiencia = Math.min(100, parseFloat(((tempoPadrao / realEquivalent) * 100).toFixed(1)));

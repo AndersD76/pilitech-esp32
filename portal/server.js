@@ -47,10 +47,11 @@ const BB_API_CONFIG = {
 // Valor da assinatura anual
 const SUBSCRIPTION_PRICE = 2000.00;
 
-// Meta de tempo de ciclo do tombador (05/10/2026: 10 min; antes 20). Eficiencia de um ciclo =
-// meta / tempo real, ate 200%. Calculada aqui a partir do tempo do ciclo, e nao lida do valor que
-// a IoT grava: IoT antiga (ate a v10.45) ainda manda a eficiencia contra 20 min.
-const META_CICLO_S = 10 * 60;
+// Meta de tempo de ciclo do tombador (08/10/2026: 6 min; 05/10: 10; antes 20). Eficiencia de um
+// ciclo = meta / tempo real, ate 200%. Calculada aqui a partir do tempo do ciclo, e nao lida do
+// valor que a IoT grava (a IoT manda a eficiencia contra a meta do firmware dela), entao mudar
+// a meta recalcula todo o historico.
+const META_CICLO_S = 6 * 60;
 
 // Periodo de avaliacao de empresa nova (05/10/2026: 365 dias; antes 30). O padrao da coluna
 // empresas.trial_ends_at e ajustado na inicializacao.
