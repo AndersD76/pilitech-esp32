@@ -416,6 +416,7 @@
             </div>
           </div>
           <div class="text-xs text-gray-400 font-medium uppercase tracking-wider">Produtividade</div>
+          <div class="text-[11px] text-gray-500 mt-1" id="teleProdBase"></div>
         </div>
 
         <div class="bg-gradient-to-br from-blue-500 to-blue-600 pt-hero">
@@ -423,7 +424,7 @@
             <svg class="w-5 h-5 opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
             </svg>
-            <span class="text-xs font-medium opacity-80">CICLO BRUTO</span>
+            <span class="text-xs font-medium opacity-80" id="teleTempoTitulo">CICLO BRUTO</span>
           </div>
           <div class="text-xl sm:text-3xl font-black" id="teleTempoCiclo">-</div>
           <div class="text-xs opacity-70" id="teleTempoSub">média por ciclo</div>
@@ -475,8 +476,8 @@
         <div class="pt-card">
           <div class="flex items-center justify-between mb-4">
             <div>
-              <h4 class="font-bold text-gray-800">Ciclo Bruto por Dia</h4>
-              <p class="text-xs text-gray-500">Barra forte = ciclo bruto (verde dentro do padrão, vermelho acima) · barra cinza = ciclo líquido · tracejado = padrão (soma das etapas)</p>
+              <h4 class="font-bold text-gray-800">Ciclo por Dia</h4>
+              <p class="text-xs text-gray-500">Ciclo bruto (portão/travas) e ciclo líquido (0° → 0°) · verde = dentro do padrão, vermelho = acima · tracejado = padrão</p>
             </div>
             <span class="periodo-rotulo px-3 py-1 bg-green-100 text-green-700 rounded-full text-xs font-bold">7 DIAS</span>
           </div>
@@ -1561,6 +1562,7 @@
 
     // ========== TELEMETRIA E PRODUTIVIDADE ==========
     let chartCiclos, chartProdutividade, chartEtapas, chartPizza, chartHorario;
+    let PADRAO_LIQUIDO = 360;       // padrao do ciclo liquido (0° -> 0°) = subir + descarga + descer
     let TEMPO_PADRAO_CICLO = 450;   // padrao do ciclo = soma das etapas do documento; vem do device-stats (metaCicloS) de cada tombador
 
     // Texto branco em fatia escura, vinho em fatia clara
@@ -1711,19 +1713,24 @@
       if (!k || k.error || k.blocked) { el.innerHTML = ''; return; }
       const t = stats.totais || {}, cal = k.calendario || {}, pr = k.produtividade || {};
       const meta = Number(stats.metaCicloS) || TEMPO_PADRAO_CICLO;
-      const ciclo = k.tempo.bruto_medio_s;   // ciclo bruto: da saida do 0° ate voltar ao 0° (a moega cheia esta dentro dele)
-      const liquido = k.tempo.liquido_medio_s;   // ciclo liquido: sem a moega cheia
+      // ciclo bruto: portao/travas -> portao/travas (IoT 10.50+); ciclo liquido: 0° -> 0°. Cada um contra o seu padrao.
+      const bruto = k.tempo.bruto_medio_s, liquido = k.tempo.liquido_medio_s;
+      const padB = k.tempo.padrao_ciclo_s, padL = k.tempo.padrao_liquido_s;
+      const ciclo = bruto != null ? bruto : liquido;
       const paradaMedia = (t.ciclosRecebidos || 0) ? (t.paradaMoegaS || 0) / t.ciclosRecebidos : 0;
-      const larg = v => (ciclo ? Math.max(2, Math.min(100, Math.round(v / ciclo * 100))) : 0);
+      const maior = Math.max(bruto || 0, liquido || 0);
+      const larg = v => (maior ? Math.max(2, Math.min(100, Math.round(v / maior * 100))) : 0);
       const linhaT = (rotulo, valor, v, cor, forte) => `<div class="mb-2">
           <div class="flex justify-between text-sm ${forte ? 'font-black text-gray-900' : 'text-gray-600'}"><span>${rotulo}</span><span>${valor}</span></div>
           <div class="h-2.5 rounded bg-gray-100"><div class="h-2.5 rounded ${cor}" style="width:${v}%"></div></div></div>`;
-      const dentroMeta = ciclo != null && ciclo <= meta;
+      const linhaC = (rotulo, v, pad) => v == null
+        ? `<div class="mb-2 text-sm text-gray-500"><b>${rotulo}</b>: não medido <span class="text-xs">(a IoT mede a partir da versão 10.50)</span></div>`
+        : linhaT(`${rotulo} <span class="text-xs text-gray-400 font-normal">· padrão ${fmtMin(pad)}</span>`, fmtMin(v), larg(v), v <= pad ? 'bg-green-500' : 'bg-red-500', true);
       const tempos = ciclo == null ? '<p class="text-sm text-gray-400">Sem ciclos com tempo recebido neste período.</p>'
-        : linhaT('Ciclo bruto', fmtMin(ciclo), 100, dentroMeta ? 'bg-green-500' : 'bg-red-500', true) +
-          (paradaMedia > 0 ? linhaT('Dele, parado com a moega cheia', fmtMin(paradaMedia), larg(paradaMedia), 'bg-amber-400') : '') +
-          linhaT('Ciclo líquido (sem a moega cheia)', fmtMin(liquido), larg(liquido), 'bg-slate-400', true) +
-          `<div class="text-xs ${dentroMeta ? 'text-green-700' : 'text-red-600'} font-bold">Padrão: ${fmtMin(meta)} (soma das etapas do documento) · ${dentroMeta ? 'dentro do padrão' : 'acima do padrão'}</div>`;
+        : linhaC('Ciclo bruto (portão/travas → portão/travas)', bruto, padB) +
+          linhaC('Ciclo líquido (0° → 0°)', liquido, padL) +
+          (paradaMedia > 0 ? linhaT('dentro do líquido, parado com a moega cheia', fmtMin(paradaMedia), larg(paradaMedia), 'bg-amber-400') : '') +
+          `<div class="text-[11px] text-gray-500">Padrões = soma dos tempos das etapas do documento (descarga a definir).</div>`;
 
       const caminhoes = ciclo > 0 ? Math.floor((t.paradaMoegaS || 0) / ciclo) : 0;
       const al = [];
@@ -1787,6 +1794,7 @@
       if (!stats || stats.error) { limparTelemetria('Erro ao carregar'); return; }
       if (stats.blocked) { limparTelemetria('Assinatura necessária'); return; }
       if (Number(stats.metaCicloS) > 0) TEMPO_PADRAO_CICLO = Number(stats.metaCicloS);
+      if (Number(stats.metaLiquidoS) > 0) PADRAO_LIQUIDO = Number(stats.metaLiquidoS);
 
       renderTotais(stats, p);
       renderResumo(serialNumber, qs, stats, p).catch(e => console.error('resumo:', e));
@@ -1811,9 +1819,16 @@
         }
 
         // Tempo medio por ciclo
-        const tempoMedio = stats.tempoMedioCiclo || 0, tempoBruto = stats.tempoMedioBruto || 0;
-        document.getElementById('teleTempoCiclo').textContent = tempoMedio > 0 ? fmtDur(tempoMedio) : '-';
-        document.getElementById('teleTempoSub').textContent = `ciclo líquido ${fmtDur(stats.tempoMedioLiquido)} (sem a moega cheia) · padrão ${fmtDur(stats.metaCicloS || TEMPO_PADRAO_CICLO)}`;
+        // ciclo bruto (portao/travas, IoT 10.50+) em destaque quando existe; senao o ciclo liquido (0° -> 0°)
+        const tempoMedio = stats.tempoMedioCiclo || 0;
+        const temBruto = Number(stats.tempoMedioBruto) > 0;
+        const padB = stats.metaCicloS || TEMPO_PADRAO_CICLO, padL = stats.metaLiquidoS || 360;
+        document.getElementById('teleTempoTitulo').textContent = temBruto ? 'CICLO BRUTO' : 'CICLO LÍQUIDO (0° → 0°)';
+        document.getElementById('teleTempoCiclo').textContent = temBruto ? fmtDur(stats.tempoMedioBruto) : (stats.tempoMedioLiquido > 0 ? fmtDur(stats.tempoMedioLiquido) : '-');
+        document.getElementById('teleTempoSub').textContent = temBruto
+          ? `padrão ${fmtDur(padB)} · ciclo líquido ${fmtDur(stats.tempoMedioLiquido)} (padrão ${fmtDur(padL)})`
+          : `padrão ${fmtDur(padL)} · ciclo bruto: a IoT mede a partir da versão 10.50`;
+        document.getElementById('teleProdBase').textContent = temBruto ? 'pelo ciclo bruto' : 'pelo ciclo líquido (0° → 0°)';
 
         // Ciclos hoje
         document.getElementById('teleCiclosHoje').textContent = stats.ciclosHoje || 0;
@@ -2039,37 +2054,24 @@
     function updateProdutividadeChart(data) {
       const ctx = document.getElementById('chartProdutividade');
       if (!ctx) return;
-
       if (chartProdutividade) chartProdutividade.destroy();
 
-      const meta = TEMPO_PADRAO_CICLO / 60;
+      const min1 = s => { const v = parseFloat(s); return v > 0 ? Math.round(v / 6) / 10 : null; };   // minutos, 1 casa
+      const padB = TEMPO_PADRAO_CICLO / 60, padL = PADRAO_LIQUIDO / 60;
       const labels = data.map(d => fmtDiaBR(d.dia, { day: '2-digit', month: '2-digit' }));
-      const values = data.map(d => {
-        const s = parseFloat(d.tempo_medio_ciclo);
-        return s > 0 ? Math.round(s / 6) / 10 : null;          // minutos com 1 casa
-      });
-      const liquidos = data.map(d => { const s = parseFloat(d.tempo_medio_liquido); return s > 0 ? Math.round(s / 6) / 10 : null; });
-      const cor = v => v > meta ? 'rgba(220, 38, 38, 0.8)' : 'rgba(22, 163, 74, 0.8)';
+      const brutos = data.map(d => min1(d.tempo_medio_bruto));
+      const liquidos = data.map(d => min1(d.tempo_medio_liquido));
+      const temBruto = brutos.some(v => v != null);
+      const cor = (v, p, a) => v == null ? 'transparent' : v > p ? `rgba(220, 38, 38, ${a})` : `rgba(22, 163, 74, ${a})`;
       const minTxt = minRotulo;
+      const conjuntos = [];
+      if (temBruto) conjuntos.push({ label: 'Ciclo bruto (portão/travas)', data: brutos, backgroundColor: brutos.map(v => cor(v, padB, 0.85)), borderRadius: 4, maxBarThickness: 44 });
+      conjuntos.push({ label: 'Ciclo líquido (0° → 0°)', data: liquidos, backgroundColor: liquidos.map(v => cor(v, padL, temBruto ? 0.45 : 0.85)), borderRadius: 4, maxBarThickness: 44 });
+      const meta = temBruto ? padB : padL;
 
       chartProdutividade = new Chart(ctx, {
         type: 'bar',
-        data: {
-          labels,
-          datasets: [{
-            label: 'Ciclo bruto',
-            data: values,
-            backgroundColor: values.map(v => v == null ? 'transparent' : cor(v)),
-            borderRadius: 4,
-            maxBarThickness: 48
-          }, {
-            label: 'Ciclo líquido (sem a moega cheia)',
-            data: liquidos,
-            backgroundColor: 'rgba(148, 163, 184, 0.65)',
-            borderRadius: 4,
-            maxBarThickness: 48
-          }]
-        },
+        data: { labels, datasets: conjuntos },
         options: {
           responsive: true,
           layout: { padding: { top: 16 } },
@@ -2078,24 +2080,17 @@
             tooltip: {
               callbacks: {
                 label: c => {
-                  const d = data[c.dataIndex];
-                  if (c.datasetIndex === 1) return `Ciclo líquido: ${minTxt(c.raw)}`;
-                  return [`Ciclo bruto: ${minTxt(c.raw)} (padrão ${minTxt(meta)})`,
+                  const d = data[c.dataIndex], ehBruto = temBruto && c.datasetIndex === 0;
+                  return [`${ehBruto ? 'Ciclo bruto' : 'Ciclo líquido'}: ${minTxt(c.raw)} (padrão ${minTxt(ehBruto ? padB : padL)})`,
                           `${d.ciclos_com_tempo || 0} ciclo(s) com tempo recebido de ${d.ciclos || 0} no dia`];
                 }
               }
             }
           },
-          scales: {
-            y: {
-              beginAtZero: true,
-              suggestedMax: meta * 1.5,
-              ticks: { callback: v => v + ' min' }
-            }
-          }
+          scales: { y: { beginAtZero: true, suggestedMax: Math.max(padB, padL) * 1.5, ticks: { callback: v => v + ' min' } } }
         },
-        // linha tracejada da meta + valor em cima de cada barra ("sem ciclo" no dia vazio)
-        plugins: [rotulosValores({ fmt: minTxt, vazio: 'sem ciclo', meta: { valor: meta, texto: 'padrão ' + minTxt(meta) } })]
+        // tracejado do padrao + valor em cima de cada barra do 1o conjunto ("sem ciclo" no dia vazio)
+        plugins: [rotulosValores({ fmt: minTxt, vazio: 'sem ciclo', meta: { valor: meta, texto: (temBruto ? 'padrão bruto ' : 'padrão líquido ') + minTxt(meta) } })]
       });
     }
 
@@ -2205,8 +2200,8 @@
           <tr class="hover:bg-gray-50 border-b">
             <td class="px-4 py-3 text-xs text-gray-600">${fmtDataBR(c.timestamp)}</td>
             <td class="px-4 py-3 text-center font-bold text-gray-800">#${c.ciclo_numero || '-'}</td>
-            <td class="px-4 py-3 text-center font-bold text-gray-800">${fmtDur(tempoCiclo)}</td>
-            <td class="px-4 py-3 text-center font-medium text-gray-600">${fmtDur(Number(c.tempo_liquido ?? c.tempo_ciclo) || 0)}</td>
+            <td class="px-4 py-3 text-center font-bold text-gray-800">${c.tempo_bruto != null ? fmtDur(c.tempo_bruto) : '<span class="text-xs font-normal text-gray-400">não medido</span>'}</td>
+            <td class="px-4 py-3 text-center font-medium text-gray-700">${fmtDur(Number(c.tempo_liquido ?? c.tempo_total) || 0)}</td>
             <td class="px-4 py-3 text-center">
               <span class="px-3 py-1 rounded-full text-sm font-bold ${prodClass}">${produtividade.toFixed(0)}%</span>
             </td>

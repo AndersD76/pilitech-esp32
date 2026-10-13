@@ -39,7 +39,8 @@ async function criarTabelas(pool) {
       ADD COLUMN IF NOT EXISTS t_alto INTEGER, ADD COLUMN IF NOT EXISTS t_descer INTEGER,
       ADD COLUMN IF NOT EXISTS t_destravar INTEGER, ADD COLUMN IF NOT EXISTS espera_moega INTEGER,
       ADD COLUMN IF NOT EXISTS padrao_s INTEGER, ADD COLUMN IF NOT EXISTS cfg_versao INTEGER,
-      ADD COLUMN IF NOT EXISTS flags_ciclo INTEGER`);
+      ADD COLUMN IF NOT EXISTS flags_ciclo INTEGER, ADD COLUMN IF NOT EXISTS t_bruto INTEGER,
+      ADD COLUMN IF NOT EXISTS padrao_liq_s INTEGER`);
   await pool.query(`CREATE TABLE IF NOT EXISTS pilitech_config_tombador (
       device_id INTEGER PRIMARY KEY, versao INTEGER NOT NULL DEFAULT 1, config JSONB NOT NULL,
       vigente_desde TIMESTAMP DEFAULT CURRENT_TIMESTAMP, alterado_por TEXT)`);
@@ -116,29 +117,30 @@ async function gravarCiclo(pool, deps, deviceId, seg, c) {
   const v48 = Number.isInteger(c.batidas_40);
   const v49 = Number.isInteger(c.t_travar) || Number.isInteger(c.t_subir) || Number.isInteger(c.t_destravar) || Number.isInteger(c.espera);
   const flags = Number.isInteger(c.flags) ? c.flags : 0;
-  let padrao = null, versao = null, cfg = null, hab = null;
+  let padrao = null, padraoLiq = null, versao = null, cfg = null, hab = null;
   if (v49) {
     const cf = await carregarConfig(pool, deviceId);
     cfg = cf.config; versao = cf.versao;
     hab = await deps.sensoresHabilitados(deviceId);
     const pd = padroesDoCiclo(cfg, hab);
-    // padrao do ciclo = SOMA de todas as etapas do documento (pinos so se habilitados; descarga quando definida)
-    padrao = pd.completo;
+    // padroes = SOMA das etapas do documento: bruto = todas; liquido = subir + descarga + descer
+    padrao = pd.completo; padraoLiq = pd.movimento;
   }
   const r = await pool.query(`
     INSERT INTO cycle_data (
       device_id, created_at, ciclo_numero, tempo_total, sensor0, sensor40,
       trava_roda, trava_chassi, trava_pino_e, trava_pino_d, tempo_padrao, eficiencia,
       batidas_40, saiu_sem_travas, saiu_moega_cheia,
-      t_travar, t_subir, t_alto, t_descer, t_destravar, espera_moega, padrao_s, cfg_versao, flags_ciclo
+      t_travar, t_subir, t_alto, t_descer, t_destravar, espera_moega, padrao_s, cfg_versao, flags_ciclo, t_bruto, padrao_liq_s
     ) VALUES ($1, NOW() - ($2 * INTERVAL '1 second'), $3, $4, $5, $6, $7, $8, $9, $10, $11, $12,
-              $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24)
+              $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26)
     RETURNING created_at`,
     [deviceId, seg || 0, c.ciclo_numero, c.tempo_total, c.portao, c.moega, c.trava_roda, c.trava_chassi,
      c.trava_pino_e, c.trava_pino_d, c.tempo_padrao, c.eficiencia,
      v48 ? c.batidas_40 : null, v48 ? (flags & 1) === 1 : null, v48 ? (flags & 2) === 2 : null,
      v49 ? nn(c.t_travar) : null, v49 ? nn(c.t_subir) : null, v49 ? nn(c.t_alto) : null, v49 ? nn(c.t_descer) : null,
-     v49 ? nn(c.t_destravar) : null, v49 ? nn(c.espera) : null, padrao, versao, v48 ? flags : null]);
+     v49 ? nn(c.t_destravar) : null, v49 ? nn(c.espera) : null, padrao, versao, v48 ? flags : null,
+     v49 ? nn(c.t_bruto) : null, padraoLiq]);
   if (v49) {
     try { await registrarOcorrencias(pool, deviceId, r.rows[0].created_at, c, flags, cfg, hab); }
     catch (e) { console.error('[ocorrencias]', e.message); }
@@ -164,9 +166,10 @@ async function registrarOcorrencias(pool, deviceId, fimCiclo, c, flags, cfg, hab
     add('etapa_lenta', 'travas', 'travar', `Travamento em ${travar}s (padrão ${pd.travar}s)`, 'baixa', travar);
   if (destravar != null && pd.destravar > 0 && destravar > pd.destravar * tol)
     add('etapa_lenta', 'travas', 'destravar', `Destravamento em ${destravar}s (padrão ${pd.destravar}s)`, 'baixa', destravar);
-  const mov = Number(c.tempo_total) || 0;
-  if (pd.completo > 0 && mov > pd.completo * tol)
-    add('etapa_lenta', 'plataforma', 'ciclo', `Ciclo bruto de ${Math.round(mov / 6) / 10} min (padrão ${Math.round(pd.completo / 6) / 10} min, soma das etapas)`, 'baixa', mov);
+  const bruto = nn(c.t_bruto), liq = Number(c.tempo_total) || 0;
+  const [qual, tempo, pad] = bruto != null ? ['bruto', bruto, pd.completo] : ['líquido', liq, pd.movimento];
+  if (pad > 0 && tempo > pad * tol)
+    add('etapa_lenta', 'plataforma', 'ciclo', `Ciclo ${qual} de ${Math.round(tempo / 6) / 10} min (padrão ${Math.round(pad / 6) / 10} min, soma das etapas)`, 'baixa', tempo);
   for (const l of linhas) {
     await pool.query(`INSERT INTO pilitech_ocorrencias (device_id, ciclo_numero, ini, fim, duracao_s, tipo, componente, etapa, causa, gravidade, qualidade)
                       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`, l);
@@ -209,7 +212,7 @@ function calcularKpis({ ciclos, contador, cfg, hab, paradas, ligadaMin, de, ate,
   const pd = padroesDoCiclo(cfg, hab), tol = cfg.tolerancia_pct;
   const incompleto = c => ((c.flags_ciclo || 0) & 4) !== 0;
   const incompletos = ciclos.filter(incompleto);
-  const validos = ciclos.filter(c => !incompleto(c) && Number(c.bruto) > 0);
+  const validos = ciclos.filter(c => !incompleto(c) && Number(c.base) > 0);
   const concluidos = Math.max(0, contador - incompletos.length);
 
   // calendario
@@ -222,10 +225,10 @@ function calcularKpis({ ciclos, contador, cfg, hab, paradas, ligadaMin, de, ate,
   const disponivelS = Math.max(0, programadoS - tecnicaS);
   const paradaS = tipo => Math.round(pr.filter(p => p[2] === tipo).reduce((s, p) => s + sobrepoe(progLivre, [p[0], p[1]]), 0) / 1000);
 
-  const brutoMedio = media(validos.map(c => Number(c.bruto)));
+  const brutoMedio = media(validos.filter(c => c.bruto != null).map(c => Number(c.bruto)));   // so IoT 10.50+
   const liquidoMedio = media(validos.map(c => Number(c.liquido)));
-  const somaPadrao = validos.reduce((s, c) => s + Number(c.padrao), 0), somaLiquido = validos.reduce((s, c) => s + Number(c.liquido), 0);
-  const ocupadoS = brutoMedio != null ? Math.round(concluidos * brutoMedio) : null;
+  const somaPadrao = validos.reduce((s, c) => s + Number(c.padrao), 0), somaLiquido = validos.reduce((s, c) => s + Number(c.base), 0);
+  const ocupadoS = (brutoMedio ?? liquidoMedio) != null ? Math.round(concluidos * (brutoMedio ?? liquidoMedio)) : null;
   const esperas = ciclos.filter(c => Number(c.espera) > 0);
 
   // desvio por etapa
@@ -244,18 +247,19 @@ function calcularKpis({ ciclos, contador, cfg, hab, paradas, ligadaMin, de, ate,
     etapaDe('subir', 'Subir (até o 40°, quando bate)', pd.subir, serie('t_subir')),
     etapaDe('descarga', 'Descarregar (no 40°, sem a espera)', pd.descarga, serie(null, c => c.t_alto != null ? Number(c.t_alto) - Number(c.espera || 0) : NaN)),
     etapaDe('descer', 'Descer (do 40° ao 0°)', pd.descer, serie('t_descer')),
-    etapaDe('movimento', 'Tempo do ciclo (subir + descarregar + descer)', pd.movimento, serie(null, c => Number(c.tempo_total))),
+    etapaDe('movimento', 'Ciclo líquido (0° → 0°: subir + descarregar + descer)', pd.movimento, serie(null, c => Number(c.tempo_total))),
+    etapaDe('bruto', 'Ciclo bruto (portão/travas → portão/travas)', pd.completo, serie('bruto')),
     etapaDe('destravar', 'Destravar', pd.destravar, serie('t_destravar')),
     { chave: 'saida', nome: 'Liberar saída / operar portão', medido: false, padrao_s: cfg.padroes.saida, motivo: 'sem sensor de saída do caminhão' },
   ];
-  const medidas = etapas.filter(e => e.medido && e.chave !== 'movimento' && e.desvio_pct != null);
+  const medidas = etapas.filter(e => e.medido && !['movimento', 'bruto'].includes(e.chave) && e.desvio_pct != null);
   const maisLenta = medidas.length ? medidas.reduce((a, b) => (b.desvio_pct > a.desvio_pct ? b : a)) : null;
 
   const horas = s => (s > 0 ? s / 3600 : null);
   return {
     ciclos: { contador, concluidos, incompletos: incompletos.length, com_dados: ciclos.length },
     tempo: { bruto_medio_s: brutoMedio != null ? Math.round(brutoMedio) : null, liquido_medio_s: liquidoMedio != null ? Math.round(liquidoMedio) : null,
-             padrao_ciclo_s: pd.completo, padrao_medido_s: pd.completo },
+             padrao_ciclo_s: pd.completo, padrao_liquido_s: pd.movimento, padrao_medido_s: pd.completo },
     eficiencia_pct: somaLiquido > 0 ? Math.round(somaPadrao / somaLiquido * 1000) / 10 : null,   // soma padrao / soma liquido
     calendario: { configurado: cfg.turnos.length > 0, programado_s: programadoS, parada_tecnica_s: tecnicaS, disponivel_s: disponivelS,
                   parada_programada_s: Math.round((somaMs(prog) - somaMs(progLivre)) / 1000), sem_caminhao_s: paradaS('sem_caminhao'),
@@ -382,7 +386,7 @@ function setupKpis(app, pool, deps) {
       const diaSeg = new Date(Date.parse(ate) + 86400000).toISOString().slice(0, 10);
       const [cf, hab, porDia, ciclosR, parR, ligada] = await Promise.all([
         carregarConfig(pool, d.id), sensoresHabilitados(d.id), ciclosPorDiaIoT(d.id, de, ate),
-        pool.query(`SELECT ciclo_numero, tempo_total, ${SQL.BRUTO} AS bruto, ${SQL.ESPERA} AS espera, ${SQL.CICLO} AS liquido, ${SQL.PADRAO} AS padrao,
+        pool.query(`SELECT ciclo_numero, tempo_total, ${SQL.BRUTO} AS bruto, ${SQL.BASE} AS base, ${SQL.ESPERA} AS espera, ${SQL.CICLO} AS liquido, ${SQL.PADRAO} AS padrao,
                            t_travar, t_subir, t_alto, t_descer, t_destravar, flags_ciclo, created_at
                     FROM cycle_data WHERE device_id = $1 AND ${SQL.VALIDO} AND ${DIA_BR('created_at')} BETWEEN $2::date AND $3::date
                     ORDER BY created_at`, [d.id, de, ate]),

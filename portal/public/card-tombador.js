@@ -516,7 +516,7 @@
           <div class="live-cycle-box mb-3 p-3 bg-gray-50 rounded-lg">
             <div class="flex justify-between items-center">
               <span class="live-cycle-label text-xs font-bold text-gray-500">${ciclo ? `ÚLTIMO CICLO${ciclo.ciclo_numero ? ' #' + esc(ciclo.ciclo_numero) : ''}` : 'SEM CICLO GRAVADO'}</span>
-              <span class="live-cycle-timer text-lg font-bold text-gray-700 font-mono" title="Ciclo bruto: da saída do 0° até voltar ao 0° (a moega cheia está dentro)">${ciclo ? min(tempoCiclo) : '-'}</span>
+              <span class="live-cycle-timer text-lg font-bold text-gray-700 font-mono" title="Ciclo líquido: da saída do 0° até voltar ao 0° (a moega cheia está dentro)">${ciclo ? min(tempoCiclo) : '-'}</span>
             </div>
             ${ciclo && (moega > 0 || semTravas || saiuCheia || b40 > 1) ? `<div class="flex flex-wrap gap-2 mt-1">
               ${moega > 0 ? `<span class="px-2 py-0.5 rounded text-[11px] font-bold bg-amber-100 text-amber-700">Moega cheia${ciclo.espera_aproximada ? ' (aprox.)' : ''}: ${min(moega)}</span>` : ''}
@@ -535,9 +535,10 @@
             <div class="space-y-1">
               ${linhasTempo}
               <div class="flex items-center gap-2 px-2 pt-1 border-t-2 border-gray-200">
-                <span class="text-xs font-bold text-gray-700 w-24">CICLO BRUTO</span>
+                <span class="text-xs font-bold text-gray-700 w-24">CICLO LÍQUIDO</span>
                 <span class="live-dur-total text-xs font-bold text-red-600">${ciclo ? min(tempoCiclo) : '-'}</span>
-                ${moega > 0 ? `<span class="text-[11px] text-gray-500">dos quais ${min(moega)} com a moega cheia · ciclo líquido ${min(Math.max(0, tempoCiclo - moega))}</span>` : ''}
+                ${moega > 0 ? `<span class="text-[11px] text-gray-500">dos quais ${min(moega)} com a moega cheia</span>` : ''}
+                <span class="text-[11px] text-gray-500">· ciclo bruto ${ciclo && ciclo.t_bruto != null ? min(ciclo.t_bruto) : 'não medido (IoT 10.50+)'}</span>
               </div>
             </div>
           </div>
