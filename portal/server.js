@@ -3055,7 +3055,7 @@ app.get('/api/compare', authenticateToken, checkSubscription, async (req, res) =
           COUNT(*) as total_ciclos,
           COALESCE(AVG(${TEMPO_CICLO_SQL}), 0) as tempo_medio,
           COALESCE(SUM(${ESPERA_SQL}), 0) as parada_moega,
-          COALESCE(SUM(${PADRAO_SQL}), 0) as soma_padrao, COALESCE(SUM(${TEMPO_CICLO_SQL}), 0) as soma_liquido,
+          COALESCE(SUM(${PADRAO_SQL}) FILTER (WHERE ${TEMPO_CICLO_SQL} > 0), 0) as soma_padrao, COALESCE(SUM(${TEMPO_CICLO_SQL}), 0) as soma_liquido,
           COALESCE(AVG(${EFICIENCIA_SQL}), 0) as eficiencia_media,
           COALESCE(MIN(${TEMPO_CICLO_SQL}), 0) as melhor_ciclo,
           COALESCE(MAX(${TEMPO_CICLO_SQL}), 0) as pior_ciclo
