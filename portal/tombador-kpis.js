@@ -20,8 +20,8 @@ const { filtroEscopo } = require('./docs-manutencao');
 const CONFIG_PADRAO = {
   tipo_travamento: 0,      // 0 chassi OU rodas, 1 so chassi, 2 so rodas, 3 os dois
   n_rodas: 1,              // 1..3 (informativo: a IoT tem 1 sensor para o conjunto de rodas)
-  padroes: {               // segundos; "descarga": a definir pela engenharia (150 = mantem a meta de 10 min)
-    posicionar: 15, travar: 30, travar_pinos: 30, subir: 180, descarga: 150,
+  padroes: {               // segundos, do documento de 09/10/2026; "descarga": a definir (0 ate a engenharia passar o valor)
+    posicionar: 15, travar: 30, travar_pinos: 30, subir: 180, descarga: 0,
     descer: 180, destravar_pinos: 30, destravar: 30, saida: 15,
   },
   tolerancia_pct: 20,      // acima disso do padrao = fora do padrao
@@ -122,8 +122,8 @@ async function gravarCiclo(pool, deps, deviceId, seg, c) {
     cfg = cf.config; versao = cf.versao;
     hab = await deps.sensoresHabilitados(deviceId);
     const pd = padroesDoCiclo(cfg, hab);
-    // padrao do ciclo (saida -> retorno do 0 grau) = subir + descarga + descer; travar/destravar sao etapas a parte
-    padrao = pd.movimento;
+    // padrao do ciclo = SOMA de todas as etapas do documento (pinos so se habilitados; descarga quando definida)
+    padrao = pd.completo;
   }
   const r = await pool.query(`
     INSERT INTO cycle_data (
@@ -165,8 +165,8 @@ async function registrarOcorrencias(pool, deviceId, fimCiclo, c, flags, cfg, hab
   if (destravar != null && pd.destravar > 0 && destravar > pd.destravar * tol)
     add('etapa_lenta', 'travas', 'destravar', `Destravamento em ${destravar}s (padrão ${pd.destravar}s)`, 'baixa', destravar);
   const mov = Number(c.tempo_total) || 0;
-  if (pd.movimento > 0 && mov > pd.movimento * tol)
-    add('etapa_lenta', 'plataforma', 'movimento', `Movimento (subir + descarregar + descer) em ${mov}s (padrão ${pd.movimento}s)`, 'baixa', mov);
+  if (pd.completo > 0 && mov > pd.completo * tol)
+    add('etapa_lenta', 'plataforma', 'ciclo', `Ciclo bruto de ${Math.round(mov / 6) / 10} min (padrão ${Math.round(pd.completo / 6) / 10} min, soma das etapas)`, 'baixa', mov);
   for (const l of linhas) {
     await pool.query(`INSERT INTO pilitech_ocorrencias (device_id, ciclo_numero, ini, fim, duracao_s, tipo, componente, etapa, causa, gravidade, qualidade)
                       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`, l);
@@ -255,7 +255,7 @@ function calcularKpis({ ciclos, contador, cfg, hab, paradas, ligadaMin, de, ate,
   return {
     ciclos: { contador, concluidos, incompletos: incompletos.length, com_dados: ciclos.length },
     tempo: { bruto_medio_s: brutoMedio != null ? Math.round(brutoMedio) : null, liquido_medio_s: liquidoMedio != null ? Math.round(liquidoMedio) : null,
-             padrao_ciclo_s: pd.completo, padrao_medido_s: pd.movimento },
+             padrao_ciclo_s: pd.completo, padrao_medido_s: pd.completo },
     eficiencia_pct: somaLiquido > 0 ? Math.round(somaPadrao / somaLiquido * 1000) / 10 : null,   // soma padrao / soma liquido
     calendario: { configurado: cfg.turnos.length > 0, programado_s: programadoS, parada_tecnica_s: tecnicaS, disponivel_s: disponivelS,
                   parada_programada_s: Math.round((somaMs(prog) - somaMs(progLivre)) / 1000), sem_caminhao_s: paradaS('sem_caminhao'),

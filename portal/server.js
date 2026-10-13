@@ -52,7 +52,10 @@ const SUBSCRIPTION_PRICE = 2000.00;
 // ciclo = meta / tempo real, ate 200%. Calculada aqui a partir do tempo do ciclo, e nao lida do
 // valor que a IoT grava (a IoT manda a eficiencia contra a meta do firmware dela), entao mudar
 // a meta recalcula todo o historico.
-const META_CICLO_S = 6 * 60;
+// 13/10/2026: o padrao do ciclo e a SOMA dos tempos padrao do documento (posicionar 15 + travar 30 + subir 180 +
+// descarga a definir + descer 180 + destravar 30 + liberar 15 = 7min30s; com pinos +30 +30 = 8min30s), por
+// tombador (tombador-kpis.js, padroesDoCiclo). META_CICLO_S e so o valor de reserva (sem pinos, sem descarga).
+const META_CICLO_S = 450;
 
 // Periodo de avaliacao de empresa nova (05/10/2026: 365 dias; antes 30). O padrao da coluna
 // empresas.trial_ends_at e ajustado na inicializacao.
@@ -2829,6 +2832,7 @@ app.get('/api/device-stats/:serialNumber', authenticateToken, checkSubscription,
 
     const deviceId = deviceResult.rows[0].id;
     const { de, ate, hoje } = periodoDoPedido(req.query);
+    const padraoTomb = kpis.padroesDoCiclo((await kpis.carregarConfig(pool, deviceId)).config, await sensoresHabilitados(deviceId)).completo;
 
     const [porDia, hojeIoT, cfg, ciclosR, temposDia, horR, totalR, b40R] = await Promise.all([
       ciclosPorDiaIoT(deviceId, de, ate),
@@ -2908,7 +2912,7 @@ app.get('/api/device-stats/:serialNumber', authenticateToken, checkSubscription,
         batidas40: b40R.rows[0] && b40R.rows[0].ate_fim != null
           ? Math.max(0, Number(b40R.rows[0].ate_fim) - (Number(b40R.rows[0].antes) || 0)) : null,
       },
-      metaCicloS: META_CICLO_S
+      metaCicloS: padraoTomb,                                            // soma das etapas do documento para este tombador
     });
   } catch (err) {
     console.error('Erro ao buscar estatísticas:', err);

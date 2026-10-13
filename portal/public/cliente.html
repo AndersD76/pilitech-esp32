@@ -459,7 +459,7 @@
             <span class="text-xs font-medium opacity-80">EFICIÊNCIA</span>
           </div>
           <div class="text-xl sm:text-3xl font-black" id="teleEficiencia">-</div>
-          <div class="text-xs opacity-70">vs meta 6 min</div>
+          <div class="text-xs opacity-70">vs padrão</div>
         </div>
       </div>
 
@@ -476,7 +476,7 @@
           <div class="flex items-center justify-between mb-4">
             <div>
               <h4 class="font-bold text-gray-800">Ciclo Bruto por Dia</h4>
-              <p class="text-xs text-gray-500">Barra forte = ciclo bruto (verde dentro da meta de 6 min, vermelho acima) · barra cinza = ciclo líquido · tracejado = meta</p>
+              <p class="text-xs text-gray-500">Barra forte = ciclo bruto (verde dentro do padrão, vermelho acima) · barra cinza = ciclo líquido · tracejado = padrão (soma das etapas)</p>
             </div>
             <span class="periodo-rotulo px-3 py-1 bg-green-100 text-green-700 rounded-full text-xs font-bold">7 DIAS</span>
           </div>
@@ -634,7 +634,7 @@
           <!-- Barras - Produtividade -->
           <div class="pt-card">
             <h4 class="font-bold text-gray-800 mb-1">Produtividade & Eficiência</h4>
-            <p class="text-xs text-gray-500 mb-4">Percentual vs meta de 6 minutos</p>
+            <p class="text-xs text-gray-500 mb-4">Percentual vs padrão do ciclo (soma das etapas)</p>
             <canvas id="chartCompareProd" height="200"></canvas>
           </div>
 
@@ -1561,7 +1561,7 @@
 
     // ========== TELEMETRIA E PRODUTIVIDADE ==========
     let chartCiclos, chartProdutividade, chartEtapas, chartPizza, chartHorario;
-    const TEMPO_PADRAO_CICLO = 6 * 60; // meta de ciclo: 6 minutos em segundos (igual a META_CICLO_S do server.js)
+    let TEMPO_PADRAO_CICLO = 450;   // padrao do ciclo = soma das etapas do documento; vem do device-stats (metaCicloS) de cada tombador
 
     // Texto branco em fatia escura, vinho em fatia clara
     function corTextoSobre(cor) {
@@ -1710,7 +1710,7 @@
       if (document.getElementById('deviceSelector').value !== serial) return;
       if (!k || k.error || k.blocked) { el.innerHTML = ''; return; }
       const t = stats.totais || {}, cal = k.calendario || {}, pr = k.produtividade || {};
-      const meta = Number(stats.metaCicloS) || 360;
+      const meta = Number(stats.metaCicloS) || TEMPO_PADRAO_CICLO;
       const ciclo = k.tempo.bruto_medio_s;   // ciclo bruto: da saida do 0° ate voltar ao 0° (a moega cheia esta dentro dele)
       const liquido = k.tempo.liquido_medio_s;   // ciclo liquido: sem a moega cheia
       const paradaMedia = (t.ciclosRecebidos || 0) ? (t.paradaMoegaS || 0) / t.ciclosRecebidos : 0;
@@ -1723,7 +1723,7 @@
         : linhaT('Ciclo bruto', fmtMin(ciclo), 100, dentroMeta ? 'bg-green-500' : 'bg-red-500', true) +
           (paradaMedia > 0 ? linhaT('Dele, parado com a moega cheia', fmtMin(paradaMedia), larg(paradaMedia), 'bg-amber-400') : '') +
           linhaT('Ciclo líquido (sem a moega cheia)', fmtMin(liquido), larg(liquido), 'bg-slate-400', true) +
-          `<div class="text-xs ${dentroMeta ? 'text-green-700' : 'text-red-600'} font-bold">Meta: ${fmtMin(meta)} · ${dentroMeta ? 'dentro da meta' : 'acima da meta'}</div>`;
+          `<div class="text-xs ${dentroMeta ? 'text-green-700' : 'text-red-600'} font-bold">Padrão: ${fmtMin(meta)} (soma das etapas do documento) · ${dentroMeta ? 'dentro do padrão' : 'acima do padrão'}</div>`;
 
       const caminhoes = ciclo > 0 ? Math.floor((t.paradaMoegaS || 0) / ciclo) : 0;
       const al = [];
@@ -1786,6 +1786,7 @@
       if (document.getElementById('deviceSelector').value !== serialNumber) return;   // trocou no meio
       if (!stats || stats.error) { limparTelemetria('Erro ao carregar'); return; }
       if (stats.blocked) { limparTelemetria('Assinatura necessária'); return; }
+      if (Number(stats.metaCicloS) > 0) TEMPO_PADRAO_CICLO = Number(stats.metaCicloS);
 
       renderTotais(stats, p);
       renderResumo(serialNumber, qs, stats, p).catch(e => console.error('resumo:', e));
@@ -1812,7 +1813,7 @@
         // Tempo medio por ciclo
         const tempoMedio = stats.tempoMedioCiclo || 0, tempoBruto = stats.tempoMedioBruto || 0;
         document.getElementById('teleTempoCiclo').textContent = tempoMedio > 0 ? fmtDur(tempoMedio) : '-';
-        document.getElementById('teleTempoSub').textContent = `ciclo líquido ${fmtDur(stats.tempoMedioLiquido)} (sem a moega cheia) · meta ${fmtDur(stats.metaCicloS || 360)}`;
+        document.getElementById('teleTempoSub').textContent = `ciclo líquido ${fmtDur(stats.tempoMedioLiquido)} (sem a moega cheia) · padrão ${fmtDur(stats.metaCicloS || TEMPO_PADRAO_CICLO)}`;
 
         // Ciclos hoje
         document.getElementById('teleCiclosHoje').textContent = stats.ciclosHoje || 0;
@@ -2079,7 +2080,7 @@
                 label: c => {
                   const d = data[c.dataIndex];
                   if (c.datasetIndex === 1) return `Ciclo líquido: ${minTxt(c.raw)}`;
-                  return [`Ciclo bruto: ${minTxt(c.raw)} (meta ${minTxt(meta)})`,
+                  return [`Ciclo bruto: ${minTxt(c.raw)} (padrão ${minTxt(meta)})`,
                           `${d.ciclos_com_tempo || 0} ciclo(s) com tempo recebido de ${d.ciclos || 0} no dia`];
                 }
               }
@@ -2094,7 +2095,7 @@
           }
         },
         // linha tracejada da meta + valor em cima de cada barra ("sem ciclo" no dia vazio)
-        plugins: [rotulosValores({ fmt: minTxt, vazio: 'sem ciclo', meta: { valor: meta, texto: 'meta ' + minTxt(meta) } })]
+        plugins: [rotulosValores({ fmt: minTxt, vazio: 'sem ciclo', meta: { valor: meta, texto: 'padrão ' + minTxt(meta) } })]
       });
     }
 
@@ -2501,7 +2502,7 @@
           plugins: { legend: { position: 'bottom', labels: { boxWidth: 12, font: { size: 11 } } } },
           scales: { y: { beginAtZero: true, suggestedMax: TEMPO_PADRAO_CICLO / 60 * 1.5, title: { display: true, text: 'Minutos' } } }
         },
-        plugins: [rotulosValores({ fmt: minRotulo, meta: { valor: TEMPO_PADRAO_CICLO / 60, texto: 'meta ' + minRotulo(TEMPO_PADRAO_CICLO / 60) } })]
+        plugins: [rotulosValores({ fmt: minRotulo, meta: { valor: TEMPO_PADRAO_CICLO / 60, texto: 'padrão ' + minRotulo(TEMPO_PADRAO_CICLO / 60) } })]
       });
     }
 
