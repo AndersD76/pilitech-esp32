@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PILI TECH - Configuração do Tombador</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>tailwind.config = { theme: { extend: { colors: { 'pili-red': '#dc2626', 'pili-darkred': '#991b1b' } } } };</script>
+  <link rel="stylesheet" href="/portal-cards.css">
+</head>
+<body class="bg-gray-100 min-h-screen">
+<div class="max-w-4xl mx-auto p-4 sm:p-6 space-y-4">
+  <div class="flex items-center justify-between">
+    <div>
+      <h1 class="text-xl sm:text-2xl font-black text-gray-800">Configuração do tombador</h1>
+      <p id="sub" class="text-sm text-gray-500">Carregando...</p>
+    </div>
+    <a id="voltar" href="/cliente.html" class="px-3 py-2 bg-white border rounded-lg text-sm font-medium hover:bg-gray-50">← Voltar</a>
+  </div>
+  <div id="aviso" class="hidden rounded-xl p-3 text-sm"></div>
+
+  <div class="pt-card">
+    <h2 class="font-bold text-gray-800 mb-3">Travamento e alertas</h2>
+    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+      <label class="block">Tipo de travamento
+        <select id="tipo" class="mt-1 w-full border rounded-lg p-2">
+          <option value="0">Chassi OU rodas (qualquer um confirma)</option>
+          <option value="1">Somente chassi</option>
+          <option value="2">Somente rodas</option>
+          <option value="3">Chassi E rodas (os dois)</option>
+        </select>
+      </label>
+      <label class="block">Rodas travadas (1 a 3)
+        <input id="nRodas" type="number" min="1" max="3" class="mt-1 w-full border rounded-lg p-2">
+        <span class="text-[11px] text-gray-400">A IoT tem 1 sensor para o conjunto de rodas.</span>
+      </label>
+      <label class="block">Tolerância (%) sobre o padrão
+        <input id="tol" type="number" min="0" max="200" class="mt-1 w-full border rounded-lg p-2">
+      </label>
+      <label class="block">Timeout do ciclo (min, sem contar a moega cheia)
+        <input id="tmo" type="number" min="1" max="120" class="mt-1 w-full border rounded-lg p-2">
+        <span class="text-[11px] text-gray-400">Passou disso fora do 0° = alerta de movimento parado.</span>
+      </label>
+    </div>
+  </div>
+
+  <div class="pt-card">
+    <h2 class="font-bold text-gray-800 mb-1">Tempo padrão por etapa (segundos)</h2>
+    <p class="text-[11px] text-gray-500 mb-3">Valores iniciais do documento de engenharia; precisam de validação em campo. "Descarregar" está a definir: 150 s mantém a meta total de 10 min.</p>
+    <div id="padroes" class="grid grid-cols-2 sm:grid-cols-3 gap-3 text-sm"></div>
+    <div id="totalPadrao" class="text-xs text-gray-500 mt-3"></div>
+  </div>
+
+  <div class="pt-card">
+    <h2 class="font-bold text-gray-800 mb-1">Calendário de operação</h2>
+    <p class="text-[11px] text-gray-500 mb-3">Base das horas programadas, disponibilidade e utilização. Horário de Brasília.</p>
+    <div id="turnos" class="space-y-2 text-sm"></div>
+    <button onclick="addTurno()" class="mt-2 px-3 py-1.5 bg-gray-100 hover:bg-gray-200 rounded-lg text-sm">+ Turno</button>
+    <h3 class="font-bold text-gray-700 text-sm mt-4 mb-1">Intervalos (descontados de todos os turnos)</h3>
+    <div id="intervalos" class="space-y-2 text-sm"></div>
+    <button onclick="addIntervalo()" class="mt-2 px-3 py-1.5 bg-gray-100 hover:bg-gray-200 rounded-lg text-sm">+ Intervalo</button>
+  </div>
+
+  <div class="flex items-center gap-3">
+    <button id="salvar" onclick="salvar()" class="px-5 py-2.5 bg-pili-red hover:bg-pili-darkred text-white rounded-lg font-bold">Salvar configuração</button>
+    <span id="versao" class="text-xs text-gray-500"></span>
+  </div>
+
+  <div class="pt-card">
+    <h2 class="font-bold text-gray-800 mb-1">Paradas e exceções</h2>
+    <p class="text-[11px] text-gray-500 mb-3">Parada técnica e manutenção reduzem a disponibilidade. Parada programada (feriado, safra, exceção) sai das horas programadas. Falta de caminhão/operador reduz só a utilização.</p>
+    <div class="grid grid-cols-1 sm:grid-cols-5 gap-2 text-sm items-end">
+      <label class="block sm:col-span-1">Início<input id="pIni" type="datetime-local" class="mt-1 w-full border rounded-lg p-2"></label>
+      <label class="block sm:col-span-1">Fim<input id="pFim" type="datetime-local" class="mt-1 w-full border rounded-lg p-2"></label>
+      <label class="block sm:col-span-1">Tipo
+        <select id="pTipo" class="mt-1 w-full border rounded-lg p-2">
+          <option value="tecnica">Parada técnica</option><option value="manutencao">Manutenção</option>
+          <option value="programada">Parada programada</option><option value="sem_caminhao">Falta de caminhão</option>
+          <option value="sem_operador">Falta de operador</option><option value="outra">Outra</option>
+        </select></label>
+      <label class="block sm:col-span-1">Causa<input id="pCausa" type="text" maxlength="300" class="mt-1 w-full border rounded-lg p-2"></label>
+      <button onclick="addParada()" class="px-3 py-2 bg-gray-800 text-white rounded-lg text-sm font-bold">Registrar</button>
+    </div>
+    <div id="paradas" class="mt-3 text-sm"></div>
+  </div>
+</div>
+
+<script>
+  const token = localStorage.getItem('pilitech_token');
+  const serial = new URLSearchParams(location.search).get('serial') || '';
+  const NOMES = { posicionar: 'Posicionar / fechar portão', travar: 'Travar chassi ou rodas', travar_pinos: 'Travar pinos E/D', subir: 'Subir plataforma',
+    descarga: 'Descarregar grãos', descer: 'Descer plataforma', destravar_pinos: 'Destravar pinos', destravar: 'Destravar chassi ou rodas', saida: 'Liberar saída / portão' };
+  const DIAS = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
+  let cfg = null, podeEditar = false;
+  const esc = v => String(v == null ? '' : v).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+
+  if (!token) location.href = '/';
+  async function api(url, opts = {}) {
+    const r = await fetch(url, { ...opts, headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token, ...(opts.headers || {}) } });
+    if (r.status === 401) { location.href = '/'; return null; }
+    return { ok: r.ok, status: r.status, json: await r.json().catch(() => ({})) };
+  }
+  function aviso(msg, ok) {
+    const a = document.getElementById('aviso');
+    a.className = 'rounded-xl p-3 text-sm ' + (ok ? 'bg-green-50 text-green-800 border border-green-200' : 'bg-red-50 text-red-800 border border-red-200');
+    a.textContent = msg; setTimeout(() => a.classList.add('hidden'), ok ? 5000 : 12000);
+  }
+
+  function desenhar() {
+    document.getElementById('tipo').value = cfg.tipo_travamento;
+    document.getElementById('nRodas').value = cfg.n_rodas;
+    document.getElementById('tol').value = cfg.tolerancia_pct;
+    document.getElementById('tmo').value = Math.round(cfg.tmo_ciclo_s / 60);
+    document.getElementById('padroes').innerHTML = Object.keys(NOMES).map(k =>
+      `<label class="block">${NOMES[k]}<input data-p="${k}" type="number" min="0" max="7200" value="${cfg.padroes[k]}" class="mt-1 w-full border rounded-lg p-2" oninput="totalizar()"></label>`).join('');
+    document.getElementById('turnos').innerHTML = cfg.turnos.map((t, i) => `<div class="flex flex-wrap items-center gap-2" data-turno="${i}">
+        ${DIAS.map((d, n) => `<label class="px-2 py-1 border rounded-lg ${t.dias.includes(n) ? 'bg-gray-800 text-white' : 'bg-white'}"><input type="checkbox" class="hidden" data-dia="${n}" ${t.dias.includes(n) ? 'checked' : ''} onchange="this.parentElement.classList.toggle('bg-gray-800');this.parentElement.classList.toggle('text-white')">${d}</label>`).join('')}
+        <input type="time" data-ini value="${esc(t.ini)}" class="border rounded-lg p-1.5"> até <input type="time" data-fim value="${esc(t.fim)}" class="border rounded-lg p-1.5">
+        <button onclick="this.parentElement.remove()" class="text-red-600 text-xs font-bold">remover</button></div>`).join('');
+    document.getElementById('intervalos').innerHTML = cfg.intervalos.map(t => `<div class="flex items-center gap-2" data-interv>
+        <input type="time" data-ini value="${esc(t.ini)}" class="border rounded-lg p-1.5"> até <input type="time" data-fim value="${esc(t.fim)}" class="border rounded-lg p-1.5">
+        <button onclick="this.parentElement.remove()" class="text-red-600 text-xs font-bold">remover</button></div>`).join('');
+    totalizar();
+    document.getElementById('salvar').style.display = podeEditar ? '' : 'none';
+  }
+  function totalizar() {
+    const v = k => Number(document.querySelector(`[data-p="${k}"]`).value) || 0;
+    const sem = v('posicionar') + v('travar') + v('subir') + v('descarga') + v('descer') + v('destravar') + v('saida');
+    const com = sem + v('travar_pinos') + v('destravar_pinos');
+    document.getElementById('totalPadrao').textContent = `Ciclo padrão completo: ${(sem / 60).toFixed(1).replace('.', ',')} min sem pinos · ${(com / 60).toFixed(1).replace('.', ',')} min com pinos.`;
+  }
+  function lerTela() {
+    const padroes = {};
+    document.querySelectorAll('[data-p]').forEach(i => { padroes[i.dataset.p] = Number(i.value) || 0; });
+    const turnos = [...document.querySelectorAll('[data-turno]')].map(d => ({
+      dias: [...d.querySelectorAll('[data-dia]:checked')].map(c => Number(c.dataset.dia)),
+      ini: d.querySelector('[data-ini]').value, fim: d.querySelector('[data-fim]').value }));
+    const intervalos = [...document.querySelectorAll('[data-interv]')].map(d => ({ ini: d.querySelector('[data-ini]').value, fim: d.querySelector('[data-fim]').value }));
+    return { tipo_travamento: Number(document.getElementById('tipo').value), n_rodas: Number(document.getElementById('nRodas').value) || 1,
+      tolerancia_pct: Number(document.getElementById('tol').value) || 0, tmo_ciclo_s: (Number(document.getElementById('tmo').value) || 20) * 60,
+      padroes, turnos, intervalos };
+  }
+  function addTurno() { cfg = lerTela(); cfg.turnos.push({ dias: [1, 2, 3, 4, 5], ini: '07:00', fim: '17:00' }); desenhar(); }
+  function addIntervalo() { cfg = lerTela(); cfg.intervalos.push({ ini: '12:00', fim: '13:00' }); desenhar(); }
+
+  async function salvar() {
+    const r = await api('/api/tombador-config/' + encodeURIComponent(serial), { method: 'PUT', body: JSON.stringify({ config: lerTela() }) });
+    if (!r || !r.ok) return aviso((r && r.json.error) || 'Não foi possível salvar', false);
+    cfg = r.json.config;
+    document.getElementById('versao').textContent = `Versão ${r.json.versao} salva. O tipo de travamento e o timeout vão para a IoT no próximo contato.`;
+    desenhar(); aviso('Configuração salva (versão ' + r.json.versao + ')', true);
+  }
+
+  const fmtBR = iso => new Date(iso).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+  const TIPO = { tecnica: 'Parada técnica', manutencao: 'Manutenção', programada: 'Programada', sem_caminhao: 'Sem caminhão', sem_operador: 'Sem operador', outra: 'Outra' };
+  async function carregarParadas() {
+    const hoje = new Date(Date.now() - 3 * 3600000), de = new Date(hoje.getTime() - 60 * 86400000);
+    const r = await api(`/api/paradas/${encodeURIComponent(serial)}?de=${de.toISOString().slice(0, 10)}&ate=${new Date(hoje.getTime() + 30 * 86400000).toISOString().slice(0, 10)}`);
+    const el = document.getElementById('paradas');
+    const l = (r && r.json.paradas) || [];
+    el.innerHTML = l.length ? l.map(p => `<div class="flex items-center justify-between border-t py-1.5"><div><b>${TIPO[p.tipo] || p.tipo}</b> · ${fmtBR(p.ini)} → ${fmtBR(p.fim)} ${p.causa ? '· ' + esc(p.causa) : ''}</div>
+      ${podeEditar ? `<button onclick="delParada(${p.id})" class="text-red-600 text-xs font-bold">remover</button>` : ''}</div>`).join('') : '<p class="text-xs text-gray-400">Nenhuma parada registrada nos últimos 60 dias.</p>';
+  }
+  async function addParada() {
+    const body = { ini: document.getElementById('pIni').value, fim: document.getElementById('pFim').value, tipo: document.getElementById('pTipo').value, causa: document.getElementById('pCausa').value };
+    const r = await api('/api/paradas/' + encodeURIComponent(serial), { method: 'POST', body: JSON.stringify(body) });
+    if (!r || !r.ok) return aviso((r && r.json.error) || 'Não foi possível registrar', false);
+    document.getElementById('pCausa').value = ''; carregarParadas(); aviso('Parada registrada', true);
+  }
+  async function delParada(id) { await api(`/api/paradas/${encodeURIComponent(serial)}/${id}`, { method: 'DELETE' }); carregarParadas(); }
+
+  (async () => {
+    if (!serial) { document.getElementById('sub').textContent = 'Abra pela tela do tombador (falta o número de série).'; return; }
+    document.getElementById('voltar').href = (JSON.parse(localStorage.getItem('pilitech_user') || '{}').role || '').match(/super_admin|^admin$/) ? '/admin.html' : '/cliente.html';
+    const r = await api('/api/tombador-config/' + encodeURIComponent(serial));
+    if (!r || !r.ok) { document.getElementById('sub').textContent = (r && r.json.error) || 'Erro ao carregar'; return; }
+    cfg = r.json.config; podeEditar = r.json.pode_editar;
+    document.getElementById('sub').textContent = `N/S ${serial} · ${podeEditar ? 'padrões, calendário e paradas' : 'somente leitura'} · versão ${r.json.versao || 0} (0 = padrão do documento)`;
+    desenhar(); carregarParadas();
+  })();
+</script>
+</body>
+</html>

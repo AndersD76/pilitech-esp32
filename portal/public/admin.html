@@ -54,6 +54,7 @@
     @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
     .modal-bg { background: rgba(0,0,0,0.6); backdrop-filter: blur(4px); }
   </style>
+<link rel="stylesheet" href="/portal-cards.css">
 </head>
 <body class="bg-gray-100">
   <div class="flex h-screen">
@@ -215,7 +216,7 @@
 
           <!-- Stats Cards -->
           <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
-            <div class="bg-white rounded-xl shadow-sm p-5">
+            <div class="pt-card">
               <div class="flex items-center justify-between">
                 <div>
                   <p class="text-xs text-gray-500 font-medium">Empresas</p>
@@ -226,7 +227,7 @@
                 </div>
               </div>
             </div>
-            <div class="bg-white rounded-xl shadow-sm p-5">
+            <div class="pt-card">
               <div class="flex items-center justify-between">
                 <div>
                   <p class="text-xs text-gray-500 font-medium">Dispositivos</p>
@@ -237,7 +238,7 @@
                 </div>
               </div>
             </div>
-            <div class="bg-white rounded-xl shadow-sm p-5">
+            <div class="pt-card">
               <div class="flex items-center justify-between">
                 <div>
                   <p class="text-xs text-gray-500 font-medium">Online</p>
@@ -248,7 +249,7 @@
                 </div>
               </div>
             </div>
-            <div class="bg-white rounded-xl shadow-sm p-5">
+            <div class="pt-card">
               <div class="flex items-center justify-between">
                 <div>
                   <p class="text-xs text-gray-500 font-medium">Total Ciclos</p>
@@ -259,7 +260,7 @@
                 </div>
               </div>
             </div>
-            <div class="bg-white rounded-xl shadow-sm p-5">
+            <div class="pt-card">
               <div class="flex items-center justify-between">
                 <div>
                   <p class="text-xs text-gray-500 font-medium">Assinaturas Ativas</p>
@@ -273,7 +274,7 @@
           </div>
 
           <!-- Devices Grid -->
-          <div class="bg-white rounded-xl shadow-sm p-6">
+          <div class="pt-card">
             <h3 class="text-lg font-bold text-gray-800 mb-4">Dispositivos IoT</h3>
             <div id="devicesGrid" class="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4">
               <div class="text-center py-8 text-gray-500">Carregando...</div>
@@ -284,19 +285,19 @@
         <!-- Telemetria Global Section -->
         <section id="sec-telemetria" class="section hidden">
           <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-            <div class="bg-white rounded-xl shadow-sm p-5">
+            <div class="pt-card">
               <p class="text-xs text-gray-500">Tombadores Online</p>
               <p class="text-2xl font-bold text-green-600" id="telOnline">0</p>
             </div>
-            <div class="bg-white rounded-xl shadow-sm p-5">
+            <div class="pt-card">
               <p class="text-xs text-gray-500">Ciclos Hoje (Global)</p>
               <p class="text-2xl font-bold text-pili-red" id="telCiclosHoje">0</p>
             </div>
-            <div class="bg-white rounded-xl shadow-sm p-5">
+            <div class="pt-card">
               <p class="text-xs text-gray-500">Alertas Ativos</p>
               <p class="text-2xl font-bold text-red-600" id="telAlertas">0</p>
             </div>
-            <div class="bg-white rounded-xl shadow-sm p-5">
+            <div class="pt-card">
               <p class="text-xs text-gray-500">Manutenções (30 dias)</p>
               <p class="text-2xl font-bold text-blue-600" id="telManutencoes">0</p>
             </div>
@@ -305,7 +306,7 @@
           <!-- Alertas e eventos: ficam dentro do card de cada tombador -->
 
           <!-- Tombadores em tempo real -->
-          <div class="bg-white rounded-xl shadow-sm p-6 mb-6">
+          <div class="pt-card mb-6">
             <h3 class="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
               <svg class="w-5 h-5 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z"/></svg>
               Todos os Tombadores — Tempo Real
@@ -316,7 +317,7 @@
           </div>
 
           <!-- Manutencoes recentes -->
-          <div class="bg-white rounded-xl shadow-sm p-6">
+          <div class="pt-card">
             <h3 class="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
               <svg class="w-5 h-5 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.7 6.3a1 1 0 000 1.4l1.6 1.6a1 1 0 001.4 0l3.77-3.77a6 6 0 01-7.94 7.94l-6.91 6.91a2.12 2.12 0 01-3-3l6.91-6.91a6 6 0 017.94-7.94l-3.76 3.76z"/></svg>
               Manutenções Registradas
@@ -333,7 +334,7 @@
           <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
             <!-- Device Selector -->
             <div class="lg:col-span-3">
-              <div class="bg-white rounded-xl shadow-sm p-6">
+              <div class="pt-card">
                 <div class="flex items-center gap-4 flex-wrap">
                   <div class="flex-1 min-w-[200px]">
                     <label class="text-xs text-gray-500 font-medium mb-1 block">Selecionar Dispositivo</label>
@@ -351,7 +352,7 @@
 
             <!-- Sensor Config -->
             <div class="lg:col-span-2">
-              <div class="bg-white rounded-xl shadow-sm p-6">
+              <div class="pt-card">
                 <h3 class="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
                   <svg class="w-5 h-5 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
                   Configuração de Sensores
@@ -371,7 +372,7 @@
 
             <!-- Commands -->
             <div>
-              <div class="bg-white rounded-xl shadow-sm p-6">
+              <div class="pt-card">
                 <h3 class="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
                   <svg class="w-5 h-5 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
                   Comandos Remotos
@@ -403,7 +404,7 @@
 
             <!-- Device Info -->
             <div class="lg:col-span-3">
-              <div class="bg-white rounded-xl shadow-sm p-6">
+              <div class="pt-card">
                 <h3 class="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
                   <svg class="w-5 h-5 text-purple-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z"/></svg>
                   Info do Dispositivo
@@ -419,7 +420,7 @@
         <!-- Firmware Section (OTA: atualizacao a distancia) -->
         <section id="sec-firmware" class="section hidden">
           <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-            <div class="bg-white rounded-xl shadow-sm p-6">
+            <div class="pt-card">
               <h3 class="font-bold text-lg text-gray-800 mb-4">Cadastrar firmware</h3>
               <div class="space-y-3">
                 <div class="grid grid-cols-2 gap-3">
@@ -435,7 +436,7 @@
                 <p id="fwMsg" class="text-xs text-center"></p>
               </div>
             </div>
-            <div class="bg-white rounded-xl shadow-sm p-6">
+            <div class="pt-card">
               <h3 class="font-bold text-lg text-gray-800 mb-4">Atualizar equipamento</h3>
               <div class="space-y-3">
                 <div><label class="text-xs text-gray-500">Tombador</label>
@@ -448,11 +449,11 @@
               </div>
             </div>
           </div>
-          <div class="bg-white rounded-xl shadow-sm p-6 mb-6">
+          <div class="pt-card mb-6">
             <h3 class="font-bold text-lg text-gray-800 mb-4">Equipamentos</h3>
             <div id="fwStatus" class="overflow-x-auto text-sm"><p class="text-gray-400 text-center py-4">Carregando...</p></div>
           </div>
-          <div class="bg-white rounded-xl shadow-sm p-6">
+          <div class="pt-card">
             <h3 class="font-bold text-lg text-gray-800 mb-4">Firmwares cadastrados</h3>
             <div id="fwLista" class="overflow-x-auto text-sm"><p class="text-gray-400 text-center py-4">Carregando...</p></div>
           </div>
@@ -460,7 +461,7 @@
 
         <!-- Dispositivos Section -->
         <section id="sec-dispositivos" class="section hidden">
-          <div class="bg-white rounded-xl shadow-sm p-6">
+          <div class="pt-card">
             <div class="flex items-center justify-between mb-4">
               <h3 class="text-lg font-bold text-gray-800">Todos os Dispositivos</h3>
               <div class="flex gap-2">
@@ -482,25 +483,25 @@
         <!-- Manutencoes Section (docs-manutencao) -->
         <section id="sec-manutencoes" class="section hidden">
           <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-            <div class="bg-white rounded-xl shadow-sm p-5 border-l-4 border-red-500">
+            <div class="pt-card pt-card-tom border-l-red-500">
               <p class="text-xs text-gray-500 font-medium">Vencidas (≥ 2000 h)</p>
               <p class="text-2xl font-bold text-red-600" id="manutResVencidas">-</p>
             </div>
-            <div class="bg-white rounded-xl shadow-sm p-5 border-l-4 border-yellow-400">
+            <div class="pt-card pt-card-tom border-l-yellow-400">
               <p class="text-xs text-gray-500 font-medium">Atenção (≥ 1800 h)</p>
               <p class="text-2xl font-bold text-yellow-600" id="manutResAtencao">-</p>
             </div>
-            <div class="bg-white rounded-xl shadow-sm p-5 border-l-4 border-green-500">
+            <div class="pt-card pt-card-tom border-l-green-500">
               <p class="text-xs text-gray-500 font-medium">Em dia</p>
               <p class="text-2xl font-bold text-green-600" id="manutResOk">-</p>
             </div>
-            <div class="bg-white rounded-xl shadow-sm p-5 border-l-4 border-gray-300">
+            <div class="pt-card pt-card-tom border-l-gray-300">
               <p class="text-xs text-gray-500 font-medium">Sem leitura do horímetro</p>
               <p class="text-2xl font-bold text-gray-500" id="manutResSemDados">-</p>
             </div>
           </div>
 
-          <div class="bg-white rounded-xl shadow-sm p-6 mb-6">
+          <div class="pt-card mb-6">
             <div class="flex flex-col md:flex-row md:items-center justify-between gap-3 mb-4">
               <div>
                 <h3 class="text-lg font-bold text-gray-800">Próximas manutenções</h3>
@@ -530,7 +531,7 @@
             </div>
           </div>
 
-          <div class="bg-white rounded-xl shadow-sm p-6">
+          <div class="pt-card">
             <div class="flex flex-col md:flex-row md:items-center justify-between gap-3 mb-4">
               <div>
                 <h3 class="text-lg font-bold text-gray-800">Histórico de manutenções</h3>
@@ -569,7 +570,7 @@
         <section id="sec-documentos" class="section hidden">
           <div class="grid grid-cols-1 xl:grid-cols-3 gap-6 mb-6">
             <!-- Novo documento -->
-            <div class="bg-white rounded-xl shadow-sm p-6">
+            <div class="pt-card">
               <h3 class="text-lg font-bold text-gray-800 mb-1">Novo documento</h3>
               <p class="text-xs text-gray-500 mb-4">Aparece na página aberta pelo QR code do display do tombador.</p>
               <form id="docForm" class="space-y-4" onsubmit="dmSalvarDoc(); return false;">
@@ -633,7 +634,7 @@
             </div>
 
             <!-- Documentos cadastrados -->
-            <div class="xl:col-span-2 bg-white rounded-xl shadow-sm p-6">
+            <div class="xl:col-span-2 pt-card">
               <h3 class="text-lg font-bold text-gray-800 mb-4">Documentos cadastrados</h3>
               <div class="overflow-x-auto">
                 <table class="w-full text-sm">
@@ -656,7 +657,7 @@
           </div>
 
           <!-- Links publicos (QR do display) -->
-          <div class="bg-white rounded-xl shadow-sm p-6">
+          <div class="pt-card">
             <h3 class="text-lg font-bold text-gray-800 mb-1">Link público de cada tombador</h3>
             <p class="text-xs text-gray-500 mb-4">É o endereço do QR code fixo do display. Abre sem login e lista os documentos do tombador, da unidade, da empresa e os gerais.</p>
             <div class="overflow-x-auto">
@@ -680,7 +681,7 @@
 
         <!-- Empresas Section -->
         <section id="sec-empresas" class="section hidden">
-          <div class="bg-white rounded-xl shadow-sm p-6">
+          <div class="pt-card">
             <div class="flex items-center justify-between mb-4">
               <h3 class="text-lg font-bold text-gray-800">Empresas Cadastradas</h3>
               <button onclick="openEmpresaModal()" class="px-4 py-2 bg-pili-red text-white rounded-lg hover:bg-pili-darkred flex items-center gap-2">
@@ -696,7 +697,7 @@
 
         <!-- Unidades Section -->
         <section id="sec-unidades" class="section hidden">
-          <div class="bg-white rounded-xl shadow-sm p-6">
+          <div class="pt-card">
             <div class="flex items-center justify-between mb-4">
               <h3 class="text-lg font-bold text-gray-800">Unidades</h3>
               <div class="flex gap-2">
@@ -717,7 +718,7 @@
 
         <!-- Usuarios Section -->
         <section id="sec-usuarios" class="section hidden">
-          <div class="bg-white rounded-xl shadow-sm p-6">
+          <div class="pt-card">
             <div class="flex items-center justify-between mb-4">
               <h3 class="text-lg font-bold text-gray-800">Usuários do Sistema</h3>
               <div class="flex gap-2">
@@ -753,7 +754,7 @@
 
         <!-- Assinaturas Section -->
         <section id="sec-assinaturas" class="section hidden">
-          <div class="bg-white rounded-xl shadow-sm p-6">
+          <div class="pt-card">
             <div class="flex items-center justify-between mb-4">
               <h3 class="text-lg font-bold text-gray-800">Assinaturas e Pagamentos</h3>
             </div>
@@ -780,7 +781,7 @@
 
         <!-- Cupons de Desconto Section -->
         <section id="sec-cupons" class="section hidden">
-          <div class="bg-white rounded-xl shadow-sm p-6">
+          <div class="pt-card">
             <div class="flex items-center justify-between mb-4">
               <h3 class="text-lg font-bold text-gray-800">Cupons de Desconto</h3>
               <button onclick="openCupomModal()" class="px-4 py-2 bg-pili-red text-white rounded-lg hover:bg-pili-darkred flex items-center gap-2">

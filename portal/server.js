@@ -17,6 +17,7 @@ const { setupOta, criarTabelasOta } = require('./ota');
 const webpush = require('web-push');
 const { setupDemoMode, startEmbeddedEmulators } = require('./demo-mode');
 const docsManutencao = require('./docs-manutencao');   // documentos do equipamento + manutencoes
+const kpis = require('./tombador-kpis');               // etapas, padroes, calendario, ocorrencias e KPIs
 
 // Web Push VAPID config
 const VAPID_PUBLIC = 'BJZkImr6VnfYyQ2iCgW1fksl1jFaQe3jGcvSdYfFuf55wtj5Iv1RySh2kpG3W6YSgT3DvjsmZBdaHbrGQQJa6-M';
@@ -58,8 +59,18 @@ const META_CICLO_S = 6 * 60;
 const TRIAL_DIAS = 365;
 // Moega/fosso cheio e so alarme: o tempo parado esperando a moega (coluna sensor40) mostra a
 // ineficiencia da moega, nao do tombador. Tempo do ciclo = total - parada da moega.
-const TEMPO_CICLO_SQL = `GREATEST(tempo_total - COALESCE(sensor40, 0), 0)`;
-const EFICIENCIA_SQL = `LEAST(200, ROUND(${META_CICLO_S} * 100.0 / NULLIF(${TEMPO_CICLO_SQL}, 0), 1))`;
+//
+// 13/10/2026 (IoT v10.49+, "Resumo funcional - Monitoramento de Tombadores"):
+//   bruto   = tempo do ciclo + travar + destravar (a IoT mede os dois; sem medida = so o ciclo)
+//   espera  = espera por moega medida pela IoT (aproximada, ver tombador-kpis.js); ciclo antigo = toda a moega
+//   liquido = bruto - espera
+//   padrao  = soma dos padroes dos blocos medidos, gravado com o ciclo (versao da configuracao); antigo = 10 min
+//   eficiencia do periodo = soma dos padroes / soma dos liquidos
+const TEMPO_BRUTO_SQL = `(tempo_total + COALESCE(t_travar, 0) + COALESCE(t_destravar, 0))`;
+const ESPERA_SQL = `(CASE WHEN espera_moega IS NOT NULL THEN espera_moega ELSE COALESCE(sensor40, 0) END)`;
+const TEMPO_CICLO_SQL = `GREATEST(${TEMPO_BRUTO_SQL} - ${ESPERA_SQL}, 0)`;
+const PADRAO_SQL = `COALESCE(padrao_s, ${META_CICLO_S})`;
+const EFICIENCIA_SQL = `LEAST(200, ROUND(${PADRAO_SQL} * 100.0 / NULLIF(${TEMPO_CICLO_SQL}, 0), 1))`;
 
 // ---- Dashboard por periodo: ?de=AAAA-MM-DD&ate=AAAA-MM-DD (dias de Brasilia; padrao: 7 dias) ----
 const DIA_BR = col => `((${col}) AT TIME ZONE 'UTC' AT TIME ZONE 'America/Sao_Paulo')::date`;
@@ -2606,9 +2617,9 @@ app.post('/api/cycle-data', validateApiKey, async (req, res) => {
     const {
       serial_number, ciclo_numero, tempo_total, portao, moega,
       trava_roda, trava_chassi, trava_pino_e, trava_pino_d,
-      tempo_padrao, eficiencia, batidas_40, flags
+      tempo_padrao, eficiencia, batidas_40, flags,
+      t_travar, t_subir, t_alto, t_descer, t_destravar, espera
     } = req.body;
-    const v48 = Number.isInteger(batidas_40);   // IoT v10.48+: batidas no 40 e alarmes da saida
 
     const deviceResult = await pool.query(
       'SELECT id FROM devices WHERE serial_number = $1',
@@ -2619,18 +2630,10 @@ app.post('/api/cycle-data', validateApiKey, async (req, res) => {
       return res.status(404).json({ error: 'Dispositivo não encontrado' });
     }
 
-    await pool.query(`
-      INSERT INTO cycle_data (
-        device_id, ciclo_numero, tempo_total, sensor0, sensor40,
-        trava_roda, trava_chassi, trava_pino_e, trava_pino_d,
-        tempo_padrao, eficiencia, batidas_40, saiu_sem_travas, saiu_moega_cheia
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
-    `, [
-      deviceResult.rows[0].id, ciclo_numero, tempo_total, portao,
-      moega, trava_roda, trava_chassi,
-      trava_pino_e, trava_pino_d, tempo_padrao, eficiencia,
-      v48 ? batidas_40 : null, v48 ? ((flags | 0) & 1) === 1 : null, v48 ? ((flags | 0) & 2) === 2 : null
-    ]);
+    await kpis.gravarCiclo(pool, kpisDeps, deviceResult.rows[0].id, 0, {
+      ciclo_numero, tempo_total, portao, moega, trava_roda, trava_chassi, trava_pino_e, trava_pino_d,
+      tempo_padrao, eficiencia, batidas_40, flags, t_travar, t_subir, t_alto, t_descer, t_destravar, espera
+    });
 
     console.log(`📊 Ciclo #${ciclo_numero} registrado - ${tempo_total}s - Eficiência: ${eficiencia}%`);
     res.json({ success: true, message: 'Dados do ciclo registrados' });
@@ -2742,16 +2745,14 @@ app.post('/api/batch', validateApiKey, async (req, res) => {
       } else if (tipo === 'c') {
         // f[10], f[11] (IoT v10.48+): batidas no 40 no ciclo e alarmes da saida do 0 grau
         // (bit0 = saiu sem travas, bit1 = saiu com a moega/fosso cheio)
+        // f[12..17] (IoT v10.49+): travar, subir, alto, descer, destravar, espera por moega (s; -1 = nao medido)
         const v48 = Number.isInteger(f[10]);
-        const flags = Number.isInteger(f[11]) ? f[11] : 0;
-        await pool.query(`
-          INSERT INTO cycle_data (
-            device_id, created_at, ciclo_numero, tempo_total, sensor0, sensor40,
-            trava_roda, trava_chassi, trava_pino_e, trava_pino_d, tempo_padrao, eficiencia,
-            batidas_40, saiu_sem_travas, saiu_moega_cheia
-          ) VALUES ($1, NOW() - ($2 * INTERVAL '1 second'), $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
-        `, [deviceId, seg, f[0], f[1], f[2], f[3], f[4], f[5], f[6], f[7], f[8], f[9],
-            v48 ? f[10] : null, v48 ? (flags & 1) === 1 : null, v48 ? (flags & 2) === 2 : null]);
+        await kpis.gravarCiclo(pool, kpisDeps, deviceId, seg, {
+          ciclo_numero: f[0], tempo_total: f[1], portao: f[2], moega: f[3], trava_roda: f[4], trava_chassi: f[5],
+          trava_pino_e: f[6], trava_pino_d: f[7], tempo_padrao: f[8], eficiencia: f[9],
+          batidas_40: f[10], flags: f[11],
+          t_travar: f[12], t_subir: f[13], t_alto: f[14], t_descer: f[15], t_destravar: f[16], espera: f[17],
+        });
         // a v10.48 nao manda mais o evento "Ciclo completo" pelo 4G (um item a menos por
         // ciclo no chip): o portal grava o evento a partir do ciclo
         if (v48) {
@@ -2832,7 +2833,7 @@ app.get('/api/device-stats/:serialNumber', authenticateToken, checkSubscription,
       ciclosPorDiaIoT(deviceId, de, ate),
       ciclosPorDiaIoT(deviceId, hoje, hoje),
       sensoresHabilitados(deviceId),
-      pool.query(`SELECT tempo_total, ${TEMPO_CICLO_SQL} AS tempo_ciclo, COALESCE(sensor40, 0) AS moega,
+      pool.query(`SELECT tempo_total, ${TEMPO_CICLO_SQL} AS tempo_ciclo, ${TEMPO_BRUTO_SQL} AS bruto, ${PADRAO_SQL} AS padrao, ${ESPERA_SQL} AS moega,
                          COALESCE(trava_roda, 0) AS trava_roda, COALESCE(trava_chassi, 0) AS trava_chassi,
                          COALESCE(trava_pino_e, 0) AS trava_pino_e, COALESCE(trava_pino_d, 0) AS trava_pino_d,
                          saiu_sem_travas, saiu_moega_cheia
@@ -2869,6 +2870,8 @@ app.get('/api/device-stats/:serialNumber', authenticateToken, checkSubscription,
     const ciclos = ciclosR.rows;
     const comTempo = ciclos.filter(c => Number(c.tempo_ciclo) > 0);
     const tempoMedio = comTempo.length ? comTempo.reduce((s, c) => s + Number(c.tempo_ciclo), 0) / comTempo.length : 0;
+    const somaLiquidoValidos = comTempo.reduce((s, c) => s + Number(c.tempo_ciclo), 0);
+    const somaPadraoValidos = comTempo.reduce((s, c) => s + Number(c.padrao), 0);
     const h = horR.rows[0] || {};
     // horimetro do firmware: minutos com a plataforma fora do 0 grau
     const plataformaForaMin = Math.max(0, (Number(h.ate_fim) || 0) - (h.antes != null ? Number(h.antes) : (Number(h.primeiro) || 0)));
@@ -2883,10 +2886,12 @@ app.get('/api/device-stats/:serialNumber', authenticateToken, checkSubscription,
       ciclosPeriodo: ciclosDiarios.reduce((s, d) => s + d.ciclos, 0),   // contador da IoT
       ciclosTotal: (totalR.rows[0] && totalR.rows[0].total) || 0,
       tempoMedioCiclo: tempoMedio,                                       // so ciclos recebidos, sem a parada da moega
-      produtividadeMedia: tempoMedio > 0 ? (META_CICLO_S / tempoMedio) * 100 : null,
+      // soma dos padroes / soma dos liquidos (nao a media das eficiencias de cada ciclo)
+      produtividadeMedia: somaLiquidoValidos > 0 ? (somaPadraoValidos / somaLiquidoValidos) * 100 : null,
       totais: {
         ciclosRecebidos: ciclos.length,                                  // com dados de tempo ja no portal
         tempoCicloS: Math.round(ciclos.reduce((s, c) => s + Number(c.tempo_ciclo), 0)),
+        tempoBrutoS: Math.round(ciclos.reduce((s, c) => s + Number(c.bruto), 0)),
         paradaMoegaS: Math.round(ciclos.reduce((s, c) => s + Number(c.moega), 0)),
         ciclosComMoega: ciclos.filter(c => ocorrenciasDoCiclo(c, cfg).moega_cheia).length,
         ciclosSemTravas: ciclos.filter(c => ocorrenciasDoCiclo(c, cfg).sem_travas).length,
@@ -2935,9 +2940,12 @@ app.get('/api/cycle-data/:serialNumber', authenticateToken, checkSubscription, a
         ciclo_numero,
         tempo_total,
         ${TEMPO_CICLO_SQL} as tempo_ciclo,
-        COALESCE(sensor40, 0) as parada_moega,
+        ${ESPERA_SQL} as parada_moega,
+        ${TEMPO_BRUTO_SQL} as tempo_bruto, t_travar, t_subir, t_alto, t_descer, t_destravar, flags_ciclo,
+        (espera_moega IS NULL OR t_subir IS NULL) as espera_aproximada,
         COALESCE(sensor0, 0) as portao,
-        COALESCE(sensor40, 0) as moega,
+        COALESCE(sensor40, 0) as moega_total,
+        ${ESPERA_SQL} as moega,
         COALESCE(trava_roda, 0) as trava_roda,
         COALESCE(trava_chassi, 0) as trava_chassi,
         COALESCE(trava_pino_e, 0) as trava_pino_e,
@@ -2985,9 +2993,9 @@ app.get('/api/productivity/:serialNumber', authenticateToken, checkSubscription,
 
     const cyclesResult = await pool.query(`
       SELECT
-        ciclo_numero, tempo_total, ${TEMPO_CICLO_SQL} as tempo_ciclo, sensor0 as portao, sensor40 as moega,
+        ciclo_numero, tempo_total, ${TEMPO_CICLO_SQL} as tempo_ciclo, sensor0 as portao, ${ESPERA_SQL} as moega,
         trava_roda, trava_chassi, trava_pino_e, trava_pino_d,
-        ${META_CICLO_S} as tempo_padrao, ${EFICIENCIA_SQL} as eficiencia, created_at
+        ${PADRAO_SQL} as tempo_padrao, ${EFICIENCIA_SQL} as eficiencia, created_at
       FROM cycle_data
       WHERE device_id = $1 AND created_at >= NOW() - INTERVAL '${days} days'
       ORDER BY created_at DESC
@@ -3046,7 +3054,8 @@ app.get('/api/compare', authenticateToken, checkSubscription, async (req, res) =
         SELECT
           COUNT(*) as total_ciclos,
           COALESCE(AVG(${TEMPO_CICLO_SQL}), 0) as tempo_medio,
-          COALESCE(SUM(sensor40), 0) as parada_moega,
+          COALESCE(SUM(${ESPERA_SQL}), 0) as parada_moega,
+          COALESCE(SUM(${PADRAO_SQL}), 0) as soma_padrao, COALESCE(SUM(${TEMPO_CICLO_SQL}), 0) as soma_liquido,
           COALESCE(AVG(${EFICIENCIA_SQL}), 0) as eficiencia_media,
           COALESCE(MIN(${TEMPO_CICLO_SQL}), 0) as melhor_ciclo,
           COALESCE(MAX(${TEMPO_CICLO_SQL}), 0) as pior_ciclo
@@ -3110,7 +3119,8 @@ app.get('/api/compare', authenticateToken, checkSubscription, async (req, res) =
         tempo_medio: Math.round(tempoMedio),
         parada_moega: parseInt(stats.parada_moega) || 0,
         eficiencia_media: parseFloat(stats.eficiencia_media).toFixed(1),
-        produtividade: ((META_CICLO_S / tempoMedio) * 100).toFixed(1),
+        // eficiencia do periodo = soma dos padroes / soma dos tempos liquidos (documento de 09/10/2026)
+        produtividade: (parseFloat(stats.soma_liquido) > 0 ? (parseFloat(stats.soma_padrao) / parseFloat(stats.soma_liquido)) * 100 : (META_CICLO_S / tempoMedio) * 100).toFixed(1),
         melhor_ciclo: parseInt(stats.melhor_ciclo) || 0,
         pior_ciclo: parseInt(stats.pior_ciclo) || 0,
         ciclos_diarios: dailyResult.rows,
@@ -3330,6 +3340,7 @@ async function initDatabase() {
   // Documentos do equipamento (QR do display -> /docs/<serial>). Fora do try acima:
   // uma falha em outro passo nao impede criar a tabela (o modulo trata os proprios erros).
   await docsManutencao.criarTabelas(pool);
+  await kpis.criarTabelas(pool);
 }
 
 // ==================== IN-APP ALERTS ====================
@@ -3469,11 +3480,17 @@ app.post('/api/push/test', authenticateToken, async (req, res) => {
   }
 });
 
+const kpisDeps = {
+  authenticateToken, checkSubscription, pendingCommands, DIA_BR, periodoDoPedido, ciclosPorDiaIoT,
+  minutosLigada, inicioDiaUTC, sensoresHabilitados,
+  SQL: { BRUTO: TEMPO_BRUTO_SQL, ESPERA: ESPERA_SQL, CICLO: TEMPO_CICLO_SQL, PADRAO: PADRAO_SQL, VALIDO: CICLO_VALIDO_SQL },
+};
 const server = http.createServer(app);
 setupDemoMode(app, server, pool, liveDeviceStatus, pendingCommands);
 docsManutencao.setupDocsManutencao(app, pool, {
   authenticateToken, requireSuperAdmin, checkSubscription, liveDeviceStatus, LIVE_MAX_AGE_MS
 });
+kpis.setupKpis(app, pool, kpisDeps);   // (kpisDeps: definido abaixo, antes de chegar qualquer requisicao)
 
 server.listen(PORT, async () => {
   await initDatabase();

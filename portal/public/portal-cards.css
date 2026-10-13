@@ -1,0 +1,17 @@
+/* Cards do portal PILI TECH - um padrao so (cliente, admin e configuracao do tombador).
+   .pt-card = bloco de secao / grafico / lista;  .pt-stat = indicador (titulo, valor, detalhe) com tom;
+   .pt-hero = os 4 indicadores de destaque do topo (mesma forma, so a cor muda). */
+.pt-card { background: #fff; border: 1px solid #e5e7eb; border-radius: 1rem; box-shadow: 0 1px 2px rgba(0,0,0,.05); padding: 1.25rem; }
+@media (max-width: 640px) { .pt-card { padding: 1rem; } }
+.pt-card-tom { border-left-width: 4px; }
+.pt-stat { border: 1px solid #e5e7eb; border-radius: .75rem; padding: .75rem .875rem; min-height: 88px;
+           display: flex; flex-direction: column; justify-content: space-between; gap: .125rem;
+           background: #f9fafb; color: #1f2937; }
+.pt-stat-t { font-size: 11px; font-weight: 700; letter-spacing: .03em; text-transform: uppercase; opacity: .7; }
+.pt-stat-v { font-size: 1.25rem; line-height: 1.25; font-weight: 900; }
+.pt-stat-s { font-size: 11px; opacity: .75; min-height: 14px; }
+.pt-tom-ok     { background: #f0fdf4; border-color: #86efac; color: #166534; }
+.pt-tom-alerta { background: #fffbeb; border-color: #fcd34d; color: #78350f; }
+.pt-tom-perigo { background: #fef2f2; border-color: #fca5a5; color: #991b1b; }
+.pt-tom-info   { background: #eff6ff; border-color: #93c5fd; color: #1e40af; }
+.pt-hero { border-radius: 1rem; padding: 1.25rem; color: #fff; box-shadow: 0 1px 2px rgba(0,0,0,.05); }
