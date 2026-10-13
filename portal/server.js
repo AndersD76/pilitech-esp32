@@ -60,15 +60,14 @@ const TRIAL_DIAS = 365;
 // Moega/fosso cheio e so alarme: o tempo parado esperando a moega (coluna sensor40) mostra a
 // ineficiencia da moega, nao do tombador. Tempo do ciclo = total - parada da moega.
 //
-// 13/10/2026 (IoT v10.49+, "Resumo funcional - Monitoramento de Tombadores"):
-//   bruto   = tempo do ciclo + travar + destravar (a IoT mede os dois; sem medida = so o ciclo)
-//   espera  = espera por moega medida pela IoT (aproximada, ver tombador-kpis.js); ciclo antigo = toda a moega
-//   liquido = bruto - espera
-//   padrao  = soma dos padroes dos blocos medidos, gravado com o ciclo (versao da configuracao); antigo = 10 min
-//   eficiencia do periodo = soma dos padroes / soma dos liquidos
-const TEMPO_BRUTO_SQL = `(tempo_total + COALESCE(t_travar, 0) + COALESCE(t_destravar, 0))`;
-const ESPERA_SQL = `(CASE WHEN espera_moega IS NOT NULL THEN espera_moega ELSE COALESCE(sensor40, 0) END)`;
-const TEMPO_CICLO_SQL = `GREATEST(${TEMPO_BRUTO_SQL} - ${ESPERA_SQL}, 0)`;
+// 13/10/2026: o tempo do ciclo e UM so = da saida do 0 grau ate o retorno ao 0 grau (tempo_total da IoT).
+// A moega cheia fica DENTRO dele (e mostrada a parte como tempo parado), nao e descontada: sem separar
+// "bruto" e "liquido" (pedido do usuario). Produtividade = padrao / tempo do ciclo; no periodo = soma dos
+// padroes / soma dos tempos. padrao = meta (ciclo antigo) ou o gravado com o ciclo (IoT 10.49+).
+// travar/destravar (IoT 10.49+) aparecem como etapas, nao entram no tempo do ciclo.
+const TEMPO_BRUTO_SQL = `tempo_total`;
+const ESPERA_SQL = `(CASE WHEN espera_moega IS NOT NULL THEN espera_moega ELSE COALESCE(sensor40, 0) END)`;   // tempo parado com a moega cheia
+const TEMPO_CICLO_SQL = `tempo_total`;
 const PADRAO_SQL = `COALESCE(padrao_s, ${META_CICLO_S})`;
 const EFICIENCIA_SQL = `LEAST(200, ROUND(${PADRAO_SQL} * 100.0 / NULLIF(${TEMPO_CICLO_SQL}, 0), 1))`;
 

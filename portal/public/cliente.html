@@ -426,7 +426,7 @@
             <span class="text-xs font-medium opacity-80">TEMPO DO CICLO</span>
           </div>
           <div class="text-xl sm:text-3xl font-black" id="teleTempoCiclo">-</div>
-          <div class="text-xs opacity-70" id="teleTempoSub">tempo bruto médio</div>
+          <div class="text-xs opacity-70" id="teleTempoSub">média por ciclo</div>
         </div>
 
         <div class="hidden bg-gradient-to-br from-purple-500 to-purple-600 pt-hero">
@@ -665,8 +665,7 @@
             <tr>
               <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Data/Hora</th>
               <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Ciclo #</th>
-              <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Tempo bruto</th>
-              <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Tempo líquido</th>
+              <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Tempo do ciclo</th>
               <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Produtividade</th>
               <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Ocorrências</th>
             </tr>
@@ -1711,20 +1710,19 @@
       if (!k || k.error || k.blocked) { el.innerHTML = ''; return; }
       const t = stats.totais || {}, cal = k.calendario || {}, pr = k.produtividade || {};
       const meta = Number(stats.metaCicloS) || 360;
-      const bruto = k.tempo.bruto_medio_s, liq = k.tempo.liquido_medio_s;
-      const espera = bruto != null && liq != null ? Math.max(0, bruto - liq) : null;
-      const larg = v => (bruto ? Math.max(2, Math.min(100, Math.round(v / bruto * 100))) : 0);
+      const ciclo = k.tempo.bruto_medio_s;   // tempo do ciclo: da saida do 0° ate voltar ao 0° (a moega cheia esta dentro dele)
+      const paradaMedia = (t.ciclosRecebidos || 0) ? (t.paradaMoegaS || 0) / t.ciclosRecebidos : 0;
+      const larg = v => (ciclo ? Math.max(2, Math.min(100, Math.round(v / ciclo * 100))) : 0);
       const linhaT = (rotulo, valor, v, cor, forte) => `<div class="mb-2">
           <div class="flex justify-between text-sm ${forte ? 'font-black text-gray-900' : 'text-gray-600'}"><span>${rotulo}</span><span>${valor}</span></div>
           <div class="h-2.5 rounded bg-gray-100"><div class="h-2.5 rounded ${cor}" style="width:${v}%"></div></div></div>`;
-      const dentroMeta = liq != null && liq <= meta;
-      const tempos = bruto == null ? '<p class="text-sm text-gray-400">Sem ciclos com tempo recebido neste período.</p>'
-        : linhaT('Tempo bruto <span class="text-xs text-gray-400">(ciclo + travar + destravar)</span>', fmtMin(bruto), 100, 'bg-slate-500', true) +
-          linhaT('− Espera por moega' + (k.espera_moega.aproximada ? ' <span class="text-xs text-gray-400">(aproximada)</span>' : ''), fmtMin(espera), espera ? larg(espera) : 0, 'bg-amber-400') +
-          linhaT('= Tempo líquido', fmtMin(liq), larg(liq), dentroMeta ? 'bg-green-500' : 'bg-red-500', true) +
+      const dentroMeta = ciclo != null && ciclo <= meta;
+      const tempos = ciclo == null ? '<p class="text-sm text-gray-400">Sem ciclos com tempo recebido neste período.</p>'
+        : linhaT('Tempo do ciclo', fmtMin(ciclo), 100, dentroMeta ? 'bg-green-500' : 'bg-red-500', true) +
+          (paradaMedia > 0 ? linhaT('Dele, parado com a moega cheia', fmtMin(paradaMedia), larg(paradaMedia), 'bg-amber-400') : '') +
           `<div class="text-xs ${dentroMeta ? 'text-green-700' : 'text-red-600'} font-bold">Meta: ${fmtMin(meta)} · ${dentroMeta ? 'dentro da meta' : 'acima da meta'}</div>`;
 
-      const caminhoes = Number(stats.tempoMedioCiclo) > 0 ? Math.floor((t.paradaMoegaS || 0) / stats.tempoMedioCiclo) : 0;
+      const caminhoes = ciclo > 0 ? Math.floor((t.paradaMoegaS || 0) / ciclo) : 0;
       const al = [];
       if (t.paradaMoegaS > 0) al.push(['amber', `${fmtMin(t.paradaMoegaS)} esperando a moega em ${t.ciclosComMoega} ciclo(s)` + (caminhoes ? ` — dava para descarregar uns ${caminhoes} caminhão(ões)` : '')]);
       if (t.ciclosSemTravas > 0) al.push(['red', `${t.ciclosSemTravas} ciclo(s) saíram do 0° sem travas`]);
@@ -1762,7 +1760,7 @@
       el.innerHTML = `<div class="pt-card">
         <div class="text-xs font-bold text-gray-500 mb-3">RESUMO DO PERÍODO · ${esc(p.texto.toUpperCase())}</div>
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <div><div class="text-sm font-bold text-gray-800 mb-2">Onde vai o tempo do ciclo (média)</div>${tempos}</div>
+          <div><div class="text-sm font-bold text-gray-800 mb-2">Tempo do ciclo (média)</div>${tempos}</div>
           <div><div class="text-sm font-bold text-gray-800 mb-2">Atenção</div>${alertas}</div>
         </div>
         <div class="mt-4 pt-3 border-t text-xs text-gray-600 space-y-1">${rodape.map(r => `<div>${r}</div>`).join('')}</div>
@@ -1810,8 +1808,8 @@
 
         // Tempo medio por ciclo
         const tempoMedio = stats.tempoMedioCiclo || 0, tempoBruto = stats.tempoMedioBruto || 0;
-        document.getElementById('teleTempoCiclo').textContent = tempoBruto > 0 ? fmtDur(tempoBruto) : '-';
-        document.getElementById('teleTempoSub').textContent = tempoMedio > 0 ? `bruto · líquido ${fmtDur(tempoMedio)} (sem a espera da moega)` : 'tempo bruto médio';
+        document.getElementById('teleTempoCiclo').textContent = tempoMedio > 0 ? fmtDur(tempoMedio) : '-';
+        document.getElementById('teleTempoSub').textContent = `média por ciclo · meta ${fmtDur(stats.metaCicloS || 360)}`;
 
         // Ciclos hoje
         document.getElementById('teleCiclosHoje').textContent = stats.ciclosHoje || 0;
@@ -2173,7 +2171,7 @@
       if (!tbody) return;
 
       if (!data || data.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="6" class="px-4 py-8 text-center text-gray-500">Nenhum ciclo com dados no período</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="5" class="px-4 py-8 text-center text-gray-500">Nenhum ciclo com dados no período</td></tr>';
         return;
       }
 
@@ -2195,8 +2193,7 @@
           <tr class="hover:bg-gray-50 border-b">
             <td class="px-4 py-3 text-xs text-gray-600">${fmtDataBR(c.timestamp)}</td>
             <td class="px-4 py-3 text-center font-bold text-gray-800">#${c.ciclo_numero || '-'}</td>
-            <td class="px-4 py-3 text-center font-bold text-gray-800">${fmtDur(Number(c.tempo_bruto ?? c.tempo_total) || 0)}</td>
-            <td class="px-4 py-3 text-center font-medium">${fmtDur(tempoCiclo)}</td>
+            <td class="px-4 py-3 text-center font-bold text-gray-800">${fmtDur(tempoCiclo)}</td>
             <td class="px-4 py-3 text-center">
               <span class="px-3 py-1 rounded-full text-sm font-bold ${prodClass}">${produtividade.toFixed(0)}%</span>
             </td>

@@ -122,8 +122,8 @@ async function gravarCiclo(pool, deps, deviceId, seg, c) {
     cfg = cf.config; versao = cf.versao;
     hab = await deps.sensoresHabilitados(deviceId);
     const pd = padroesDoCiclo(cfg, hab);
-    // padrao dos blocos que foram medidos: travar/destravar so entram se a IoT mediu
-    padrao = pd.movimento + (nn(c.t_travar) != null ? pd.travar : 0) + (nn(c.t_destravar) != null ? pd.destravar : 0);
+    // padrao do ciclo (saida -> retorno do 0 grau) = subir + descarga + descer; travar/destravar sao etapas a parte
+    padrao = pd.movimento;
   }
   const r = await pool.query(`
     INSERT INTO cycle_data (
@@ -164,7 +164,7 @@ async function registrarOcorrencias(pool, deviceId, fimCiclo, c, flags, cfg, hab
     add('etapa_lenta', 'travas', 'travar', `Travamento em ${travar}s (padrão ${pd.travar}s)`, 'baixa', travar);
   if (destravar != null && pd.destravar > 0 && destravar > pd.destravar * tol)
     add('etapa_lenta', 'travas', 'destravar', `Destravamento em ${destravar}s (padrão ${pd.destravar}s)`, 'baixa', destravar);
-  const mov = (Number(c.tempo_total) || 0) - (espera || 0);
+  const mov = Number(c.tempo_total) || 0;
   if (pd.movimento > 0 && mov > pd.movimento * tol)
     add('etapa_lenta', 'plataforma', 'movimento', `Movimento (subir + descarregar + descer) em ${mov}s (padrão ${pd.movimento}s)`, 'baixa', mov);
   for (const l of linhas) {
@@ -244,7 +244,7 @@ function calcularKpis({ ciclos, contador, cfg, hab, paradas, ligadaMin, de, ate,
     etapaDe('subir', 'Subir (até o 40°, quando bate)', pd.subir, serie('t_subir')),
     etapaDe('descarga', 'Descarregar (no 40°, sem a espera)', pd.descarga, serie(null, c => c.t_alto != null ? Number(c.t_alto) - Number(c.espera || 0) : NaN)),
     etapaDe('descer', 'Descer (do 40° ao 0°)', pd.descer, serie('t_descer')),
-    etapaDe('movimento', 'Movimento completo (subir + descarregar + descer)', pd.movimento, serie(null, c => Number(c.tempo_total) - Number(c.espera || 0))),
+    etapaDe('movimento', 'Tempo do ciclo (subir + descarregar + descer)', pd.movimento, serie(null, c => Number(c.tempo_total))),
     etapaDe('destravar', 'Destravar', pd.destravar, serie('t_destravar')),
     { chave: 'saida', nome: 'Liberar saída / operar portão', medido: false, padrao_s: cfg.padroes.saida, motivo: 'sem sensor de saída do caminhão' },
   ];
@@ -255,7 +255,7 @@ function calcularKpis({ ciclos, contador, cfg, hab, paradas, ligadaMin, de, ate,
   return {
     ciclos: { contador, concluidos, incompletos: incompletos.length, com_dados: ciclos.length },
     tempo: { bruto_medio_s: brutoMedio != null ? Math.round(brutoMedio) : null, liquido_medio_s: liquidoMedio != null ? Math.round(liquidoMedio) : null,
-             padrao_ciclo_s: pd.completo, padrao_medido_s: pd.travar + pd.movimento + pd.destravar },
+             padrao_ciclo_s: pd.completo, padrao_medido_s: pd.movimento },
     eficiencia_pct: somaLiquido > 0 ? Math.round(somaPadrao / somaLiquido * 1000) / 10 : null,   // soma padrao / soma liquido
     calendario: { configurado: cfg.turnos.length > 0, programado_s: programadoS, parada_tecnica_s: tecnicaS, disponivel_s: disponivelS,
                   parada_programada_s: Math.round((somaMs(prog) - somaMs(progLivre)) / 1000), sem_caminhao_s: paradaS('sem_caminhao'),

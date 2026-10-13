@@ -466,11 +466,9 @@
     // Ultimo ciclo: tempo do ciclo = total - moega cheia (moega cheia e parada/alarme, nao ciclo)
     const total = ciclo ? Number(ciclo.tempo_total) || 0 : 0;
     const moega = ciclo ? Number(ciclo.moega) || 0 : 0;
-    // bruto = ciclo + travar + destravar (IoT 10.49+ mede os dois); liquido = bruto - espera por moega
     const travar = ciclo && ciclo.t_travar != null ? Number(ciclo.t_travar) : 0;
     const destravar = ciclo && ciclo.t_destravar != null ? Number(ciclo.t_destravar) : 0;
-    const bruto = total + travar + destravar;
-    const tempoCiclo = Math.max(0, bruto - moega);
+    const tempoCiclo = total;   // da saida do 0° ate voltar ao 0° (a moega cheia esta dentro)
     // IoT v10.48+ informa na hora da saida; antes, deduzido dos tempos das travas
     const semTravas = ciclo && (ciclo.saiu_sem_travas === true || (ciclo.saiu_sem_travas == null &&
       [2, 3, 4, 5].some(i => !(hab && hab[i] === false) && (Number(ciclo[SENSORES[i][2]]) || 0) < total - 5)));
@@ -518,10 +516,10 @@
           <div class="live-cycle-box mb-3 p-3 bg-gray-50 rounded-lg">
             <div class="flex justify-between items-center">
               <span class="live-cycle-label text-xs font-bold text-gray-500">${ciclo ? `ÚLTIMO CICLO${ciclo.ciclo_numero ? ' #' + esc(ciclo.ciclo_numero) : ''}` : 'SEM CICLO GRAVADO'}</span>
-              <span class="live-cycle-timer text-lg font-bold text-gray-700 font-mono" title="Tempo líquido do ciclo: bruto (com travar e destravar) menos a espera por moega">${ciclo ? min(tempoCiclo) : '-'}</span>
+              <span class="live-cycle-timer text-lg font-bold text-gray-700 font-mono" title="Tempo do ciclo: da saída do 0° até voltar ao 0°">${ciclo ? min(tempoCiclo) : '-'}</span>
             </div>
             ${ciclo && (moega > 0 || semTravas || saiuCheia || b40 > 1) ? `<div class="flex flex-wrap gap-2 mt-1">
-              ${moega > 0 ? `<span class="px-2 py-0.5 rounded text-[11px] font-bold bg-amber-100 text-amber-700">Espera por moega${ciclo.espera_aproximada ? ' (aprox.)' : ''}: ${min(moega)}</span>` : ''}
+              ${moega > 0 ? `<span class="px-2 py-0.5 rounded text-[11px] font-bold bg-amber-100 text-amber-700">Moega cheia${ciclo.espera_aproximada ? ' (aprox.)' : ''}: ${min(moega)}</span>` : ''}
               ${semTravas ? '<span class="px-2 py-0.5 rounded text-[11px] font-bold bg-red-100 text-red-700">Saiu do 0° sem travas</span>' : ''}
               ${saiuCheia ? '<span class="px-2 py-0.5 rounded text-[11px] font-bold bg-red-100 text-red-700">Saiu do 0° com moega cheia</span>' : ''}
               ${b40 > 1 ? `<span class="px-2 py-0.5 rounded text-[11px] font-bold bg-slate-100 text-slate-700">Bateu no 40° ${b40}x</span>` : ''}
@@ -539,7 +537,7 @@
               <div class="flex items-center gap-2 px-2 pt-1 border-t-2 border-gray-200">
                 <span class="text-xs font-bold text-gray-700 w-24">TEMPO DO CICLO</span>
                 <span class="live-dur-total text-xs font-bold text-red-600">${ciclo ? min(tempoCiclo) : '-'}</span>
-                ${moega > 0 ? `<span class="text-[11px] text-gray-500">+ ${min(moega)} de espera por moega = ${min(bruto)} de tempo bruto</span>` : ''}
+                ${moega > 0 ? `<span class="text-[11px] text-gray-500">dos quais ${min(moega)} parado com a moega cheia</span>` : ''}
               </div>
             </div>
           </div>
