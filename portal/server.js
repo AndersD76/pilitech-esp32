@@ -2871,6 +2871,7 @@ app.get('/api/device-stats/:serialNumber', authenticateToken, checkSubscription,
     const comTempo = ciclos.filter(c => Number(c.tempo_ciclo) > 0);
     const tempoMedio = comTempo.length ? comTempo.reduce((s, c) => s + Number(c.tempo_ciclo), 0) / comTempo.length : 0;
     const somaLiquidoValidos = comTempo.reduce((s, c) => s + Number(c.tempo_ciclo), 0);
+    const tempoMedioBruto = comTempo.length ? comTempo.reduce((s, c) => s + Number(c.bruto), 0) / comTempo.length : 0;
     const somaPadraoValidos = comTempo.reduce((s, c) => s + Number(c.padrao), 0);
     const h = horR.rows[0] || {};
     // horimetro do firmware: minutos com a plataforma fora do 0 grau
@@ -2885,6 +2886,7 @@ app.get('/api/device-stats/:serialNumber', authenticateToken, checkSubscription,
       ciclosHoje: (hojeIoT[0] && hojeIoT[0].ciclos) || 0,              // contador da IoT
       ciclosPeriodo: ciclosDiarios.reduce((s, d) => s + d.ciclos, 0),   // contador da IoT
       ciclosTotal: (totalR.rows[0] && totalR.rows[0].total) || 0,
+      tempoMedioBruto,                                                   // com travar e destravar, sem descontar a espera
       tempoMedioCiclo: tempoMedio,                                       // so ciclos recebidos, sem a parada da moega
       // soma dos padroes / soma dos liquidos (nao a media das eficiencias de cada ciclo)
       produtividadeMedia: somaLiquidoValidos > 0 ? (somaPadraoValidos / somaLiquidoValidos) * 100 : null,
