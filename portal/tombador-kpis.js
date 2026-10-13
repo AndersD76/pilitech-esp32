@@ -209,7 +209,7 @@ function calcularKpis({ ciclos, contador, cfg, hab, paradas, ligadaMin, de, ate,
   const pd = padroesDoCiclo(cfg, hab), tol = cfg.tolerancia_pct;
   const incompleto = c => ((c.flags_ciclo || 0) & 4) !== 0;
   const incompletos = ciclos.filter(incompleto);
-  const validos = ciclos.filter(c => !incompleto(c) && Number(c.liquido) > 0);
+  const validos = ciclos.filter(c => !incompleto(c) && Number(c.bruto) > 0);
   const concluidos = Math.max(0, contador - incompletos.length);
 
   // calendario

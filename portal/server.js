@@ -60,14 +60,16 @@ const TRIAL_DIAS = 365;
 // Moega/fosso cheio e so alarme: o tempo parado esperando a moega (coluna sensor40) mostra a
 // ineficiencia da moega, nao do tombador. Tempo do ciclo = total - parada da moega.
 //
-// 13/10/2026: o tempo do ciclo e UM so = da saida do 0 grau ate o retorno ao 0 grau (tempo_total da IoT).
-// A moega cheia fica DENTRO dele (e mostrada a parte como tempo parado), nao e descontada: sem separar
-// "bruto" e "liquido" (pedido do usuario). Produtividade = padrao / tempo do ciclo; no periodo = soma dos
-// padroes / soma dos tempos. padrao = meta (ciclo antigo) ou o gravado com o ciclo (IoT 10.49+).
-// travar/destravar (IoT 10.49+) aparecem como etapas, nao entram no tempo do ciclo.
+// 13/10/2026 - nomes que o usuario usa:
+//   CICLO BRUTO   = tempo em segundos que a IoT mede da saida do 0 grau ate o retorno ao 0 grau (tempo_total);
+//                   a moega cheia esta DENTRO dele. A produtividade, o grafico e a meta usam o ciclo bruto.
+//   CICLO LIQUIDO = ciclo bruto - o tempo parado com a moega cheia (aparece ao lado, nunca no lugar do bruto).
+// padrao = meta (ciclo antigo) ou o gravado com o ciclo (IoT 10.49+). travar/destravar (IoT 10.49+) sao etapas,
+// fora dos dois. Produtividade do periodo = soma dos padroes / soma dos ciclos brutos.
 const TEMPO_BRUTO_SQL = `tempo_total`;
 const ESPERA_SQL = `(CASE WHEN espera_moega IS NOT NULL THEN espera_moega ELSE COALESCE(sensor40, 0) END)`;   // tempo parado com a moega cheia
-const TEMPO_CICLO_SQL = `tempo_total`;
+const TEMPO_CICLO_SQL = `tempo_total`;                       // ciclo bruto (base da produtividade)
+const TEMPO_LIQUIDO_SQL = `GREATEST(tempo_total - ${ESPERA_SQL}, 0)`;
 const PADRAO_SQL = `COALESCE(padrao_s, ${META_CICLO_S})`;
 const EFICIENCIA_SQL = `LEAST(200, ROUND(${PADRAO_SQL} * 100.0 / NULLIF(${TEMPO_CICLO_SQL}, 0), 1))`;
 
@@ -2832,14 +2834,14 @@ app.get('/api/device-stats/:serialNumber', authenticateToken, checkSubscription,
       ciclosPorDiaIoT(deviceId, de, ate),
       ciclosPorDiaIoT(deviceId, hoje, hoje),
       sensoresHabilitados(deviceId),
-      pool.query(`SELECT tempo_total, ${TEMPO_CICLO_SQL} AS tempo_ciclo, ${TEMPO_BRUTO_SQL} AS bruto, ${PADRAO_SQL} AS padrao, ${ESPERA_SQL} AS moega,
+      pool.query(`SELECT tempo_total, ${TEMPO_CICLO_SQL} AS tempo_ciclo, ${TEMPO_LIQUIDO_SQL} AS liquido, ${TEMPO_BRUTO_SQL} AS bruto, ${PADRAO_SQL} AS padrao, ${ESPERA_SQL} AS moega,
                          COALESCE(trava_roda, 0) AS trava_roda, COALESCE(trava_chassi, 0) AS trava_chassi,
                          COALESCE(trava_pino_e, 0) AS trava_pino_e, COALESCE(trava_pino_d, 0) AS trava_pino_d,
                          saiu_sem_travas, saiu_moega_cheia
                   FROM cycle_data WHERE device_id = $1 AND ${CICLO_VALIDO_SQL}
                     AND ${DIA_BR('created_at')} BETWEEN $2::date AND $3::date`, [deviceId, de, ate]),
       // ciclo com tempo 0 (todo o tempo foi parada de moega cheia, ex.: #27 de 06/10) nao entra na media
-      pool.query(`SELECT to_char(${DIA_BR('created_at')}, 'YYYY-MM-DD') AS dia, AVG(NULLIF(${TEMPO_CICLO_SQL}, 0)) AS tempo_medio_ciclo,
+      pool.query(`SELECT to_char(${DIA_BR('created_at')}, 'YYYY-MM-DD') AS dia, AVG(NULLIF(${TEMPO_CICLO_SQL}, 0)) AS tempo_medio_ciclo, AVG(${TEMPO_LIQUIDO_SQL}) FILTER (WHERE ${TEMPO_CICLO_SQL} > 0) AS tempo_medio_liquido,
                          COUNT(NULLIF(${TEMPO_CICLO_SQL}, 0))::int AS ciclos_com_tempo
                   FROM cycle_data WHERE device_id = $1 AND ${CICLO_VALIDO_SQL}
                     AND ${DIA_BR('created_at')} BETWEEN $2::date AND $3::date GROUP BY 1`, [deviceId, de, ate]),
@@ -2859,17 +2861,19 @@ app.get('/api/device-stats/:serialNumber', authenticateToken, checkSubscription,
     // todos os dias do periodo (dia sem leitura = 0 ciclos)
     const contagem = Object.fromEntries(porDia.map(r => [r.dia, r.ciclos]));
     const tempoDia = Object.fromEntries(temposDia.rows.map(r => [r.dia, parseFloat(r.tempo_medio_ciclo)]));
+    const liqDia = Object.fromEntries(temposDia.rows.map(r => [r.dia, parseFloat(r.tempo_medio_liquido)]));
     const nTempoDia = Object.fromEntries(temposDia.rows.map(r => [r.dia, r.ciclos_com_tempo]));
     const ciclosDiarios = [];
     for (let t = Date.parse(de); t <= Date.parse(ate); t += 86400000) {
       const dia = new Date(t).toISOString().slice(0, 10);
-      ciclosDiarios.push({ dia, ciclos: contagem[dia] || 0, tempo_medio_ciclo: tempoDia[dia] || null,
+      ciclosDiarios.push({ dia, ciclos: contagem[dia] || 0, tempo_medio_ciclo: tempoDia[dia] || null, tempo_medio_liquido: liqDia[dia] || null,
                            ciclos_com_tempo: nTempoDia[dia] || 0 });
     }
     const ciclos = ciclosR.rows;
     const comTempo = ciclos.filter(c => Number(c.tempo_ciclo) > 0);
     const tempoMedio = comTempo.length ? comTempo.reduce((s, c) => s + Number(c.tempo_ciclo), 0) / comTempo.length : 0;
     const somaLiquidoValidos = comTempo.reduce((s, c) => s + Number(c.tempo_ciclo), 0);
+    const tempoMedioLiquido = comTempo.length ? comTempo.reduce((s, c) => s + Number(c.liquido), 0) / comTempo.length : 0;
     const tempoMedioBruto = comTempo.length ? comTempo.reduce((s, c) => s + Number(c.bruto), 0) / comTempo.length : 0;
     const somaPadraoValidos = comTempo.reduce((s, c) => s + Number(c.padrao), 0);
     const h = horR.rows[0] || {};
@@ -2886,7 +2890,8 @@ app.get('/api/device-stats/:serialNumber', authenticateToken, checkSubscription,
       ciclosPeriodo: ciclosDiarios.reduce((s, d) => s + d.ciclos, 0),   // contador da IoT
       ciclosTotal: (totalR.rows[0] && totalR.rows[0].total) || 0,
       tempoMedioBruto,                                                   // com travar e destravar, sem descontar a espera
-      tempoMedioCiclo: tempoMedio,                                       // so ciclos recebidos, sem a parada da moega
+      tempoMedioLiquido,                                                 // ciclo liquido (sem a moega cheia)
+      tempoMedioCiclo: tempoMedio,                                       // ciclo bruto                                       // so ciclos recebidos, sem a parada da moega
       // soma dos padroes / soma dos liquidos (nao a media das eficiencias de cada ciclo)
       produtividadeMedia: somaLiquidoValidos > 0 ? (somaPadraoValidos / somaLiquidoValidos) * 100 : null,
       totais: {
@@ -2940,7 +2945,7 @@ app.get('/api/cycle-data/:serialNumber', authenticateToken, checkSubscription, a
       SELECT
         ciclo_numero,
         tempo_total,
-        ${TEMPO_CICLO_SQL} as tempo_ciclo,
+        ${TEMPO_CICLO_SQL} as tempo_ciclo, ${TEMPO_LIQUIDO_SQL} as tempo_liquido,
         ${ESPERA_SQL} as parada_moega,
         ${TEMPO_BRUTO_SQL} as tempo_bruto, t_travar, t_subir, t_alto, t_descer, t_destravar, flags_ciclo,
         (espera_moega IS NULL OR t_subir IS NULL) as espera_aproximada,
@@ -3484,7 +3489,7 @@ app.post('/api/push/test', authenticateToken, async (req, res) => {
 const kpisDeps = {
   authenticateToken, checkSubscription, pendingCommands, DIA_BR, periodoDoPedido, ciclosPorDiaIoT,
   minutosLigada, inicioDiaUTC, sensoresHabilitados,
-  SQL: { BRUTO: TEMPO_BRUTO_SQL, ESPERA: ESPERA_SQL, CICLO: TEMPO_CICLO_SQL, PADRAO: PADRAO_SQL, VALIDO: CICLO_VALIDO_SQL },
+  SQL: { BRUTO: TEMPO_BRUTO_SQL, ESPERA: ESPERA_SQL, CICLO: TEMPO_LIQUIDO_SQL, PADRAO: PADRAO_SQL, VALIDO: CICLO_VALIDO_SQL },
 };
 const server = http.createServer(app);
 setupDemoMode(app, server, pool, liveDeviceStatus, pendingCommands);
