@@ -166,8 +166,8 @@ async function registrarOcorrencias(pool, deviceId, fimCiclo, c, flags, cfg, hab
     add('etapa_lenta', 'travas', 'travar', `Travamento em ${travar}s (padrão ${pd.travar}s)`, 'baixa', travar);
   if (destravar != null && pd.destravar > 0 && destravar > pd.destravar * tol)
     add('etapa_lenta', 'travas', 'destravar', `Destravamento em ${destravar}s (padrão ${pd.destravar}s)`, 'baixa', destravar);
-  const bruto = nn(c.t_bruto), liq = Number(c.tempo_total) || 0;
-  const [qual, tempo, pad] = bruto != null ? ['bruto', bruto, pd.completo] : ['líquido', liq, pd.movimento];
+  const medido = nn(c.t_bruto), liq = Number(c.tempo_total) || 0;
+  const [qual, tempo, pad] = medido != null ? ['bruto', medido, pd.completo] : ['bruto estimado', liq + (pd.completo - pd.movimento), pd.completo];
   if (pad > 0 && tempo > pad * tol)
     add('etapa_lenta', 'plataforma', 'ciclo', `Ciclo ${qual} de ${Math.round(tempo / 6) / 10} min (padrão ${Math.round(pad / 6) / 10} min, soma das etapas)`, 'baixa', tempo);
   for (const l of linhas) {
@@ -225,7 +225,7 @@ function calcularKpis({ ciclos, contador, cfg, hab, paradas, ligadaMin, de, ate,
   const disponivelS = Math.max(0, programadoS - tecnicaS);
   const paradaS = tipo => Math.round(pr.filter(p => p[2] === tipo).reduce((s, p) => s + sobrepoe(progLivre, [p[0], p[1]]), 0) / 1000);
 
-  const brutoMedio = media(validos.filter(c => c.bruto != null).map(c => Number(c.bruto)));   // so IoT 10.50+
+  const brutoMedio = media(validos.filter(c => c.bruto != null).map(c => Number(c.bruto)));   // medido (10.50+) ou estimado
   const liquidoMedio = media(validos.map(c => Number(c.liquido)));
   const somaPadrao = validos.reduce((s, c) => s + Number(c.padrao), 0), somaLiquido = validos.reduce((s, c) => s + Number(c.base), 0);
   const ocupadoS = (brutoMedio ?? liquidoMedio) != null ? Math.round(concluidos * (brutoMedio ?? liquidoMedio)) : null;
@@ -259,7 +259,8 @@ function calcularKpis({ ciclos, contador, cfg, hab, paradas, ligadaMin, de, ate,
   return {
     ciclos: { contador, concluidos, incompletos: incompletos.length, com_dados: ciclos.length },
     tempo: { bruto_medio_s: brutoMedio != null ? Math.round(brutoMedio) : null, liquido_medio_s: liquidoMedio != null ? Math.round(liquidoMedio) : null,
-             padrao_ciclo_s: pd.completo, padrao_liquido_s: pd.movimento, padrao_medido_s: pd.completo },
+             padrao_ciclo_s: pd.completo, padrao_liquido_s: pd.movimento, padrao_medido_s: pd.completo,
+             bruto_estimado: validos.some(c => c.bruto_est === true) },
     eficiencia_pct: somaLiquido > 0 ? Math.round(somaPadrao / somaLiquido * 1000) / 10 : null,   // soma padrao / soma liquido
     calendario: { configurado: cfg.turnos.length > 0, programado_s: programadoS, parada_tecnica_s: tecnicaS, disponivel_s: disponivelS,
                   parada_programada_s: Math.round((somaMs(prog) - somaMs(progLivre)) / 1000), sem_caminhao_s: paradaS('sem_caminhao'),
@@ -386,7 +387,7 @@ function setupKpis(app, pool, deps) {
       const diaSeg = new Date(Date.parse(ate) + 86400000).toISOString().slice(0, 10);
       const [cf, hab, porDia, ciclosR, parR, ligada] = await Promise.all([
         carregarConfig(pool, d.id), sensoresHabilitados(d.id), ciclosPorDiaIoT(d.id, de, ate),
-        pool.query(`SELECT ciclo_numero, tempo_total, ${SQL.BRUTO} AS bruto, ${SQL.BASE} AS base, ${SQL.ESPERA} AS espera, ${SQL.CICLO} AS liquido, ${SQL.PADRAO} AS padrao,
+        pool.query(`SELECT ciclo_numero, tempo_total, ${SQL.BRUTO} AS bruto, ${SQL.BRUTO_EST} AS bruto_est, ${SQL.BASE} AS base, ${SQL.ESPERA} AS espera, ${SQL.CICLO} AS liquido, ${SQL.PADRAO} AS padrao,
                            t_travar, t_subir, t_alto, t_descer, t_destravar, flags_ciclo, created_at
                     FROM cycle_data WHERE device_id = $1 AND ${SQL.VALIDO} AND ${DIA_BR('created_at')} BETWEEN $2::date AND $3::date
                     ORDER BY created_at`, [d.id, de, ate]),

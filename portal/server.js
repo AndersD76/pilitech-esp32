@@ -63,15 +63,16 @@ const TRIAL_DIAS = 365;
 //
 // 13/10/2026 - nomes que o usuario usa:
 //   CICLO BRUTO   = comeca no portao (fechou) ou, sem portao, na 1a trava engatada; termina no mesmo ponto
-//                   (portao abriu / travas soltas). Medido pela IoT a partir da v10.50 (t_bruto); antes: nao medido.
+//                   (portao abriu / travas soltas). Medido pela IoT a partir da v10.50 (t_bruto). Sem medida: ESTIMADO =
+//                   ciclo liquido + o padrao das etapas fora do 0->0 (posicionar + travar + destravar + liberar, e pinos).
 //   CICLO LIQUIDO = do 0 grau ao 0 grau (tempo_total da IoT). A moega cheia fica DENTRO dele (mostrada a parte).
-// Produtividade = padrao / ciclo: pelo bruto quando a IoT mediu, senao pelo liquido (cada um com o seu padrao).
-// No periodo = soma dos padroes / soma dos ciclos.
+// Produtividade = padrao do bruto (7min30s) / ciclo bruto (medido ou estimado). No periodo = soma / soma.
 const TEMPO_LIQUIDO_SQL = `tempo_total`;
-const TEMPO_BRUTO_SQL = `t_bruto`;
+const TEMPO_BRUTO_SQL = `COALESCE(t_bruto, tempo_total + GREATEST(COALESCE(padrao_s, ${META_CICLO_S}) - COALESCE(padrao_liq_s, ${META_LIQUIDO_S}), 0))`;
+const BRUTO_ESTIMADO_SQL = `(t_bruto IS NULL)`;
 const ESPERA_SQL = `(CASE WHEN espera_moega IS NOT NULL THEN espera_moega ELSE COALESCE(sensor40, 0) END)`;   // tempo parado com a moega cheia
-const TEMPO_CICLO_SQL = `COALESCE(t_bruto, tempo_total)`;             // base da produtividade
-const PADRAO_SQL = `(CASE WHEN t_bruto IS NOT NULL THEN COALESCE(padrao_s, ${META_CICLO_S}) ELSE COALESCE(padrao_liq_s, ${META_LIQUIDO_S}) END)`;
+const TEMPO_CICLO_SQL = TEMPO_BRUTO_SQL;                             // base da produtividade: ciclo bruto
+const PADRAO_SQL = `COALESCE(padrao_s, ${META_CICLO_S})`;              // padrao do ciclo bruto
 const EFICIENCIA_SQL = `LEAST(200, ROUND(${PADRAO_SQL} * 100.0 / NULLIF(${TEMPO_CICLO_SQL}, 0), 1))`;
 
 // ---- Dashboard por periodo: ?de=AAAA-MM-DD&ate=AAAA-MM-DD (dias de Brasilia; padrao: 7 dias) ----
@@ -2837,7 +2838,7 @@ app.get('/api/device-stats/:serialNumber', authenticateToken, checkSubscription,
       ciclosPorDiaIoT(deviceId, de, ate),
       ciclosPorDiaIoT(deviceId, hoje, hoje),
       sensoresHabilitados(deviceId),
-      pool.query(`SELECT tempo_total, ${TEMPO_CICLO_SQL} AS tempo_ciclo, ${TEMPO_LIQUIDO_SQL} AS liquido, ${TEMPO_BRUTO_SQL} AS bruto, ${PADRAO_SQL} AS padrao, ${ESPERA_SQL} AS moega,
+      pool.query(`SELECT tempo_total, ${TEMPO_CICLO_SQL} AS tempo_ciclo, ${TEMPO_LIQUIDO_SQL} AS liquido, ${TEMPO_BRUTO_SQL} AS bruto, ${BRUTO_ESTIMADO_SQL} AS bruto_est, ${PADRAO_SQL} AS padrao, ${ESPERA_SQL} AS moega,
                          COALESCE(trava_roda, 0) AS trava_roda, COALESCE(trava_chassi, 0) AS trava_chassi,
                          COALESCE(trava_pino_e, 0) AS trava_pino_e, COALESCE(trava_pino_d, 0) AS trava_pino_d,
                          saiu_sem_travas, saiu_moega_cheia
@@ -2879,7 +2880,7 @@ app.get('/api/device-stats/:serialNumber', authenticateToken, checkSubscription,
     const tempoMedio = comTempo.length ? comTempo.reduce((s, c) => s + Number(c.tempo_ciclo), 0) / comTempo.length : 0;
     const somaLiquidoValidos = comTempo.reduce((s, c) => s + Number(c.tempo_ciclo), 0);
     const tempoMedioLiquido = comTempo.length ? comTempo.reduce((s, c) => s + Number(c.liquido), 0) / comTempo.length : 0;
-    const comBruto = ciclos.filter(c => c.bruto != null && Number(c.bruto) > 0);   // so a IoT 10.50+ mede o bruto
+    const comBruto = ciclos.filter(c => c.bruto != null && Number(c.bruto) > 0);   // medido (IoT 10.50+) ou estimado
     const tempoMedioBruto = comBruto.length ? comBruto.reduce((s, c) => s + Number(c.bruto), 0) / comBruto.length : null;
     const somaPadraoValidos = comTempo.reduce((s, c) => s + Number(c.padrao), 0);
     const h = horR.rows[0] || {};
@@ -2897,6 +2898,7 @@ app.get('/api/device-stats/:serialNumber', authenticateToken, checkSubscription,
       ciclosTotal: (totalR.rows[0] && totalR.rows[0].total) || 0,
       tempoMedioBruto,                                                   // ciclo bruto (portao/travas); null = IoT ainda nao mede
       ciclosComBruto: comBruto.length,
+      brutoEstimado: comBruto.some(c => c.bruto_est === true),            // algum ciclo sem a medida da IoT 10.50
       tempoMedioLiquido,                                                 // ciclo liquido (0 grau -> 0 grau)
       tempoMedioCiclo: tempoMedio,                                       // base da produtividade (bruto se medido, senao liquido)                                       // so ciclos recebidos, sem a parada da moega
       // soma dos padroes / soma dos liquidos (nao a media das eficiencias de cada ciclo)
@@ -2952,7 +2954,7 @@ app.get('/api/cycle-data/:serialNumber', authenticateToken, checkSubscription, a
       SELECT
         ciclo_numero,
         tempo_total,
-        ${TEMPO_CICLO_SQL} as tempo_ciclo, ${TEMPO_LIQUIDO_SQL} as tempo_liquido, t_bruto as tempo_bruto,
+        ${TEMPO_CICLO_SQL} as tempo_ciclo, ${TEMPO_LIQUIDO_SQL} as tempo_liquido, ${TEMPO_BRUTO_SQL} as tempo_bruto, ${BRUTO_ESTIMADO_SQL} as bruto_estimado,
         ${ESPERA_SQL} as parada_moega,
         t_travar, t_subir, t_alto, t_descer, t_destravar, flags_ciclo,
         (espera_moega IS NULL OR t_subir IS NULL) as espera_aproximada,
@@ -3496,7 +3498,7 @@ app.post('/api/push/test', authenticateToken, async (req, res) => {
 const kpisDeps = {
   authenticateToken, checkSubscription, pendingCommands, DIA_BR, periodoDoPedido, ciclosPorDiaIoT,
   minutosLigada, inicioDiaUTC, sensoresHabilitados,
-  SQL: { BRUTO: TEMPO_BRUTO_SQL, BASE: TEMPO_CICLO_SQL, ESPERA: ESPERA_SQL, CICLO: TEMPO_LIQUIDO_SQL, PADRAO: PADRAO_SQL, VALIDO: CICLO_VALIDO_SQL },
+  SQL: { BRUTO: TEMPO_BRUTO_SQL, BRUTO_EST: BRUTO_ESTIMADO_SQL, BASE: TEMPO_CICLO_SQL, ESPERA: ESPERA_SQL, CICLO: TEMPO_LIQUIDO_SQL, PADRAO: PADRAO_SQL, VALIDO: CICLO_VALIDO_SQL },
 };
 const server = http.createServer(app);
 setupDemoMode(app, server, pool, liveDeviceStatus, pendingCommands);

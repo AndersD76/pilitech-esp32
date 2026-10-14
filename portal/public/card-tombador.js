@@ -538,7 +538,7 @@
                 <span class="text-xs font-bold text-gray-700 w-24">CICLO LÍQUIDO</span>
                 <span class="live-dur-total text-xs font-bold text-red-600">${ciclo ? min(tempoCiclo) : '-'}</span>
                 ${moega > 0 ? `<span class="text-[11px] text-gray-500">dos quais ${min(moega)} com a moega cheia</span>` : ''}
-                <span class="text-[11px] text-gray-500">· ciclo bruto ${ciclo && ciclo.t_bruto != null ? min(ciclo.t_bruto) : 'não medido (IoT 10.50+)'}</span>
+                <span class="text-[11px] text-gray-500">· ciclo bruto ${!ciclo ? '-' : ciclo.t_bruto != null ? min(ciclo.t_bruto) : min(tempoCiclo + Math.max(0, (Number(ciclo.padrao_s) || 450) - (Number(ciclo.padrao_liq_s) || 360)))}</span>
               </div>
             </div>
           </div>
