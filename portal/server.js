@@ -63,7 +63,8 @@ const TRIAL_DIAS = 365;
 //
 // 13/10/2026 - nomes que o usuario usa:
 //   CICLO BRUTO   = comeca no portao (fechou) ou, sem portao, na 1a trava engatada; termina no mesmo ponto
-//                   (portao abriu / travas soltas). Medido pela IoT a partir da v10.50 (t_bruto). Sem medida: ESTIMADO =
+//                   (portao abriu / travas soltas). Calculado no portal (calcularBruto) com as transicoes que a IoT
+//                   10.50+ manda (ant/dep de portao e travas) e gravado em t_bruto. Sem transicoes: ESTIMADO =
 //                   ciclo liquido + o padrao das etapas fora do 0->0 (posicionar + travar + destravar + liberar, e pinos).
 //   CICLO LIQUIDO = do 0 grau ao 0 grau (tempo_total da IoT). A moega cheia fica DENTRO dele (mostrada a parte).
 // Produtividade = padrao do bruto (7min30s) / ciclo bruto (medido ou estimado). No periodo = soma / soma.
@@ -2621,7 +2622,7 @@ app.post('/api/cycle-data', validateApiKey, async (req, res) => {
       serial_number, ciclo_numero, tempo_total, portao, moega,
       trava_roda, trava_chassi, trava_pino_e, trava_pino_d,
       tempo_padrao, eficiencia, batidas_40, flags,
-      t_travar, t_subir, t_alto, t_descer, t_destravar, espera, t_bruto
+      t_travar, t_subir, t_alto, t_descer, t_destravar, espera, ant, dep
     } = req.body;
 
     const deviceResult = await pool.query(
@@ -2635,7 +2636,7 @@ app.post('/api/cycle-data', validateApiKey, async (req, res) => {
 
     await kpis.gravarCiclo(pool, kpisDeps, deviceResult.rows[0].id, 0, {
       ciclo_numero, tempo_total, portao, moega, trava_roda, trava_chassi, trava_pino_e, trava_pino_d,
-      tempo_padrao, eficiencia, batidas_40, flags, t_travar, t_subir, t_alto, t_descer, t_destravar, espera, t_bruto
+      tempo_padrao, eficiencia, batidas_40, flags, t_travar, t_subir, t_alto, t_descer, t_destravar, espera, ant, dep
     });
 
     console.log(`📊 Ciclo #${ciclo_numero} registrado - ${tempo_total}s - Eficiência: ${eficiencia}%`);
@@ -2754,7 +2755,7 @@ app.post('/api/batch', validateApiKey, async (req, res) => {
           ciclo_numero: f[0], tempo_total: f[1], portao: f[2], moega: f[3], trava_roda: f[4], trava_chassi: f[5],
           trava_pino_e: f[6], trava_pino_d: f[7], tempo_padrao: f[8], eficiencia: f[9],
           batidas_40: f[10], flags: f[11],
-          t_travar: f[12], t_subir: f[13], t_alto: f[14], t_descer: f[15], t_destravar: f[16], espera: f[17], t_bruto: f[18],
+          t_travar: f[12], t_subir: f[13], t_alto: f[14], t_descer: f[15], t_destravar: f[16], espera: f[17], ant: f[18], dep: f[19],
         });
         // a v10.48 nao manda mais o evento "Ciclo completo" pelo 4G (um item a menos por
         // ciclo no chip): o portal grava o evento a partir do ciclo

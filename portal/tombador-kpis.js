@@ -40,7 +40,7 @@ async function criarTabelas(pool) {
       ADD COLUMN IF NOT EXISTS t_destravar INTEGER, ADD COLUMN IF NOT EXISTS espera_moega INTEGER,
       ADD COLUMN IF NOT EXISTS padrao_s INTEGER, ADD COLUMN IF NOT EXISTS cfg_versao INTEGER,
       ADD COLUMN IF NOT EXISTS flags_ciclo INTEGER, ADD COLUMN IF NOT EXISTS t_bruto INTEGER,
-      ADD COLUMN IF NOT EXISTS padrao_liq_s INTEGER`);
+      ADD COLUMN IF NOT EXISTS padrao_liq_s INTEGER, ADD COLUMN IF NOT EXISTS transicoes JSONB`);
   await pool.query(`CREATE TABLE IF NOT EXISTS pilitech_config_tombador (
       device_id INTEGER PRIMARY KEY, versao INTEGER NOT NULL DEFAULT 1, config JSONB NOT NULL,
       vigente_desde TIMESTAMP DEFAULT CURRENT_TIMESTAMP, alterado_por TEXT)`);
@@ -104,6 +104,26 @@ function padroesDoCiclo(cfg, hab) {
            completo: p.posicionar + travar + movimento + destravar + p.saida };
 }
 
+// ---------- ciclo bruto pelas transicoes ----------
+// ant/dep: [portao, roda, chassi, pino E, pino D] (IoT 10.50+). ant = s antes de sair do 0 grau que ligou;
+// dep = s depois de voltar ao 0 grau que desligou (0 = ja desligado); -1 = sem dado.
+// CICLO BRUTO = do portao fechar ate abrir (portao habilitado); sem portao, da 1a trava habilitada que engatou
+// ate a ultima que soltou. = ant + ciclo liquido (0 -> 0) + dep. null = nao deu para calcular.
+function calcularBruto(liquido, ant, dep, hab) {
+  if (!Array.isArray(ant) || !Array.isArray(dep) || !(Number(liquido) > 0)) return null;
+  const ok = v => Number.isInteger(v) && v >= 0;
+  const usa = i => !(hab && hab[i] === false);
+  let ini, fim;
+  if (usa(7) && ok(ant[0]) && ok(dep[0])) { ini = ant[0]; fim = dep[0]; }      // portao
+  else {
+    const idx = [[1, 2], [2, 3], [3, 4], [4, 5]].filter(([, s]) => usa(s));   // [posicao no vetor, sensor]
+    const a = idx.map(([p]) => ant[p]).filter(ok), d = idx.map(([p]) => dep[p]).filter(ok);
+    if (!a.length || !d.length) return null;
+    ini = Math.max(...a); fim = Math.max(...d);                                 // 1a a engatar / ultima a soltar
+  }
+  return ini + Number(liquido) + fim;
+}
+
 // ---------- ingestao do ciclo ----------
 const nn = v => (Number.isInteger(v) && v >= 0 ? v : null);   // -1 / ausente = nao medido
 
@@ -115,9 +135,9 @@ const nn = v => (Number.isInteger(v) && v >= 0 ? v : null);   // -1 / ausente = 
  */
 async function gravarCiclo(pool, deps, deviceId, seg, c) {
   const v48 = Number.isInteger(c.batidas_40);
-  const v49 = Number.isInteger(c.t_travar) || Number.isInteger(c.t_subir) || Number.isInteger(c.t_destravar) || Number.isInteger(c.espera);
+  const v49 = Number.isInteger(c.t_travar) || Number.isInteger(c.t_subir) || Number.isInteger(c.t_destravar) || Number.isInteger(c.espera) || Array.isArray(c.ant);
   const flags = Number.isInteger(c.flags) ? c.flags : 0;
-  let padrao = null, padraoLiq = null, versao = null, cfg = null, hab = null;
+  let padrao = null, padraoLiq = null, versao = null, cfg = null, hab = null, bruto = null;
   if (v49) {
     const cf = await carregarConfig(pool, deviceId);
     cfg = cf.config; versao = cf.versao;
@@ -125,24 +145,25 @@ async function gravarCiclo(pool, deps, deviceId, seg, c) {
     const pd = padroesDoCiclo(cfg, hab);
     // padroes = SOMA das etapas do documento: bruto = todas; liquido = subir + descarga + descer
     padrao = pd.completo; padraoLiq = pd.movimento;
+    bruto = calcularBruto(c.tempo_total, c.ant, c.dep, hab);
   }
   const r = await pool.query(`
     INSERT INTO cycle_data (
       device_id, created_at, ciclo_numero, tempo_total, sensor0, sensor40,
       trava_roda, trava_chassi, trava_pino_e, trava_pino_d, tempo_padrao, eficiencia,
       batidas_40, saiu_sem_travas, saiu_moega_cheia,
-      t_travar, t_subir, t_alto, t_descer, t_destravar, espera_moega, padrao_s, cfg_versao, flags_ciclo, t_bruto, padrao_liq_s
+      t_travar, t_subir, t_alto, t_descer, t_destravar, espera_moega, padrao_s, cfg_versao, flags_ciclo, t_bruto, padrao_liq_s, transicoes
     ) VALUES ($1, NOW() - ($2 * INTERVAL '1 second'), $3, $4, $5, $6, $7, $8, $9, $10, $11, $12,
-              $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26)
+              $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27)
     RETURNING created_at`,
     [deviceId, seg || 0, c.ciclo_numero, c.tempo_total, c.portao, c.moega, c.trava_roda, c.trava_chassi,
      c.trava_pino_e, c.trava_pino_d, c.tempo_padrao, c.eficiencia,
      v48 ? c.batidas_40 : null, v48 ? (flags & 1) === 1 : null, v48 ? (flags & 2) === 2 : null,
      v49 ? nn(c.t_travar) : null, v49 ? nn(c.t_subir) : null, v49 ? nn(c.t_alto) : null, v49 ? nn(c.t_descer) : null,
      v49 ? nn(c.t_destravar) : null, v49 ? nn(c.espera) : null, padrao, versao, v48 ? flags : null,
-     v49 ? nn(c.t_bruto) : null, padraoLiq]);
+     bruto, padraoLiq, Array.isArray(c.ant) ? JSON.stringify({ ant: c.ant, dep: c.dep }) : null]);
   if (v49) {
-    try { await registrarOcorrencias(pool, deviceId, r.rows[0].created_at, c, flags, cfg, hab); }
+    try { await registrarOcorrencias(pool, deviceId, r.rows[0].created_at, { ...c, t_bruto: bruto }, flags, cfg, hab); }
     catch (e) { console.error('[ocorrencias]', e.message); }
   }
 }
@@ -405,4 +426,4 @@ function setupKpis(app, pool, deps) {
   });
 }
 
-module.exports = { criarTabelas, setupKpis, gravarCiclo, carregarConfig, normalizarConfig, padroesDoCiclo, calcularKpis, janelasProgramadas, CONFIG_PADRAO };
+module.exports = { calcularBruto, criarTabelas, setupKpis, gravarCiclo, carregarConfig, normalizarConfig, padroesDoCiclo, calcularKpis, janelasProgramadas, CONFIG_PADRAO };
