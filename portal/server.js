@@ -2716,10 +2716,14 @@ app.post('/api/batch', validateApiKey, async (req, res) => {
 
     const b = v => (v === null || v === undefined) ? null : !!v;
     const quando = idade => (typeof idade === 'number' && idade >= 0) ? Math.min(idade, 30 * 86400) : 0;
-    let gravados = 0;
+    let gravados = 0, semHora = 0;
     for (const item of it) {
       if (!Array.isArray(item) || item.length < 2) continue;
       const [tipo, idade, ...f] = item;
+      // idade -1 = hora desconhecida: item de outro boot sem o relogio da rede (_t, IoT 10.46+),
+      // p.ex. o buffer da 10.45. Gravado com a hora da chegada, leitura velha passaria por atual
+      // e ciclo de outro dia contaria hoje -> descartado (o 200 confirma o lote e a IoT apaga).
+      if (idade === -1) { semHora++; continue; }
       const seg = quando(idade);
       if (tipo === 'r') {
         await pool.query(`
@@ -2782,7 +2786,7 @@ app.post('/api/batch', validateApiKey, async (req, res) => {
                  [deviceId, Math.round(kb), it.length, typeof fw === 'string' ? fw.slice(0, 20) : null])
         .catch(e => console.error('consumo 4g:', e.message));
     }
-    console.log(`📦 Lote de ${sn}: ${gravados}/${it.length} itens gravados, consumo 4G ${kb} KB no mês`);
+    console.log(`📦 Lote de ${sn}: ${gravados}/${it.length} itens gravados${semHora ? `, ${semHora} sem hora descartados` : ''}, consumo 4G ${kb} KB no mês`);
 
     // d = contadores do buffer (IoT v10.46+): [no boot, gravados, confirmados, pendentes,
     // descartados: ilegivel, recusado, SPIFFS cheio, sem slot]. Item que some sem
