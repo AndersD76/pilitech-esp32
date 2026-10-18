@@ -388,6 +388,20 @@
                     Reiniciar IoT
                   </button>
                   <hr class="my-2">
+                  <!-- Resgate: lote 4G corrompido (UART do modem) passa a ser aceito (200) com os comandos da
+                       fila. E o unico jeito de um comando/OTA chegar a uma IoT que so entrega lote corrompido.
+                       Os itens desses lotes ficam gravados em bruto no portal (pilitech_lote_recusado). -->
+                  <button onclick="setResgate(true)" class="w-full px-3 py-2 bg-purple-50 border border-purple-200 text-purple-700 rounded-lg hover:bg-purple-100 text-sm font-bold" title="Responde 200 + comandos da fila aos lotes corrompidos deste equipamento (ela apaga os itens do buffer; o portal guarda o corpo bruto)">
+                    Ligar resgate (aceitar lotes corrompidos)
+                  </button>
+                  <button onclick="setResgate(false)" class="w-full px-3 py-2 bg-gray-50 border border-gray-200 text-gray-700 rounded-lg hover:bg-gray-100 text-sm font-medium">
+                    Desligar resgate
+                  </button>
+                  <button onclick="verLotesRecusados()" class="w-full px-3 py-2 bg-gray-50 border border-gray-200 text-gray-700 rounded-lg hover:bg-gray-100 text-sm font-medium" title="Lotes que chegaram corrompidos: prova de que o equipamento esta vivo">
+                    Ver lotes recusados
+                  </button>
+                  <pre id="ctrlLotesRecusados" class="hidden text-[10px] bg-gray-900 text-green-300 rounded p-2 max-h-48 overflow-auto"></pre>
+                  <hr class="my-2">
                   <button onclick="sendDeviceCmd('RESET_CICLOS')" class="w-full px-3 py-2 bg-gray-50 border border-gray-200 text-gray-700 rounded-lg hover:bg-gray-100 text-sm font-medium">
                     Resetar Ciclos Hoje
                   </button>
@@ -1440,6 +1454,33 @@
       } else {
         alert('Erro ao enviar comando');
       }
+    }
+
+    // Resgate (ver /api/admin/device-resgate): lotes corrompidos deste equipamento passam a
+    // receber 200 + comandos da fila. Ligar so enquanto ela nao entrega lote integro.
+    async function setResgate(ativo) {
+      const serial = document.getElementById('ctrlDeviceSelect').value;
+      if (!serial) return alert('Selecione um dispositivo');
+      if (ativo && !confirm(`Ligar o RESGATE de ${serial}?\n\nO portal vai aceitar (200) os lotes corrompidos dela e entregar os comandos da fila. Ela apaga do buffer os itens desses lotes (ficam gravados em bruto no portal). Desligue quando ela voltar a entregar lotes íntegros.`)) return;
+      const result = await api('/api/admin/device-resgate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ serial_number: serial, ativo })
+      });
+      if (result && result.success) addCmdLog(result.resgate ? 'RESGATE LIGADO' : 'RESGATE desligado', serial);
+      else alert('Erro ao alterar o resgate');
+    }
+
+    async function verLotesRecusados() {
+      const serial = document.getElementById('ctrlDeviceSelect').value;
+      if (!serial) return alert('Selecione um dispositivo');
+      const r = await api('/api/admin/lotes-recusados/' + encodeURIComponent(serial));
+      const pre = document.getElementById('ctrlLotesRecusados');
+      pre.classList.remove('hidden');
+      const lotes = (r && r.lotes) || [];
+      pre.textContent = lotes.length
+        ? lotes.map(l => `${new Date(l.recebido_em + 'Z').toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' })}  ${l.motivo}  ${l.bytes} B\n   ${l.inicio || ''}`).join('\n')
+        : 'Nenhum lote recusado registrado para este equipamento (registro começou em 18/10/2026).';
     }
 
     function addCmdLog(cmd, serial) {

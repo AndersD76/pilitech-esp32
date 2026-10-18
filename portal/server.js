@@ -199,6 +199,17 @@ app.use(express.json({
   // /api/batch confere um CRC calculado sobre os bytes brutos do corpo
   verify: (req, res, buf) => { if (req.originalUrl === '/api/batch') req.rawBody = buf; }
 }));
+// Lote 4G cujo JSON nem abre (byte trocado pela UART do modem): antes o express respondia 400
+// sozinho e o portal nao ficava sabendo que o equipamento tentou falar. Agora conta como
+// contato (ver loteRecusado); a chave de API e conferida antes, como na rota.
+app.use((err, req, res, next) => {
+  if (req.originalUrl === '/api/batch' && err && err.type === 'entity.parse.failed') {
+    const apiKey = req.headers['x-api-key'];
+    if (!apiKey || !API_KEYS_VALIDAS.has(apiKey)) return res.status(401).json({ error: 'API Key inválida' });
+    return loteRecusado(req, res, 'json invalido');
+  }
+  next(err);
+});
 app.use((req, res, next) => {
   if (req.path.endsWith('.html') || req.path === '/') {
     res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
@@ -1134,6 +1145,7 @@ app.get('/api/devices', authenticateToken, checkSubscription, async (req, res) =
     let query = `
       SELECT
         d.id, d.serial_number, d.name, d.last_seen, d.first_seen, d.unidade_id,
+        d.ultimo_contato, d.resgate,
         u.nome as unidade_nome, u.cidade as unidade_cidade,
         e.id as empresa_id, e.razao_social as empresa_nome,
         ${STATUS_CONEXAO_SQL('d.last_seen')} as status_conexao,
@@ -1524,6 +1536,33 @@ app.post('/api/admin/device-command', authenticateToken, requireSuperAdmin, (req
 
   console.log(`[ADMIN CMD] ${serial_number} <- ${cmd} ${JSON.stringify(params || {})}`);
   res.json({ success: true, message: `Comando ${cmd} enfileirado para ${serial_number}` });
+});
+
+// Resgate: o portal passa a aceitar (200 + comandos da fila) os lotes corrompidos deste
+// equipamento, para que um comando/OTA chegue a uma IoT que so entrega lote corrompido.
+// Ver loteRecusado(). Desligar assim que ela voltar a entregar lotes integros.
+app.post('/api/admin/device-resgate', authenticateToken, requireSuperAdmin, async (req, res) => {
+  const { serial_number, ativo } = req.body;
+  if (!serial_number) return res.status(400).json({ error: 'serial_number obrigatório' });
+  try {
+    const r = await pool.query('UPDATE devices SET resgate = $2 WHERE serial_number = $1 RETURNING resgate', [serial_number, ativo === true]);
+    if (!r.rows.length) return res.status(404).json({ error: 'Dispositivo não encontrado' });
+    console.log(`[ADMIN] ${serial_number}: resgate ${r.rows[0].resgate ? 'LIGADO' : 'desligado'}`);
+    res.json({ success: true, resgate: r.rows[0].resgate });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Lotes recusados (corrompidos) de um equipamento: prova de vida quando nada e gravado
+app.get('/api/admin/lotes-recusados/:serial', authenticateToken, requireSuperAdmin, async (req, res) => {
+  try {
+    const r = await pool.query(`SELECT recebido_em, motivo, bytes, LEFT(corpo, 160) AS inicio
+                                FROM pilitech_lote_recusado WHERE serial_number = $1 ORDER BY recebido_em DESC LIMIT 50`, [req.params.serial]);
+    res.json({ lotes: r.rows });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
 });
 
 // Admin lista dispositivos com config atual (sensores, firmware, etc)
@@ -2396,8 +2435,10 @@ class FilaComandos extends Map {
       .catch(e => console.error('fila de comandos (apagar):', e.message));
     return tinha;
   }
-  // Retira os comandos para entregar ao equipamento. Comando com mais de 24 h e
-  // descartado: um "Reiniciar" esquecido nao pode ser executado dias depois.
+  // Retira os comandos para entregar ao equipamento. Comando com mais de 30 dias e
+  // descartado. (Ate 18/10/2026 eram 24 h: um "Reiniciar" enfileirado para um equipamento
+  // que passou 2 dias sem conseguir falar vencia antes de chegar - justamente quando era
+  // mais necessario. Pelo 4G o proximo contato pode levar dias.)
   //
   // OTA_UPDATE nao sai na entrega: a resposta do lote pode se perder na UART do modem
   // (03/10/2026: entregue e nunca executado). Fica ate o lote reportar a versao nova
@@ -2410,7 +2451,7 @@ class FilaComandos extends Map {
     const cmds = this.get(serial) || [];
     if (cmds.length === 0) return [];
     const agora = Date.now();
-    const validos = cmds.filter(c => !c.timestamp || agora - new Date(c.timestamp).getTime() < 24 * 3600 * 1000);
+    const validos = cmds.filter(c => !c.timestamp || agora - new Date(c.timestamp).getTime() < 30 * 24 * 3600 * 1000);
     if (validos.length < cmds.length) console.log(`[CMD] ${serial}: ${cmds.length - validos.length} comando(s) vencido(s) descartado(s)`);
     const ficam = [], entregar = [];
     for (const c of validos) {
@@ -2678,17 +2719,51 @@ const dataUsage = new Map();   // serial -> { kb, at } (consumo 4G informado pel
 const TIPOS_ALERTA = ['ALERT', 'CRITICAL', 'moega_cheia', 'moega_fosso', 'alerta_critico', 'parada_emergencia', 'sensor_falha'];
 const ehEventoDeAlerta = tipo => TIPOS_ALERTA.includes(tipo);
 
+// ---- Lote recusado (corrompido na UART do modem) = o equipamento ESTA vivo ----
+// 16-18/10/2026: a IoT 001430 mandou 100% dos lotes corrompidos por 2 dias e, como o portal
+// so respondia 400 e nao anotava nada, ela aparecia "offline" como se estivesse desligada.
+// Agora cada lote recusado fica em pilitech_lote_recusado (com o corpo bruto, para recuperar
+// os itens a mao) e atualiza devices.ultimo_contato. Com devices.resgate ligado (admin), o
+// portal responde 200 com os comandos da fila: e a UNICA porta para mandar um comando ou uma
+// OTA a um equipamento que so consegue entregar lotes corrompidos (a IoT so le os comandos
+// na resposta de um envio aceito). Custo: ela apaga do buffer os itens desse lote (que
+// ficam no corpo bruto gravado aqui).
+function snDoCorpo(raw) {
+  if (!raw || !raw.length) return null;
+  const s = raw.subarray(0, 120).toString('latin1');
+  const m = s.match(/sn\W{0,4}(\d{6,8})/i);           // {"sn":"001430",... mesmo com aspas/virgula trocadas
+  return m ? m[1] : null;
+}
+async function loteRecusado(req, res, motivo) {
+  const raw = req.rawBody;
+  const sn = snDoCorpo(raw);
+  const bytes = raw ? raw.length : 0;
+  console.warn(`[BATCH] lote recusado (${motivo}) de ${sn || 'sn ilegivel'}: ${bytes} B`);
+  try {
+    await pool.query(`INSERT INTO pilitech_lote_recusado (serial_number, motivo, bytes, corpo) VALUES ($1, $2, $3, $4)`,
+                     [sn, motivo, bytes, raw ? raw.subarray(0, 4000).toString('latin1') : null]);
+    if (sn) {
+      const r = await pool.query(`UPDATE devices SET ultimo_contato = NOW() WHERE serial_number = $1 RETURNING resgate`, [sn]);
+      if (r.rows.length && r.rows[0].resgate === true) {
+        const cmds = pendingCommands.retirar(sn, null);
+        console.warn(`[BATCH] ${sn}: RESGATE - lote corrompido aceito (200) com ${cmds.length} comando(s)`);
+        return res.json(cmds.length > 0 ? { success: true, n: 0, resgate: true, commands: cmds } : { success: true, n: 0, resgate: true });
+      }
+    }
+  } catch (e) {
+    console.error('lote recusado (gravar):', e.message);
+  }
+  return res.status(400).json({ error: motivo === 'crc ausente' ? 'crc ausente' : motivo === 'json invalido' ? 'json inválido' : 'crc inválido' });
+}
+
 app.post('/api/batch', validateApiKey, async (req, res) => {
   try {
     const raw = req.rawBody;
     const marca = Buffer.from(',"crc":"');
     const idx = raw ? raw.lastIndexOf(marca) : -1;
-    if (idx < 0) return res.status(400).json({ error: 'crc ausente' });
+    if (idx < 0) return loteRecusado(req, res, 'crc ausente');
     const crcRecebido = raw.subarray(idx + marca.length, idx + marca.length + 8).toString();
-    if (crc32(raw.subarray(0, idx)) !== crcRecebido) {
-      console.warn(`[BATCH] CRC não confere (${req.body && req.body.sn}) - lote rejeitado`);
-      return res.status(400).json({ error: 'crc inválido' });
-    }
+    if (crc32(raw.subarray(0, idx)) !== crcRecebido) return loteRecusado(req, res, 'crc invalido');
 
     const { sn, kb, it, fw, lm } = req.body;   // lm = plano do chip em MB (IoT v10.48; sem lm = 20)
     if (!sn || !Array.isArray(it)) return res.status(400).json({ error: 'sn e it obrigatórios' });
@@ -3287,6 +3362,21 @@ async function initDatabase() {
     const filas = await pool.query('SELECT serial_number, commands FROM device_command_queue');
     filas.rows.forEach(r => Map.prototype.set.call(pendingCommands, r.serial_number, r.commands));
     console.log(`✅ Fila de comandos: ${filas.rows.length} dispositivo(s) com comandos pendentes`);
+
+    // Lotes 4G recusados (corrompidos) e o ultimo contato de qualquer tipo (ver loteRecusado)
+    await pool.query(`ALTER TABLE devices ADD COLUMN IF NOT EXISTS ultimo_contato TIMESTAMP`);
+    await pool.query(`ALTER TABLE devices ADD COLUMN IF NOT EXISTS resgate BOOLEAN NOT NULL DEFAULT FALSE`);
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS pilitech_lote_recusado (
+        id SERIAL PRIMARY KEY,
+        serial_number VARCHAR(50),
+        recebido_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        motivo VARCHAR(40),
+        bytes INTEGER,
+        corpo TEXT
+      )
+    `);
+    await pool.query('CREATE INDEX IF NOT EXISTS pilitech_lote_recusado_sn ON pilitech_lote_recusado (serial_number, recebido_em)');
 
     // Contadores do buffer da IoT que chegam em cada lote 4G (IoT v10.46+): mostram se
     // algum item some entre o equipamento e o portal (ver /api/batch)

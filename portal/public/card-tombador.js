@@ -409,6 +409,14 @@
       <div class="live-val text-sm font-bold">${txt}</div></div>`;
   }
 
+  // Equipamento que chega ao portal mas so com lote corrompido (UART do modem): esta vivo,
+  // mesmo aparecendo offline. ultimo_contato vem de pilitech_lote_recusado (portal 18/10/2026).
+  function contatoCorrompido(d) {
+    const uc = paraData(d.ultimo_contato), ls = paraData(d.last_seen);
+    if (!uc || (ls && uc <= ls)) return '';
+    return ` · <span class="text-amber-600 font-medium" title="Chegou ao portal, mas o lote veio corrompido e foi recusado: equipamento ligado, 4G com defeito">contato corrompido ${haQuanto(d.ultimo_contato)}${d.resgate ? ' · resgate ligado' : ''}</span>`;
+  }
+
   function render(d, t, ciclo, manut, opcoes) {
     t = t || {}; opcoes = opcoes || {};
     const st = status(d.status_conexao);
@@ -428,7 +436,7 @@
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
             Documentos
           </a>
-          <p class="text-xs text-gray-400">Visto: ${visto}</p>
+          <p class="text-xs text-gray-400">Visto: ${visto}${contatoCorrompido(d)}</p>
         </div>
       </div>`;
 
