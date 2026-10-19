@@ -15,7 +15,12 @@ const crypto = require('crypto');
 // falhava tanto que a IoT estourou o teto de 30 "pedacos baixados de novo" (OTA 10.54 cancelada 21:19).
 // Com 8 KB o cabecalho tem 70 B e cada re-download custa 8 KB. O binario e completado para multiplo
 // disto no upload (os ja cadastrados sao multiplos de 64 KB, logo tambem de 8 KB).
-const PEDACO = 8192;
+// 19/10/2026: VOLTOU para 64 KB. Com 8 KB o cabecalho tem 70 B e o bloco 0 de cada pedaco e lido do
+// modem a partir do deslocamento 70: a IoT 10.52 baixou o pedaco 0 oito vezes e "bloco 0 do pedaco 0
+// nao conferiu" em todas (o servidor serve certo: CRCs conferidos do PC). Em 05/10 o mesmo aconteceu
+// so no pedaco curto (cabecalho 510 B), enquanto os 20 pedacos com cabecalho de 518 B (64 KB) passaram.
+// (A conta "1.030 B" acima estava errada: 128 CRCs x 4 B + 6 = 518 B, que a IoT le de uma vez.)
+const PEDACO = 65536;
 const BLOCO = 512;
 const APP_MAX = 3 * 1024 * 1024;     // particao de app de cada placa (partitions.csv: 3 MB)
 
