@@ -2844,7 +2844,7 @@ function itemPlausivel(item) {
   const [tipo, idade, ...f] = item;
   if (!Number.isInteger(idade) || idade < -1 || idade > 30 * 86400) return false;
   const int = v => Number.isInteger(v);
-  const texto = v => typeof v === 'string' && v.length <= 200 && /^[\x20-\x7e -ÿ]*$/.test(v);
+  const texto = v => typeof v === 'string' && v.length <= 200 && /^[\x20-\x7e]*$/.test(v);   // a IoT so manda ASCII: byte trocado nao passa
   if (tipo === 'r') return f.length >= 14 && f.length <= 16 && f.slice(0, 8).every(v => v === 0 || v === 1) &&
     int(f[8]) && int(f[9]) && f[8] >= 0 && f[9] >= 0 && f[9] < 1000000 && int(f[13]) && f[13] >= 0;
   if (tipo === 'c') return f.length >= 10 && int(f[0]) && f[0] > 0 && f[0] < 1000000 && int(f[1]) && f[1] >= 60 && f[1] <= 86400 &&
