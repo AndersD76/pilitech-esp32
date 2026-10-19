@@ -20,8 +20,13 @@ const crypto = require('crypto');
 // nao conferiu" em todas (o servidor serve certo: CRCs conferidos do PC). Em 05/10 o mesmo aconteceu
 // so no pedaco curto (cabecalho 510 B), enquanto os 20 pedacos com cabecalho de 518 B (64 KB) passaram.
 // (A conta "1.030 B" acima estava errada: 128 CRCs x 4 B + 6 = 518 B, que a IoT le de uma vez.)
-const PEDACO = 65536;
-const BLOCO = 512;
+// 19/10/2026 (IoT 10.55+): blocos de 128 B em pedacos de 4 KB. Com ~1 byte errado em 140 na UART
+// (nos dois sentidos), um bloco de 512 B chega inteiro em ~3% das leituras - a OTA 10.54 cancelou
+// com 64 KB ("cabecalho do pedaco 0 corrompido") e com 8 KB ("bloco 0 nao conferiu"). Com 128 B o
+// bloco passa em ~40% das leituras e o cabecalho (32 CRCs + 6 = 134 B) em ~40%; 10 releituras bastam.
+// A IoT ate a 10.54 espera blocos de 512 B e nao aceita este formato (ela so atualiza por USB mesmo).
+const PEDACO = 4096;
+const BLOCO = 128;
 const APP_MAX = 3 * 1024 * 1024;     // particao de app de cada placa (partitions.csv: 3 MB)
 
 const CRC_TAB = (() => {
