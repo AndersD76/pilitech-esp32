@@ -25,8 +25,11 @@ const crypto = require('crypto');
 // com 64 KB ("cabecalho do pedaco 0 corrompido") e com 8 KB ("bloco 0 nao conferiu"). Com 128 B o
 // bloco passa em ~40% das leituras e o cabecalho (32 CRCs + 6 = 134 B) em ~40%; 10 releituras bastam.
 // A IoT ate a 10.54 espera blocos de 512 B e nao aceita este formato (ela so atualiza por USB mesmo).
-const PEDACO = 4096;
-const BLOCO = 128;
+// 19/10/2026 13:35: a IoT 10.52 BAIXOU os pedacos 0-19 da 10.54 (1,3 MB) com 64 KB / 512 B entre 12:25 e
+// 13:10 e so falhou no pedaco 20 quando este portal foi republicado com 4 KB. A geometria de 64 KB / 512 B
+// FUNCIONA mesmo com a UART ruim (releitura por bloco): fica ela. (O formato de 128 B nao foi usado.)
+const PEDACO = 65536;
+const BLOCO = 512;
 const APP_MAX = 3 * 1024 * 1024;     // particao de app de cada placa (partitions.csv: 3 MB)
 
 const CRC_TAB = (() => {
