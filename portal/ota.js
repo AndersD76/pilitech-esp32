@@ -1,7 +1,7 @@
 // ============ FIRMWARE A DISTANCIA (OTA) ============
 // Cadastro de firmwares (IoT e display), envio para o equipamento e as rotas que
 // o equipamento usa para baixar. A IoT baixa pelo modem 4G, cuja UART troca ~1 byte
-// em 2000: por isso cada pedaco de 64 KB vem com o CRC-32 de cada bloco de 512 B e o
+// em 2000: por isso cada pedaco (PEDACO, 8 KB) vem com o CRC-32 de cada bloco de 512 B e o
 // firmware rele do modem so o bloco com erro (ver executarOta4G() no firmware da IoT).
 //   GET /api/fw/<versao>/info  -> "<tamanho> <md5> <pedaco> <tipo> <crc32 do texto antes>"
 //   GET /api/fw/<versao>/c/<n> -> [nBlocos u16][crc u32 x nBlocos][crc do cabecalho u32][dados]
@@ -10,7 +10,12 @@
 
 const crypto = require('crypto');
 
-const PEDACO = 65536;
+// 18/10/2026: 8 KB (era 64 KB). O cabecalho do pedaco (CRC de cada bloco de 512 B) precisa chegar inteiro
+// pela UART do modem em ate 5 leituras: com 64 KB sao 1.030 B (128 CRCs) e, com a UART suja da 001430,
+// falhava tanto que a IoT estourou o teto de 30 "pedacos baixados de novo" (OTA 10.54 cancelada 21:19).
+// Com 8 KB o cabecalho tem 70 B e cada re-download custa 8 KB. O binario e completado para multiplo
+// disto no upload (os ja cadastrados sao multiplos de 64 KB, logo tambem de 8 KB).
+const PEDACO = 8192;
 const BLOCO = 512;
 const APP_MAX = 3 * 1024 * 1024;     // particao de app de cada placa (partitions.csv: 3 MB)
 
