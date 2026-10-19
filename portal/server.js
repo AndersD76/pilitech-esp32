@@ -2458,11 +2458,12 @@ class FilaComandos extends Map {
       if (c.cmd !== 'OTA_UPDATE') { entregar.push(c); continue; }
       const instalada = c.tipo === 'display' ? displayInstalado.get(serial) : fwAtual;
       if (instalada && c.version === instalada) { console.log(`[OTA] ${serial}: ${c.tipo === 'display' ? 'display ' : ''}${instalada} instalada`); continue; }
+      // 19/10/2026: com a UART IoT<->modem ruim (~5% dos lotes passam e a resposta tambem pode chegar
+      // corrompida), a OTA vai em TODO contato enquanto estiver pendente (a IoT ignora a repeticao:
+      // "ja em andamento") e com o minimo de bytes. Antes: no maximo 3 entregas, 20 min entre elas.
       const entregas = c.entregas || 0;
-      if (entregas >= 3) { console.log(`[OTA] ${serial}: ${c.version} entregue 3x sem instalar - desisti`); continue; }
-      if (c.ultimaEntrega && agora - new Date(c.ultimaEntrega).getTime() < 20 * 60 * 1000) { ficam.push(c); continue; }
       ficam.push({ ...c, entregas: entregas + 1, ultimaEntrega: new Date(agora).toISOString() });
-      entregar.push({ cmd: c.cmd, version: c.version, timestamp: c.timestamp });
+      entregar.push({ cmd: c.cmd, version: c.version });
     }
     if (ficam.length > 0) this.set(serial, ficam); else this.delete(serial);
     return entregar;
@@ -2881,7 +2882,8 @@ app.post('/api/batch', validateApiKey, async (req, res) => {
     }
 
     const cmds = pendingCommands.retirar(sn, typeof fw === 'string' ? fw : null);
-    res.json(cmds.length > 0 ? { success: true, n: gravados, commands: cmds } : { success: true, n: gravados });
+    // resposta curta: ela volta pela UART IoT<->modem, que troca bytes (o comando so vale se chegar inteiro)
+    res.json(cmds.length > 0 ? { commands: cmds } : { success: true, n: gravados });
   } catch (err) {
     console.error('Erro ao gravar lote:', err);
     res.status(500).json({ error: err.message });
