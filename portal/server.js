@@ -2744,9 +2744,11 @@ async function loteRecusado(req, res, motivo) {
     await pool.query(`INSERT INTO pilitech_lote_recusado (serial_number, motivo, bytes, corpo) VALUES ($1, $2, $3, $4)`,
                      [sn, motivo, bytes, raw ? raw.subarray(0, 4000).toString('latin1') : null]);
     if (sn) {
-      const r = await pool.query(`UPDATE devices SET ultimo_contato = NOW() WHERE serial_number = $1 RETURNING resgate`, [sn]);
+      const r = await pool.query(`UPDATE devices SET ultimo_contato = NOW() WHERE serial_number = $1 RETURNING resgate, firmware_version`, [sn]);
       if (r.rows.length && r.rows[0].resgate === true) {
-        const cmds = pendingCommands.retirar(sn, null);
+        // 19/10/2026: confere a versao instalada (a ultima que um lote integro informou), senao a OTA da
+        // versao ja instalada era entregue de novo num lote corrompido (10.55 -> 10.55 iniciada as 14:44)
+        const cmds = pendingCommands.retirar(sn, r.rows[0].firmware_version || null);
         console.warn(`[BATCH] ${sn}: RESGATE - lote corrompido aceito (200) com ${cmds.length} comando(s)`);
         return res.json(cmds.length > 0 ? { success: true, n: 0, resgate: true, commands: cmds } : { success: true, n: 0, resgate: true });
       }
