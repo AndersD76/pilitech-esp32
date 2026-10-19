@@ -423,7 +423,17 @@
     const online = d.status_conexao === 'online', idle = d.status_conexao === 'idle';
     const visto = d.last_seen ? dataBR(d.last_seen) : 'Nunca';
     const leituraEm = t.reading_timestamp ? curto(t.reading_timestamp) : null;
-    const leituraFonte = leituraEm ? `Leitura de ${leituraEm} · ${haQuanto(t.reading_timestamp)} (4G: chega a cada ~30 min)` : 'Sem leitura gravada';
+    // 19/10/2026: leitura com mais de 40 min nao e "ao vivo" - o desenho mostrava a plataforma
+    // levantada horas depois. Sensores ficam "sem leitura" (cinza); contadores continuam.
+    const leituraData = paraData(t.reading_timestamp);
+    const leituraVelha = !!leituraData && (Date.now() - leituraData.getTime()) > 40 * 60000;
+    if (leituraVelha) {
+      t = Object.assign({}, t);
+      ['sensor_0_graus', 'sensor_40_graus', 'trava_roda', 'trava_chassi', 'trava_pino_e', 'trava_pino_d', 'moega_fosso', 'portao_fechado'].forEach(k => { t[k] = null; });
+    }
+    const leituraFonte = leituraEm
+      ? (leituraVelha ? `SEM LEITURA RECENTE · última ${leituraEm} (${haQuanto(t.reading_timestamp)})` : `Leitura de ${leituraEm} · ${haQuanto(t.reading_timestamp)} (4G: chega a cada ~30 min)`)
+      : 'Sem leitura gravada';
     const hab = Array.isArray(t.sensor_config) ? t.sensor_config : null;
     const serialUrl = encodeURIComponent(d.serial_number);
     const aguardando = online && t.sistema_ativo !== true;

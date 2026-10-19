@@ -1554,6 +1554,25 @@ app.post('/api/admin/device-resgate', authenticateToken, requireSuperAdmin, asyn
   }
 });
 
+// Recupera, dos lotes corrompidos guardados, os itens que ainda estao inteiros (retroativo).
+// ?desde=YYYY-MM-DD (UTC; padrao: 7 dias). Item ja recuperado nao entra de novo.
+app.post('/api/admin/lotes-recusados/:serial/recuperar', authenticateToken, requireSuperAdmin, async (req, res) => {
+  try {
+    const desde = req.query.desde || new Date(Date.now() - 7 * 86400000).toISOString().slice(0, 10);
+    const r = await pool.query(`SELECT recebido_em, corpo FROM pilitech_lote_recusado
+                                WHERE serial_number = $1 AND corpo IS NOT NULL AND recebido_em >= $2 ORDER BY id`, [req.params.serial, desde]);
+    let lotes = 0, itens = 0, gravados = 0;
+    for (const row of r.rows) {
+      const rec = await recuperarItensDoCorpo(req.params.serial, row.corpo, new Date(row.recebido_em));
+      lotes++; itens += rec.itens; gravados += rec.gravados;
+    }
+    console.log(`[RECUPERA] ${req.params.serial}: ${lotes} lotes, ${itens} itens legiveis, ${gravados} gravados`);
+    res.json({ success: true, lotes, itens, gravados });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // Lotes recusados (corrompidos) de um equipamento: prova de vida quando nada e gravado
 app.get('/api/admin/lotes-recusados/:serial', authenticateToken, requireSuperAdmin, async (req, res) => {
   try {
@@ -2735,14 +2754,158 @@ function snDoCorpo(raw) {
   const m = s.match(/sn\W{0,4}(\d{6,8})/i);           // {"sn":"001430",... mesmo com aspas/virgula trocadas
   return m ? m[1] : null;
 }
+// ---- Um item do lote 4G -> banco (usado pelo /api/batch e pela recuperacao de lotes corrompidos) ----
+// item = [tipo, idade_s, ...campos]; atrasoS = segundos a somar na idade (recuperacao de um corpo
+// guardado: agora - recebido_em). Devolve 'gravado' | 'semHora' | 'ignorado'.
+async function gravarItemLote(sn, deviceId, item, atrasoS) {
+  const b = v => (v === null || v === undefined) ? null : !!v;
+  if (!Array.isArray(item) || item.length < 2) return 'ignorado';
+  const [tipo, idade, ...f] = item;
+  // idade -1 = hora desconhecida: item de outro boot sem o relogio da rede (_t, IoT 10.46+),
+  // p.ex. o buffer da 10.45. Gravado com a hora da chegada, leitura velha passaria por atual
+  // e ciclo de outro dia contaria hoje -> descartado (o 200 confirma o lote e a IoT apaga).
+  if (idade === -1) return 'semHora';
+  const seg = (typeof idade === 'number' && idade >= 0) ? Math.min(idade + (atrasoS || 0), 30 * 86400) : (atrasoS || 0);
+  if (tipo === 'r') {
+    await pool.query(`
+      INSERT INTO sensor_readings (
+        device_id, timestamp, sensor_0_graus, sensor_40_graus, trava_roda, trava_chassi,
+        trava_pino_e, trava_pino_d, moega_fosso, portao_fechado,
+        ciclos_hoje, ciclos_total, horas_operacao, minutos_operacao,
+        uptime_seconds, wifi_connected, sistema_ativo, sensor_config, batidas_40_total
+      ) VALUES ($1, NOW() - ($2 * INTERVAL '1 second'), $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, false, $16, $17, $18)
+    `, [deviceId, seg, b(f[0]), b(f[1]), b(f[2]), b(f[3]), b(f[4]), b(f[5]), b(f[6]), b(f[7]),
+        f[8], f[9], f[10], f[11], f[13], b(f[12]) || false,
+        // f[14] (IoT v10.41+): sensores habilitados em bits -> [true, false, ...]
+        Number.isInteger(f[14]) ? JSON.stringify([0, 1, 2, 3, 4, 5, 6, 7].map(i => ((f[14] >> i) & 1) === 1)) : null,
+        // f[15] (IoT v10.48+): vezes que a plataforma bateu no 40 (total)
+        Number.isInteger(f[15]) ? f[15] : null]);
+  } else if (tipo === 'e') {
+    await pool.query(`
+      INSERT INTO event_logs (device_id, timestamp, event_type, message, sensor_name, sensor_value)
+      VALUES ($1, NOW() - ($2 * INTERVAL '1 second'), $3, $4, $5, $6)
+    `, [deviceId, seg, f[0], f[1], f[2] || null, b(f[3])]);
+    if (ehEventoDeAlerta(f[0]) && !(atrasoS > 600)) {           // recuperacao tardia nao dispara push
+      sendAlertPush(sn, f[0], f[1] || `Alerta: ${f[0]}`).catch(e => console.error('Push error:', e));
+    }
+    // "Display atualizado: v1.3 -> <versao> (reiniciando)": a OTA do display sai da fila
+    const disp = f[2] === 'ota' && typeof f[1] === 'string' && f[1].match(/^Display atualizado: .* -> (\S+) \(reiniciando\)/);
+    if (disp) displayInstalado.set(sn, disp[1]);
+  } else if (tipo === 'c') {
+    // f[10], f[11] (IoT v10.48+): batidas no 40 no ciclo e alarmes da saida do 0 grau
+    // (bit0 = saiu sem travas, bit1 = saiu com a moega/fosso cheio)
+    // f[12..17] (IoT v10.49+): travar, subir, alto, descer, destravar, espera por moega (s; -1 = nao medido)
+    const v48 = Number.isInteger(f[10]);
+    await kpis.gravarCiclo(pool, kpisDeps, deviceId, seg, {
+      ciclo_numero: f[0], tempo_total: f[1], portao: f[2], moega: f[3], trava_roda: f[4], trava_chassi: f[5],
+      trava_pino_e: f[6], trava_pino_d: f[7], tempo_padrao: f[8], eficiencia: f[9],
+      batidas_40: f[10], flags: f[11],
+      t_travar: f[12], t_subir: f[13], t_alto: f[14], t_descer: f[15], t_destravar: f[16], espera: f[17], ant: f[18], dep: f[19],
+    });
+    // a v10.48 nao manda mais o evento "Ciclo completo" pelo 4G (um item a menos por
+    // ciclo no chip): o portal grava o evento a partir do ciclo
+    if (v48) {
+      await pool.query(`
+        INSERT INTO event_logs (device_id, timestamp, event_type, message, sensor_name, sensor_value)
+        VALUES ($1, NOW() - ($2 * INTERVAL '1 second'), 'INFO', $3, 'ciclo_completo', true)
+      `, [deviceId, seg, `Ciclo completo em ${f[1]} seg - Total: ${f[0]}`]);
+    }
+  } else if (tipo === 'm') {
+    await pool.query(`
+      INSERT INTO maintenances (device_id, timestamp, technician, description, horas_operacao)
+      VALUES ($1, NOW() - ($2 * INTERVAL '1 second'), $3, $4, $5)
+    `, [deviceId, seg, f[0] || 'Técnico', f[1] || 'Manutenção registrada', f[2] || 0]);
+  } else {
+    return 'ignorado';
+  }
+  return 'gravado';
+}
+
+// ---- Recuperacao dos itens integros de um lote corrompido ----
+// 19/10/2026: a UART do modem troca bytes em rajadas; o resto do corpo chega inteiro. Ate aqui um
+// byte errado jogava fora o lote todo (e, com o resgate, a IoT apagava os itens: os ciclos 129-140
+// da Vaccaro so existiam no corpo bruto). Agora cada item "[tipo,idade,...]" que ainda fecha como
+// JSON e passa na plausibilidade e gravado como se tivesse vindo num lote bom. Item ja recuperado
+// (ou que chegue depois num lote integro repetido) nao entra duas vezes: pilitech_item_recuperado
+// guarda uma chave por item (ciclo: numero; leitura: uptime; evento/manutencao: texto + hora ~5 min).
+function chaveItem(deviceId, item, recebidoEm) {
+  const [tipo, idade, ...f] = item;
+  let base;
+  if (tipo === 'c') base = `c:${f[0]}`;
+  else if (tipo === 'r') base = `r:${f[13]}`;
+  else {
+    const quando = Math.round((recebidoEm.getTime() / 1000 - (idade > 0 ? idade : 0)) / 300);
+    base = `${tipo}:${String(f[1] || '').slice(0, 80)}:${quando}`;
+  }
+  return crypto.createHash('sha1').update(`${deviceId}|${base}`).digest('hex');
+}
+function itemPlausivel(item) {
+  if (!Array.isArray(item) || item.length < 3) return false;
+  const [tipo, idade, ...f] = item;
+  if (!Number.isInteger(idade) || idade < -1 || idade > 30 * 86400) return false;
+  const int = v => Number.isInteger(v);
+  const texto = v => typeof v === 'string' && v.length <= 200 && /^[\x20-\x7e -ÿ]*$/.test(v);
+  if (tipo === 'r') return f.length >= 14 && f.length <= 16 && f.slice(0, 8).every(v => v === 0 || v === 1) &&
+    int(f[8]) && int(f[9]) && f[8] >= 0 && f[9] >= 0 && f[9] < 1000000 && int(f[13]) && f[13] >= 0;
+  if (tipo === 'c') return f.length >= 10 && int(f[0]) && f[0] > 0 && f[0] < 1000000 && int(f[1]) && f[1] >= 60 && f[1] <= 86400 &&
+    f.slice(2, 8).every(v => int(v) && v >= 0 && v <= 86400) && (f[18] === undefined || (Array.isArray(f[18]) && f[18].length === 5 && Array.isArray(f[19]) && f[19].length === 5));
+  if (tipo === 'e') return ['INFO', 'ALERT', 'WARNING'].includes(f[0]) && texto(f[1]) && (f[2] == null || texto(f[2]));
+  if (tipo === 'm') return texto(f[0]) && texto(f[1]);
+  return false;
+}
+// Varre o texto do corpo e devolve os itens que fecham como JSON (colchetes casados fora de aspas)
+function itensDoCorpo(corpo) {
+  const itens = [];
+  let i = corpo.indexOf('"it":[');
+  i = i < 0 ? 0 : i + 5;
+  while ((i = corpo.indexOf('["', i)) >= 0) {
+    if (!/^\["[recm]",-?\d/.test(corpo.slice(i, i + 8))) { i += 2; continue; }
+    let depth = 0, emStr = false, j = i;
+    for (; j < corpo.length && j < i + 1200; j++) {
+      const ch = corpo[j];
+      if (emStr) { if (ch === '\\') j++; else if (ch === '"') emStr = false; continue; }
+      if (ch === '"') emStr = true;
+      else if (ch === '[') depth++;
+      else if (ch === ']') { depth--; if (depth === 0) break; }
+    }
+    if (depth !== 0) { i += 2; continue; }
+    try { const it = JSON.parse(corpo.slice(i, j + 1)); if (itemPlausivel(it)) itens.push(it); } catch (e) { /* corrompido */ }
+    i = j + 1;
+  }
+  return itens;
+}
+async function recuperarItensDoCorpo(sn, corpo, recebidoEm) {
+  if (!sn || !corpo) return { itens: 0, gravados: 0 };
+  const dev = await pool.query('SELECT id FROM devices WHERE serial_number = $1', [sn]);
+  if (!dev.rows.length) return { itens: 0, gravados: 0 };
+  const deviceId = dev.rows[0].id;
+  const itens = itensDoCorpo(corpo);
+  const atrasoS = Math.max(0, Math.round((Date.now() - recebidoEm.getTime()) / 1000));
+  let gravados = 0;
+  for (const item of itens) {
+    const chave = chaveItem(deviceId, item, recebidoEm);
+    const ins = await pool.query('INSERT INTO pilitech_item_recuperado (chave, device_id, recebido_em) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING', [chave, deviceId, recebidoEm]);
+    if (ins.rowCount === 0) continue;                       // ja recuperado antes
+    try { if (await gravarItemLote(sn, deviceId, item, atrasoS) === 'gravado') gravados++; }
+    catch (e) { console.error('[RECUPERA] item:', e.message); }
+  }
+  return { itens: itens.length, gravados };
+}
+
 async function loteRecusado(req, res, motivo) {
   const raw = req.rawBody;
   const sn = snDoCorpo(raw);
   const bytes = raw ? raw.length : 0;
   console.warn(`[BATCH] lote recusado (${motivo}) de ${sn || 'sn ilegivel'}: ${bytes} B`);
   try {
+    const corpo = raw ? raw.subarray(0, 4000).toString('latin1') : null;
     await pool.query(`INSERT INTO pilitech_lote_recusado (serial_number, motivo, bytes, corpo) VALUES ($1, $2, $3, $4)`,
-                     [sn, motivo, bytes, raw ? raw.subarray(0, 4000).toString('latin1') : null]);
+                     [sn, motivo, bytes, corpo]);
+    if (sn && corpo) {
+      // o que ainda estiver inteiro dentro do lote corrompido vai para o banco agora
+      const rec = await recuperarItensDoCorpo(sn, corpo, new Date());
+      if (rec.itens) console.warn(`[BATCH] ${sn}: ${rec.gravados} de ${rec.itens} item(ns) recuperados do lote corrompido`);
+    }
     if (sn) {
       const r = await pool.query(`UPDATE devices SET ultimo_contato = NOW() WHERE serial_number = $1 RETURNING resgate, firmware_version`, [sn]);
       if (r.rows.length && r.rows[0].resgate === true) {
@@ -2792,72 +2955,11 @@ app.post('/api/batch', validateApiKey, async (req, res) => {
         .catch(e => console.error('lote fw:', e.message));
     }
 
-    const b = v => (v === null || v === undefined) ? null : !!v;
-    const quando = idade => (typeof idade === 'number' && idade >= 0) ? Math.min(idade, 30 * 86400) : 0;
     let gravados = 0, semHora = 0;
     for (const item of it) {
-      if (!Array.isArray(item) || item.length < 2) continue;
-      const [tipo, idade, ...f] = item;
-      // idade -1 = hora desconhecida: item de outro boot sem o relogio da rede (_t, IoT 10.46+),
-      // p.ex. o buffer da 10.45. Gravado com a hora da chegada, leitura velha passaria por atual
-      // e ciclo de outro dia contaria hoje -> descartado (o 200 confirma o lote e a IoT apaga).
-      if (idade === -1) { semHora++; continue; }
-      const seg = quando(idade);
-      if (tipo === 'r') {
-        await pool.query(`
-          INSERT INTO sensor_readings (
-            device_id, timestamp, sensor_0_graus, sensor_40_graus, trava_roda, trava_chassi,
-            trava_pino_e, trava_pino_d, moega_fosso, portao_fechado,
-            ciclos_hoje, ciclos_total, horas_operacao, minutos_operacao,
-            uptime_seconds, wifi_connected, sistema_ativo, sensor_config, batidas_40_total
-          ) VALUES ($1, NOW() - ($2 * INTERVAL '1 second'), $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, false, $16, $17, $18)
-        `, [deviceId, seg, b(f[0]), b(f[1]), b(f[2]), b(f[3]), b(f[4]), b(f[5]), b(f[6]), b(f[7]),
-            f[8], f[9], f[10], f[11], f[13], b(f[12]) || false,
-            // f[14] (IoT v10.41+): sensores habilitados em bits -> [true, false, ...]
-            Number.isInteger(f[14]) ? JSON.stringify([0, 1, 2, 3, 4, 5, 6, 7].map(i => ((f[14] >> i) & 1) === 1)) : null,
-            // f[15] (IoT v10.48+): vezes que a plataforma bateu no 40 (total)
-            Number.isInteger(f[15]) ? f[15] : null]);
-      } else if (tipo === 'e') {
-        await pool.query(`
-          INSERT INTO event_logs (device_id, timestamp, event_type, message, sensor_name, sensor_value)
-          VALUES ($1, NOW() - ($2 * INTERVAL '1 second'), $3, $4, $5, $6)
-        `, [deviceId, seg, f[0], f[1], f[2] || null, b(f[3])]);
-        if (ehEventoDeAlerta(f[0])) {
-          sendAlertPush(sn, f[0], f[1] || `Alerta: ${f[0]}`).catch(e => console.error('Push error:', e));
-        }
-        // "Display atualizado: v1.3 -> <versao> (reiniciando)": a OTA do display sai da fila
-        const disp = f[2] === 'ota' && typeof f[1] === 'string' && f[1].match(/^Display atualizado: .* -> (\S+) \(reiniciando\)/);
-        if (disp) displayInstalado.set(sn, disp[1]);
-      } else if (tipo === 'c') {
-        // f[10], f[11] (IoT v10.48+): batidas no 40 no ciclo e alarmes da saida do 0 grau
-        // (bit0 = saiu sem travas, bit1 = saiu com a moega/fosso cheio)
-        // f[12..17] (IoT v10.49+): travar, subir, alto, descer, destravar, espera por moega (s; -1 = nao medido)
-        const v48 = Number.isInteger(f[10]);
-        await kpis.gravarCiclo(pool, kpisDeps, deviceId, seg, {
-          ciclo_numero: f[0], tempo_total: f[1], portao: f[2], moega: f[3], trava_roda: f[4], trava_chassi: f[5],
-          trava_pino_e: f[6], trava_pino_d: f[7], tempo_padrao: f[8], eficiencia: f[9],
-          batidas_40: f[10], flags: f[11],
-          t_travar: f[12], t_subir: f[13], t_alto: f[14], t_descer: f[15], t_destravar: f[16], espera: f[17], ant: f[18], dep: f[19],
-        });
-        // a v10.48 nao manda mais o evento "Ciclo completo" pelo 4G (um item a menos por
-        // ciclo no chip): o portal grava o evento a partir do ciclo
-        if (v48) {
-          await pool.query(`
-            INSERT INTO event_logs (device_id, timestamp, event_type, message, sensor_name, sensor_value)
-            VALUES ($1, NOW() - ($2 * INTERVAL '1 second'), 'INFO', $3, 'ciclo_completo', true)
-          `, [deviceId, seg, `Ciclo completo em ${f[1]} seg - Total: ${f[0]}`]);
-        }
-      } else if (tipo === 'm') {
-        await pool.query(`
-          INSERT INTO maintenances (device_id, timestamp, technician, description, horas_operacao)
-          VALUES ($1, NOW() - ($2 * INTERVAL '1 second'), $3, $4, $5)
-        `, [deviceId, seg, f[0] || 'Técnico', f[1] || 'Manutenção registrada', f[2] || 0]);
-      } else {
-        continue;
-      }
-      gravados++;
+      const r = await gravarItemLote(sn, deviceId, item, 0);
+      if (r === 'gravado') gravados++; else if (r === 'semHora') semHora++;
     }
-
     if (typeof kb === 'number') {
       dataUsage.set(sn, { kb, mb: Number.isInteger(lm) && lm > 0 ? lm : 20, at: new Date().toISOString() });
       pool.query('INSERT INTO pilitech_consumo_4g (device_id, kb, itens, fw) VALUES ($1, $2, $3, $4)',
@@ -3381,6 +3483,9 @@ async function initDatabase() {
       )
     `);
     await pool.query('CREATE INDEX IF NOT EXISTS pilitech_lote_recusado_sn ON pilitech_lote_recusado (serial_number, recebido_em)');
+    // itens ja recuperados de lotes corrompidos (ver recuperarItensDoCorpo)
+    await pool.query(`CREATE TABLE IF NOT EXISTS pilitech_item_recuperado (
+        chave CHAR(40) PRIMARY KEY, device_id INTEGER, recebido_em TIMESTAMP)`);
 
     // Contadores do buffer da IoT que chegam em cada lote 4G (IoT v10.46+): mostram se
     // algum item some entre o equipamento e o portal (ver /api/batch)
