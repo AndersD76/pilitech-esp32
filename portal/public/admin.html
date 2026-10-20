@@ -316,6 +316,12 @@
             </div>
           </div>
 
+          <!-- Alertas e eventos (24 h) de todos os tombadores: fora dos cards (20/10/2026) -->
+          <div class="pt-card mb-6">
+            <h3 class="text-lg font-bold text-gray-800 mb-4">Alertas e Eventos <span class="text-sm font-normal text-gray-500">· últimas 24 h</span></h3>
+            <div id="telEventosLista"><p class="text-gray-400 text-sm">Carregando...</p></div>
+          </div>
+
           <!-- Manutencoes recentes -->
           <div class="pt-card">
             <h3 class="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
@@ -1307,8 +1313,10 @@
         (data.devices || []).forEach(x => { empresaPor[x.serial_number] = x.empresa_name; });
         devicesEl.innerHTML = cards.devices.length
           ? cards.devices.map(d => CardTombador.render(d, cards.leituras[d.serial_number], cards.ciclos[d.serial_number] || null,
-              cards.manutPor[d.serial_number], { empresa: empresaPor[d.serial_number], eventos: cards.eventos[d.serial_number] })).join('')
+              cards.manutPor[d.serial_number], { empresa: empresaPor[d.serial_number] })).join('')
           : '<p class="text-gray-400 text-sm text-center py-4">Nenhum tombador cadastrado</p>';
+        const evEl = document.getElementById('telEventosLista');
+        if (evEl) evEl.innerHTML = CardTombador.eventosHtml(CardTombador.eventosDeTodos(cards.eventos, cards.devices));
 
         // Manutencoes table
         const maintEl = document.getElementById('telMaintList');

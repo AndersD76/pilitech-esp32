@@ -679,7 +679,11 @@
       </div>
     </div>
 
-    <!-- Alertas e eventos: ficam dentro do card de cada tombador -->
+    <!-- Alertas e eventos (24 h) de todos os tombadores: no fim da pagina, fora dos cards -->
+    <div class="pt-card mb-6 sm:mb-8" id="eventosSection">
+      <h3 class="text-lg sm:text-xl font-bold text-gray-800 mb-4 sm:mb-6">Alertas e Eventos <span class="text-sm font-normal text-gray-500">· últimas 24 h</span></h3>
+      <div id="eventosLista"><p class="text-sm text-gray-400">Carregando...</p></div>
+    </div>
 
   </main>
 
@@ -1049,6 +1053,9 @@
       }
 
       grid.innerHTML = devices.map(d => renderDeviceCard(d, telemetryMap[d.serial_number] || {})).join('');
+      // Alertas e eventos (24 h) de todos os tombadores: secao no fim da pagina, fora dos cards
+      const evEl = document.getElementById('eventosLista');
+      if (evEl) evEl.innerHTML = CardTombador.eventosHtml(CardTombador.eventosDeTodos(eventosPorSerial, devices));
     }
 
     // Etiqueta de manutencao no rodape do card
@@ -1561,7 +1568,7 @@
     }
 
     // ========== TELEMETRIA E PRODUTIVIDADE ==========
-    let chartCiclos, chartProdutividade, chartEtapas, chartPizza, chartHorario;
+    let chartCiclos, chartProdutividade, chartEtapas, chartPizza, chartHorario, chartEtapasResumo;
     let PADRAO_LIQUIDO = 360;       // padrao do ciclo liquido (0° -> 0°) = subir + descarga + descer
     let TEMPO_PADRAO_CICLO = 450;   // padrao do ciclo = soma das etapas do documento; vem do device-stats (metaCicloS) de cada tombador
 
@@ -1626,9 +1633,17 @@
                 return;
               }
               c.font = (v ? 'bold ' : '') + '11px sans-serif';
+              c.fillStyle = v ? '#374151' : '#9ca3af';
+              if (chart.options.indexAxis === 'y') {           // barra horizontal: valor a direita da ponta
+                const w = c.measureText(txt).width;
+                if (!livre(el.x + 4 + w / 2, el.y + 6, w, 12)) return;
+                c.textAlign = 'left'; c.textBaseline = 'middle';
+                c.fillText(txt, el.x + 4, el.y);
+                c.textAlign = 'center';
+                return;
+              }
               const x = el.x, y = el.y - (tipo === 'bar' ? 3 : 7);
               if (!livre(x, y, c.measureText(txt).width, 13)) return;
-              c.fillStyle = v ? '#374151' : '#9ca3af';
               c.fillText(txt, x, y);
             });
           });
@@ -1753,15 +1768,16 @@
       const medidas = (k.etapas || []).filter(e => e.medido), naoMedidas = (k.etapas || []).filter(e => !e.medido);
       const cs = { acima: 'text-red-600', abaixo: 'text-blue-600', dentro: 'text-green-600' };
       const tend = { piorando: '↑ piorando', melhorando: '↓ melhorando', estavel: '→ estável' };
-      const linhasE = medidas.map(e => `<tr class="border-t"><td class="py-1.5 pr-3">${esc(e.nome.split(' (')[0])}</td><td class="text-right">${fmtMin(e.real_s)}</td><td class="text-right">${fmtMin(e.padrao_s)}</td>
-          <td class="text-right font-bold ${cs[e.status] || ''}">${e.desvio_s >= 0 ? '+' : '-'}${fmtMin(Math.abs(e.desvio_s))}</td><td class="text-right text-xs text-gray-500 pl-2">${e.tendencia ? tend[e.tendencia] : ''}</td></tr>`).join('');
+      // 20/10/2026: grafico de barras (real x padrao por etapa) no lugar da tabela
+      const alturaEtapas = Math.max(140, 44 * medidas.length + 40);
       const ocs = ((oc && oc.ocorrencias) || []).slice(0, 10).map(o => `<div class="flex justify-between gap-3 py-1 border-t text-xs">
           <span><b>${esc(ROT_OC[o.tipo] || o.tipo)}</b>${o.duracao_s ? ' · ' + fmtMin(o.duracao_s) : ''}${o.qualidade && o.qualidade !== 'medido' ? ' <span class="text-gray-400">(' + esc(o.qualidade.replace('_', ' ')) + ')</span>' : ''}</span>
           <span class="text-gray-400 whitespace-nowrap">${fmtDataBR(o.fim, { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}${o.ciclo_numero ? ' · #' + o.ciclo_numero : ''}</span></div>`).join('');
-      const detalhe = `<details class="mt-4"><summary class="cursor-pointer text-sm font-bold text-gray-600">Ver detalhes por etapa e ocorrências</summary>
+      const detalhe = `<details class="mt-4" ontoggle="if (this.open && window.chartEtapasResumo) setTimeout(() => chartEtapasResumo.resize(), 50)"><summary class="cursor-pointer text-sm font-bold text-gray-600">Ver detalhes por etapa e ocorrências</summary>
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-3">
           <div><div class="text-xs font-bold text-gray-500 mb-1">TEMPO REAL × PADRÃO POR ETAPA</div>
-            ${linhasE ? `<table class="w-full text-sm"><thead><tr class="text-[11px] text-gray-500"><th class="text-left"></th><th class="text-right">Real</th><th class="text-right">Padrão</th><th class="text-right">Desvio</th><th></th></tr></thead><tbody>${linhasE}</tbody></table>` : '<p class="text-xs text-gray-400">Nenhuma etapa medida no período.</p>'}
+            ${medidas.length ? `<div style="position:relative;height:${alturaEtapas}px"><canvas id="chartEtapasResumo"></canvas></div>
+            <p class="text-[11px] text-gray-500 mt-1">Barra escura = tempo real médio (verde dentro do padrão, vermelho acima, azul abaixo) · barra clara = padrão.</p>` : '<p class="text-xs text-gray-400">Nenhuma etapa medida no período.</p>'}
             ${naoMedidas.length ? `<p class="text-[11px] text-gray-400 mt-2">Sem medida: ${naoMedidas.map(e => esc(e.nome.split(' (')[0].toLowerCase())).join(', ')}. Posicionar e liberar saída não têm sensor; subir e descer só aparecem quando o 40° bate.</p>` : ''}
             <a href="/config-tombador.html?serial=${encodeURIComponent(serial)}" class="text-xs underline text-gray-500">Configurar padrões e calendário</a></div>
           <div><div class="text-xs font-bold text-gray-500 mb-1">OCORRÊNCIAS</div>${ocs || '<p class="text-xs text-gray-400">Nenhuma ocorrência no período.</p>'}</div>
@@ -1775,6 +1791,41 @@
         </div>
         <div class="mt-4 pt-3 border-t text-xs text-gray-600 space-y-1">${rodape.map(r => `<div>${r}</div>`).join('')}</div>
         ${detalhe}</div>`;
+
+      // Grafico real x padrao por etapa (barras horizontais, valor escrito em cada barra)
+      const cv = document.getElementById('chartEtapasResumo');
+      if (chartEtapasResumo) { chartEtapasResumo.destroy(); chartEtapasResumo = null; }
+      if (cv && medidas.length) {
+        const corReal = { acima: 'rgba(220, 38, 38, 0.85)', abaixo: 'rgba(37, 99, 235, 0.85)', dentro: 'rgba(22, 163, 74, 0.85)' };
+        const minE = s => Math.round((Number(s) || 0) / 6) / 10;
+        window.chartEtapasResumo = chartEtapasResumo = new Chart(cv, {
+          type: 'bar',
+          data: {
+            labels: medidas.map(e => e.tendencia ? [e.nome.split(' (')[0], tend[e.tendencia]] : e.nome.split(' (')[0]),
+            datasets: [
+              { label: 'Real (média)', data: medidas.map(e => minE(e.real_s)), backgroundColor: medidas.map(e => corReal[e.status] || 'rgba(107, 114, 128, 0.85)'), borderRadius: 3, maxBarThickness: 16 },
+              { label: 'Padrão', data: medidas.map(e => minE(e.padrao_s)), backgroundColor: 'rgba(156, 163, 175, 0.45)', borderRadius: 3, maxBarThickness: 16 },
+            ]
+          },
+          options: {
+            indexAxis: 'y',
+            responsive: true, maintainAspectRatio: false,
+            layout: { padding: { right: 56 } },
+            plugins: {
+              legend: { position: 'bottom', labels: { boxWidth: 12, font: { size: 11 } } },
+              tooltip: { callbacks: {
+                label: c => `${c.dataset.label}: ${minRotulo(c.raw)}`,
+                afterBody: items => { const e = medidas[items[0].dataIndex]; return e ? [`Desvio: ${e.desvio_s >= 0 ? '+' : '-'}${fmtMin(Math.abs(e.desvio_s))}`] : []; }
+              } }
+            },
+            scales: {
+              x: { beginAtZero: true, ticks: { callback: v => v + ' min' }, grid: { color: 'rgba(0,0,0,0.05)' } },
+              y: { grid: { display: false }, ticks: { font: { size: 11 } } }
+            }
+          },
+          plugins: [rotulosValores({ fmt: minRotulo })]
+        });
+      }
     }
 
     // Load telemetry data

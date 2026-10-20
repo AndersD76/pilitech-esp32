@@ -113,20 +113,29 @@
       .replace(/em (\d+) seg/g, (_, s) => 'em ' + min(Number(s)))
       .replace(/Necessario/g, 'Necessário').replace(/Necessaria/g, 'Necessária');
   }
-  function eventosHtml(lista) {
+  // Lista de alertas e eventos (24 h). Desde 20/10/2026 fica FORA do card, numa secao propria no
+  // fim da pagina (cliente e admin): lista[i].equipamento = nome do tombador, quando ha varios.
+  function eventosHtml(lista, opcoes) {
+    opcoes = opcoes || {};
     const ev = Array.isArray(lista) ? lista : [];
     const linhas = ev.map(e => {
       const alerta = ['ALERT', 'moega_cheia', 'alerta_critico', 'parada_emergencia', 'sensor_falha'].includes(e.event_type);
       const aviso = e.event_type === 'WARNING';
       const cor = alerta ? 'bg-red-50 border-red-200 text-red-700' : aviso ? 'bg-yellow-50 border-yellow-200 text-yellow-800' : 'bg-gray-50 border-gray-200 text-gray-700';
-      return `<div class="flex items-start justify-between gap-2 px-2 py-1.5 rounded border ${cor}">
-        <span class="text-xs">${alerta ? '<b>ALERTA</b> · ' : aviso ? '<b>AVISO</b> · ' : ''}${esc(textoEvento(e.message))}</span>
-        <span class="text-[10px] opacity-70 whitespace-nowrap">${curto(e.timestamp)}</span></div>`;
+      return `<div class="flex items-start justify-between gap-2 px-3 py-2 rounded border ${cor}">
+        <span class="text-sm">${e.equipamento ? '<b>' + esc(e.equipamento) + '</b> · ' : ''}${alerta ? '<b>ALERTA</b> · ' : aviso ? '<b>AVISO</b> · ' : ''}${esc(textoEvento(e.message))}</span>
+        <span class="text-xs opacity-70 whitespace-nowrap">${curto(e.timestamp)}</span></div>`;
     }).join('');
-    return `<div class="mb-3">
-      <div class="text-[10px] font-bold text-gray-500 mb-1 tracking-wider">ALERTAS E EVENTOS · ÚLTIMAS 24 H</div>
-      <div class="space-y-1 max-h-48 overflow-y-auto pr-1">${linhas || '<p class="text-xs text-gray-400 py-2">Nenhum alerta ou evento nas últimas 24 h</p>'}</div>
-    </div>`;
+    return `<div class="space-y-1 ${opcoes.maxAltura || 'max-h-96'} overflow-y-auto pr-1">${linhas || '<p class="text-sm text-gray-400 py-2">Nenhum alerta ou evento nas últimas 24 h</p>'}</div>`;
+  }
+  // Junta os eventos de varios equipamentos ({serial: [...]}) numa lista so, do mais novo ao mais velho
+  function eventosDeTodos(porSerial, devices) {
+    const nome = {};
+    (devices || []).forEach(d => { nome[d.serial_number] = d.name || d.serial_number; });
+    const todos = [];
+    Object.keys(porSerial || {}).forEach(sn => (porSerial[sn] || []).forEach(e => todos.push(Object.assign({ equipamento: nome[sn] || sn }, e))));
+    todos.sort((a, b) => (paraData(b.timestamp) || 0) - (paraData(a.timestamp) || 0));
+    return todos;
   }
 
   // ---- Desenho do tombador (SVG), animado pelo estado da leitura ----
@@ -477,7 +486,7 @@
             ${leituraEm ? `<p class="text-xs text-gray-400 mt-1">Última leitura: ${leituraEm} · Horímetro ${horimetroLigada(t)}</p>` : ''}
           </div>
         </div>
-        <div class="p-4">${eventosHtml(opcoes.eventos)}${rodape}</div>
+        <div class="p-4">${rodape}</div>
       </div>`;
     }
 
@@ -576,7 +585,6 @@
             </div>
           </div>
         </div>
-        ${eventosHtml(opcoes.eventos)}
         ${rodape}
       </div>
     </div>`;
@@ -596,5 +604,5 @@
              eventos: (ev && ev.eventos) || {} };
   }
 
-  window.CardTombador = { render, carregar, min, haQuanto, statCard, tomDe };
+  window.CardTombador = { render, carregar, min, haQuanto, statCard, tomDe, eventosHtml, eventosDeTodos };
 })();
