@@ -399,13 +399,11 @@
   ];
   const ORDEM_TEMPOS = [7, 6, 2, 3, 4, 5];   // portao, moega, travas (indices de SENSORES)
 
+  // 20/10/2026: sensor desabilitado na IoT (o tombador nao tem) nao aparece. data-idx = indice em
+  // SENSORES: o ao vivo do cliente acha cada quadro por ele (antes era pela posicao).
   function sensorBox(i, t, hab) {
     const [nome, campo, , on, off, alerta] = SENSORES[i];
-    if (hab && hab[i] === false) {
-      return `<div class="live-sensor text-center p-2 bg-gray-50 text-gray-400 rounded-lg border-2 border-dashed border-gray-200" data-desabilitado="1">
-        <div class="text-[10px] uppercase leading-tight break-words">${nome}</div>
-        <div class="live-val text-sm font-bold">Desabilitado</div></div>`;
-    }
+    if (hab && hab[i] === false) return '';
     const v = t[campo];
     let cls = 'bg-gray-100 text-gray-400 border-gray-200', txt = '-';
     if (v !== undefined && v !== null) {
@@ -413,7 +411,7 @@
       cls = alerta ? (v ? 'bg-red-100 text-red-700 font-bold border-red-400' : 'bg-white text-gray-500 border-gray-200')
                    : (v ? 'bg-green-100 text-green-700 border-green-300' : 'bg-red-100 text-red-700 border-gray-200');
     }
-    return `<div class="live-sensor text-center p-2 rounded-lg border-2 ${cls}">
+    return `<div class="live-sensor text-center p-2 rounded-lg border-2 ${cls}" data-idx="${i}">
       <div class="text-[10px] text-gray-500 uppercase leading-tight break-words">${nome}</div>
       <div class="live-val text-sm font-bold">${txt}</div></div>`;
   }
@@ -503,14 +501,13 @@
     const b40 = ciclo ? Number(ciclo.batidas_40) || 0 : 0;
     const cicloQuando = ciclo && ciclo.created_at ? curto(ciclo.created_at) : '';
     const [plat, platCor] = plataforma(t);
-    const linhasTempo = ORDEM_TEMPOS.map((i, k) => {
+    const linhasTempo = ORDEM_TEMPOS.filter(i => !(hab && hab[i] === false)).map((i, k) => {   // so os sensores do tombador
       const [nome, , campo] = SENSORES[i];
-      const desab = hab && hab[i] === false;
-      const val = ciclo && !desab ? Number(ciclo[campo]) || 0 : 0;
+      const val = ciclo ? Number(ciclo[campo]) || 0 : 0;
       const pct = total > 0 ? Math.min(Math.round(val / total * 100), 100) : 0;
-      return `<div class="live-dur-row flex items-center gap-2 ${k % 2 ? 'bg-gray-50' : ''} px-2 py-1 rounded ${desab ? 'opacity-50' : ''}" data-sensor="${campo}">
+      return `<div class="live-dur-row flex items-center gap-2 ${k % 2 ? 'bg-gray-50' : ''} px-2 py-1 rounded" data-sensor="${campo}">
         <span class="text-xs text-gray-600 w-24 shrink-0">${nome === 'Trava Rodas' ? 'Trava Roda' : nome}</span>
-        <span class="live-dur-val text-xs font-bold w-20 text-right">${desab ? 'Desabilitado' : min(val)}</span>
+        <span class="live-dur-val text-xs font-bold w-20 text-right">${min(val)}</span>
         <div class="flex-1 bg-gray-200 h-2.5 rounded-full overflow-hidden"><div class="live-dur-bar h-full ${i === 6 ? 'bg-amber-500' : 'bg-red-600'} rounded-full transition-all" style="width:${pct}%"></div></div>
       </div>`;
     }).join('');

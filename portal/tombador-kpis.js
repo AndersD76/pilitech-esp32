@@ -417,7 +417,7 @@ function setupKpis(app, pool, deps) {
         minutosLigada([d.id], inicioDiaUTC(de), inicioDiaUTC(diaSeg)),
       ]);
       const paradas = parR.rows.map(p => ({ ini: new Date(isoUTC(p.ini)).getTime(), fim: new Date(isoUTC(p.fim)).getTime(), tipo: p.tipo }));
-      const kpis = calcularKpis({ ciclos: ciclosR.rows, contador: porDia.reduce((s, x) => s + x.ciclos, 0), cfg: cf.config, hab, paradas,
+      const kpis = calcularKpis({ ciclos: ciclosR.rows, contador: porDia.reduce((s, x) => s + x.ciclos, 0) + (porDia.semDataPeriodo || 0), cfg: cf.config, hab, paradas,
                                   ligadaMin: ligada[d.id] || 0, de, ate, agoraMs: Date.now() });
       const oc = await pool.query(`SELECT tipo, COUNT(*)::int AS n FROM pilitech_ocorrencias WHERE device_id = $1
                                    AND ${DIA_BR('fim')} BETWEEN $2::date AND $3::date GROUP BY tipo`, [d.id, de, ate]);

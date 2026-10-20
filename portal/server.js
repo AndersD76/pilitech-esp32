@@ -92,26 +92,55 @@ function periodoDoPedido(q) {
 }
 // Ciclos por dia pelo CONTADOR DA IoT (total de ciclos de cada leitura), e nao pelos
 // registros de ciclo: os dados de cada ciclo saem do buffer da IoT com atraso (07/10/2026:
-// 22 de 46 tinham chegado). Ciclos do dia = maior total do dia - maior total antes dele,
-// contando a partir do ultimo reset do contador (evento "reset"/"reset_ciclos_total").
-// Leitura velha que chega atrasada tem total menor e nao muda o maximo; a soma do periodo
-// bate com o total da IoT (o "ciclos hoje" da IoT ate a v10.42 nao zerava a meia-noite).
+// 22 de 46 tinham chegado). Cada aumento do total entre duas leituras seguidas e somado ao dia
+// da leitura mais nova, contando a partir do ultimo reset do contador (evento "reset"/
+// "reset_ciclos_total"). Leitura com total menor sem reset (atrasada/ilegivel) nao conta.
+// 20/10/2026: aumento entre leituras separadas por mais de 12 h e em dias diferentes NAO tem
+// dia certo (a IoT ficou sem conexao): antes ia todo para o dia em que ela voltou (16/10 com 79
+// ciclos que eram de 08 a 16/10). Agora fica em rows.semData [{de, ate, ciclos}] e o grafico
+// mostra a parte. rows.semDataPeriodo = os sem data que terminam dentro do periodo (entram nos
+// totais, como antes, para a soma bater com o contador da IoT).
+const LACUNA_SEM_DATA_S = 12 * 3600;
 async function ciclosPorDiaIoT(deviceId, de, ate) {
-  const r = await pool.query(`
-    WITH dias AS (SELECT generate_series($2::date, $3::date, '1 day')::date AS dia),
-    lr AS (SELECT ${DIA_BR('timestamp')} AS dia, timestamp, ciclos_total
-           FROM sensor_readings WHERE device_id = $1 AND ciclos_total IS NOT NULL)
-    SELECT to_char(d.dia, 'YYYY-MM-DD') AS dia,
-      GREATEST(COALESCE(
-        (SELECT MAX(lr.ciclos_total) FROM lr WHERE lr.dia = d.dia AND lr.timestamp > rs.em)
-        - COALESCE((SELECT MAX(lr.ciclos_total) FROM lr WHERE lr.dia < d.dia AND lr.timestamp > rs.em), 0), 0), 0)::int AS ciclos
-    FROM dias d
-    CROSS JOIN LATERAL (
-      SELECT COALESCE(MAX(el.timestamp), '-infinity'::timestamp) AS em FROM event_logs el
-      WHERE el.device_id = $1 AND el.sensor_name IN ('reset', 'reset_ciclos_total') AND ${DIA_BR('el.timestamp')} <= d.dia
-    ) rs
-    ORDER BY d.dia`, [deviceId, de, ate]);
-  return r.rows;
+  const [lr, rs] = await Promise.all([
+    pool.query(`SELECT EXTRACT(EPOCH FROM timestamp)::float8 AS t, to_char(${DIA_BR('timestamp')}, 'YYYY-MM-DD') AS dia, ciclos_total AS ct
+                FROM sensor_readings WHERE device_id = $1 AND ciclos_total IS NOT NULL
+                  AND ${DIA_BR('timestamp')} BETWEEN ($2::date - 60) AND $3::date
+                ORDER BY timestamp, id`, [deviceId, de, ate]),
+    pool.query(`SELECT EXTRACT(EPOCH FROM timestamp)::float8 AS t, to_char(${DIA_BR('timestamp')}, 'YYYY-MM-DD') AS dia
+                FROM event_logs WHERE device_id = $1 AND sensor_name IN ('reset', 'reset_ciclos_total')
+                  AND ${DIA_BR('timestamp')} BETWEEN ($2::date - 60) AND $3::date
+                ORDER BY timestamp`, [deviceId, de, ate]),
+  ]);
+  const porDia = {}, semData = [];
+  // no dia de um reset, o que veio antes dele nao conta (02/10/2026: testes do comissionamento antes
+  // do "reset total"); assim o total bate com o contador da IoT
+  const ultimoResetDoDia = {};
+  rs.rows.forEach(x => { ultimoResetDoDia[x.dia] = Math.max(ultimoResetDoDia[x.dia] || 0, x.t); });
+  let max = null, tAnt = null, diaAnt = null, iR = 0;
+  for (const r of lr.rows) {
+    if (ultimoResetDoDia[r.dia] && r.t < ultimoResetDoDia[r.dia]) continue;
+    while (iR < rs.rows.length && rs.rows[iR].t <= r.t) {         // reset entre a leitura anterior e esta
+      max = 0; tAnt = rs.rows[iR].t; diaAnt = rs.rows[iR].dia; iR++;
+    }
+    const ct = Number(r.ct);
+    if (max === null) { max = ct; tAnt = r.t; diaAnt = r.dia; continue; }   // 1a leitura: so a base
+    if (ct > max) {
+      const d = ct - max;
+      if (r.dia === diaAnt || r.t - tAnt <= LACUNA_SEM_DATA_S) porDia[r.dia] = (porDia[r.dia] || 0) + d;
+      else semData.push({ de: diaAnt, ate: r.dia, ciclos: d });
+      max = ct;
+    }
+    tAnt = r.t; diaAnt = r.dia;
+  }
+  const rows = [];
+  for (let t = Date.parse(de); t <= Date.parse(ate); t += 86400000) {
+    const dia = new Date(t).toISOString().slice(0, 10);
+    rows.push({ dia, ciclos: porDia[dia] || 0 });
+  }
+  rows.semData = semData.filter(s => s.ate >= de && s.ate <= ate);
+  rows.semDataPeriodo = rows.semData.reduce((s, x) => s + x.ciclos, 0);
+  return rows;
 }
 // Sensores habilitados na IoT (ultima leitura): [0 grau, 40 graus, trava roda, trava chassi, pino E, pino D, moega, portao]
 async function sensoresHabilitados(deviceId) {
@@ -3080,7 +3109,9 @@ app.get('/api/device-stats/:serialNumber', authenticateToken, checkSubscription,
       periodo: { de, ate },
       ciclosDiarios,
       ciclosHoje: (hojeIoT[0] && hojeIoT[0].ciclos) || 0,              // contador da IoT
-      ciclosPeriodo: ciclosDiarios.reduce((s, d) => s + d.ciclos, 0),   // contador da IoT
+      ciclosPeriodo: ciclosDiarios.reduce((s, d) => s + d.ciclos, 0) + (porDia.semDataPeriodo || 0),   // contador da IoT
+      ciclosSemData: porDia.semData || [],                               // IoT sem conexao: ciclos sem dia certo
+      sensorConfig: cfg,                                                 // sensores habilitados na IoT [0°,40°,roda,chassi,pinoE,pinoD,moega,portao]
       ciclosTotal: (totalR.rows[0] && totalR.rows[0].total) || 0,
       tempoMedioBruto,                                                   // ciclo bruto (portao/travas); null = IoT ainda nao mede
       ciclosComBruto: comBruto.length,

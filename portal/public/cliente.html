@@ -494,6 +494,7 @@
             <span class="periodo-rotulo px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-xs font-bold">7 DIAS</span>
           </div>
           <canvas id="chartCiclos" height="180"></canvas>
+          <p id="ciclosSemDataNota" class="hidden text-[11px] text-gray-500 mt-2"></p>
         </div>
       </div>
 
@@ -555,13 +556,8 @@
       <div class="border rounded-lg p-3 sm:p-4 mb-6">
         <h4 class="font-semibold text-gray-700 mb-2 sm:mb-4 text-sm sm:text-base">Tempo ON por Sensor - Último Ciclo</h4>
         <p class="text-xs text-gray-500 mb-3 sm:mb-4">Duração ativa de cada sensor no último ciclo registrado</p>
-        <div class="grid grid-cols-3 sm:grid-cols-6 gap-2 mb-2" id="timelineEtapas">
-          <div class="bg-gray-200 rounded p-2 text-center"><div class="text-xs font-bold text-gray-600">-</div><div class="text-[8px] text-gray-400">Portão</div></div>
-          <div class="bg-gray-200 rounded p-2 text-center"><div class="text-xs font-bold text-gray-600">-</div><div class="text-[8px] text-gray-400">Moega/Fosso</div></div>
-          <div class="bg-gray-200 rounded p-2 text-center"><div class="text-xs font-bold text-gray-600">-</div><div class="text-[8px] text-gray-400">Trava Roda</div></div>
-          <div class="bg-gray-200 rounded p-2 text-center"><div class="text-xs font-bold text-gray-600">-</div><div class="text-[8px] text-gray-400">Trava Chassi</div></div>
-          <div class="bg-gray-200 rounded p-2 text-center"><div class="text-xs font-bold text-gray-600">-</div><div class="text-[8px] text-gray-400">Trava Pino E</div></div>
-          <div class="bg-gray-200 rounded p-2 text-center"><div class="text-xs font-bold text-gray-600">-</div><div class="text-[8px] text-gray-400">Trava Pino D</div></div>
+        <div class="flex flex-wrap gap-2 mb-2" id="timelineEtapas">
+          <p class="text-xs text-gray-400">Selecione um tombador</p>
         </div>
         <div class="text-center text-[10px] text-gray-400">
           Tempo ON de cada sensor durante o ciclo (da plataforma sair do 0° até voltar)
@@ -575,7 +571,7 @@
             <h4 class="font-bold text-gray-800">Tempo Médio por Sensor</h4>
             <p class="text-xs text-gray-500">Tempo ON médio de cada sensor no ciclo</p>
           </div>
-          <span class="px-3 py-1 bg-pili-red/10 text-pili-red rounded-full text-xs font-bold">6 SENSORES</span>
+          <span id="etapasSensoresBadge" class="px-3 py-1 bg-pili-red/10 text-pili-red rounded-full text-xs font-bold">SENSORES</span>
         </div>
         <canvas id="chartEtapas" height="150"></canvas>
       </div>
@@ -1279,10 +1275,10 @@
           const labelsOff = ['Inativo', 'Inativo', 'Inativo', 'Inativo', 'Inativo', 'Inativo', 'OK', 'Aberto'];
           // Moega/Fosso (index 6) usa esquema de alerta invertido: branco=OK, vermelho=CHEIO
           const isAlertSensor = [false, false, false, false, false, false, true, false];
-          sensors.forEach((el, i) => {
-            if (i < vals.length) {
-              // Sensor desabilitado na IoT: fica com "Desabilitado" (desenhado pelo card)
-              if (el.dataset.desabilitado || (d.sensor_config && i < d.sensor_config.length && !d.sensor_config[i])) return;
+          sensors.forEach(el => {
+            const i = Number(el.dataset.idx);              // indice do sensor (o card nao desenha os desabilitados)
+            if (Number.isInteger(i) && i < vals.length) {
+              if (d.sensor_config && i < d.sensor_config.length && !d.sensor_config[i]) return;
               el.style.display = '';
               const isOn = vals[i] === true;
               let cls;
@@ -1367,8 +1363,9 @@
           const desenharUltimo = (lc) => {
             if (durTitle) durTitle.textContent = 'ÚLTIMO CICLO';
             const maxVal = Math.max(...sensorKeys.map(k => lc[k] || 0)) || 1;
-            durRows.forEach((row, i) => {
-              if (i >= sensorKeys.length) return;
+            durRows.forEach(row => {
+              const i = sensorKeys.indexOf(row.dataset.sensor);   // pela linha, nao pela posicao
+              if (i < 0) return;
               const val = lc[sensorKeys[i]] || 0;
               const pct = Math.min(Math.round((val / maxVal) * 100), 100);
               const valEl = row.querySelector('.live-dur-val');
@@ -1391,8 +1388,9 @@
             if (anyActive || d.cycle_in_progress) {
               if (durTitle) durTitle.textContent = d.cycle_in_progress ? 'CICLO ATUAL' : 'SENSORES AO VIVO';
               const maxVal = Math.max(...vals) || 1;
-              durRows.forEach((row, i) => {
-                if (i >= sensorKeys.length) return;
+              durRows.forEach(row => {
+                const i = sensorKeys.indexOf(row.dataset.sensor);   // pela linha, nao pela posicao
+                if (i < 0) return;
                 const val = vals[i];
                 const isTiming = cc[timingKeys[i]] || false;
                 const pct = Math.min(Math.round((val / maxVal) * 100), 100);
@@ -1569,6 +1567,14 @@
 
     // ========== TELEMETRIA E PRODUTIVIDADE ==========
     let chartCiclos, chartProdutividade, chartEtapas, chartPizza, chartHorario, chartEtapasResumo;
+    // Sensores do tombador escolhido: so os habilitados na IoT (sensor_config, que vem no device-stats)
+    // aparecem nos graficos e quadros por sensor (20/10/2026: o 001430 nao tem portao nem pinos).
+    // [nome, campo do ciclo, indice na config da IoT, nome curto]
+    const SENSORES_CICLO = [['Portão', 'portao', 7, 'Portão'], ['Moega/Fosso', 'moega', 6, 'Moega/Fosso'],
+      ['Trava Roda', 'trava_roda', 2, 'Tr.Roda'], ['Trava Chassi', 'trava_chassi', 3, 'Tr.Chassi'],
+      ['Trava Pino E', 'trava_pino_e', 4, 'Tr.Pino E'], ['Trava Pino D', 'trava_pino_d', 5, 'Tr.Pino D']];
+    let sensoresHab = null;
+    const sensoresDoTombador = () => SENSORES_CICLO.filter(s => !(Array.isArray(sensoresHab) && sensoresHab[s[2]] === false));
     let PADRAO_LIQUIDO = 360;       // padrao do ciclo liquido (0° -> 0°) = subir + descarga + descer
     let TEMPO_PADRAO_CICLO = 450;   // padrao do ciclo = soma das etapas do documento; vem do device-stats (metaCicloS) de cada tombador
 
@@ -1581,9 +1587,14 @@
     }
 
     // Valor escrito em cada barra, ponto ou fatia (padrao de todos os graficos). Opcoes: fmt (texto
-    // do valor), zero (escreve o 0; senao pula), vazio (texto no pe da barra sem valor) e meta
+    // do valor), zero (escreve o 0; senao pula), vazio (texto no pe do dia sem nenhum valor) e meta
     // {valor, texto} (linha tracejada vermelha). Rotulo que encostaria em outro e pulado.
-    function rotulosValores({ fmt = v => v.toLocaleString('pt-BR'), zero = true, vazio = null, meta = null } = {}) {
+    // 20/10/2026, padrao para periodos longos: "vazio" sai uma vez por dia (nao uma por conjunto) e
+    // vira "–" quando nao cabe; com mais de 14 dias o 0 nao e escrito; valor mais largo que a barra
+    // e escrito na vertical (acima dela, ou dentro se nao couber em cima).
+    // Um jeito so por grafico: se o valor inteiro ("6,3 min") cabe em todas as barras, todos assim;
+    // senao todos so com o numero ("6,3", a unidade esta no eixo); se nem isso cabe, todos na vertical.
+    function rotulosValores({ fmt = v => v.toLocaleString('pt-BR'), fmtCurto = v => v.toLocaleString('pt-BR'), zero = true, vazio = null, meta = null } = {}) {
       return {
         id: 'rotulosValores',
         afterDatasetsDraw(chart) {
@@ -1611,18 +1622,42 @@
             usados.push({ x1: a.right - wm - 5, x2: a.right, y1: ym - 15, y2: ym });
           }
           c.textAlign = 'center';
+          const nCat = (chart.data.labels || []).length;
+          const denso = nCat > 14;
+          const visiveis = chart.data.datasets.map((ds, di) => di).filter(di => !chart.getDatasetMeta(di).hidden);
+          const fatia = nCat ? (a.right - a.left) / nCat : 0;           // largura de um dia no eixo
+          // dia sem nenhum valor: uma marca so, no meio do dia
+          if (vazio && tipo === 'bar' && chart.options.indexAxis !== 'y' && visiveis.length) {
+            c.font = '10px sans-serif'; c.fillStyle = '#9ca3af'; c.textBaseline = 'bottom';
+            const cabe = c.measureText(vazio).width + 6 <= fatia;
+            for (let i = 0; i < nCat; i++) {
+              const semValor = visiveis.every(di => { const v = chart.data.datasets[di].data[i]; return v == null || !isFinite(v); });
+              if (!semValor) continue;
+              const x = chart.scales.x.getPixelForValue(i);
+              c.fillText(cabe ? vazio : '–', x, a.bottom - 4);
+            }
+          }
+          let modo = 'normal';                                             // normal | curto | vertical
+          if (tipo === 'bar' && chart.options.indexAxis !== 'y') {
+            c.font = 'bold 11px sans-serif';
+            let cabeNormal = true, cabeCurto = true;
+            visiveis.forEach(di => chart.getDatasetMeta(di).data.forEach((el, i) => {
+              const v = chart.data.datasets[di].data[i];
+              if (v == null || !isFinite(v) || !v || !el.width) return;
+              if (c.measureText(fmt(v)).width > el.width + 4) cabeNormal = false;
+              if (c.measureText(fmtCurto(v)).width > el.width + 4) cabeCurto = false;
+            }));
+            modo = cabeNormal ? 'normal' : cabeCurto ? 'curto' : 'vertical';
+          }
           chart.data.datasets.forEach((ds, di) => {
             const m = chart.getDatasetMeta(di);
             if (m.hidden) return;
             m.data.forEach((el, i) => {
               const v = ds.data[i];
               c.textBaseline = 'bottom';
-              if (v == null || !isFinite(v)) {
-                if (vazio && tipo === 'bar') { c.fillStyle = '#9ca3af'; c.font = '10px sans-serif'; c.fillText(vazio, el.x, a.bottom - 4); }
-                return;
-              }
-              if (!v && !zero) return;
-              const txt = fmt(v);
+              if (v == null || !isFinite(v)) return;
+              if (!v && (!zero || denso)) return;
+              const txt = modo === 'normal' ? fmt(v) : fmtCurto(v);
               if (tipo === 'doughnut' || tipo === 'pie') {      // dentro da fatia; fatia fina fica sem
                 const total = ds.data.reduce((s, x) => s + (Number(x) || 0), 0);
                 if (!chart.getDataVisibility(i) || !total || v / total < 0.05) return;
@@ -1642,8 +1677,24 @@
                 c.textAlign = 'center';
                 return;
               }
+              const wTxt = c.measureText(txt).width;
+              if (modo === 'vertical') {                                   // barras estreitas: todos na vertical
+                const base = Math.min(el.base, a.bottom);
+                const emCima = el.y - 4 - wTxt >= a.top - 12;              // cabe acima da barra?
+                const dentro = !emCima && base - el.y >= wTxt + 8;         // senao, dentro dela
+                if (!emCima && !dentro) return;
+                const x0 = el.x, y0 = emCima ? el.y - 4 : el.y + 4;
+                if (!livre(x0, emCima ? y0 : y0 + wTxt, 13, wTxt)) return;
+                c.save();
+                c.translate(x0, y0); c.rotate(-Math.PI / 2);
+                c.textAlign = emCima ? 'left' : 'right'; c.textBaseline = 'middle';
+                if (dentro) c.fillStyle = '#ffffff';
+                c.fillText(txt, 0, 0);
+                c.restore();
+                return;
+              }
               const x = el.x, y = el.y - (tipo === 'bar' ? 3 : 7);
-              if (!livre(x, y, c.measureText(txt).width, 13)) return;
+              if (!livre(x, y, wTxt, 13)) return;
               c.fillText(txt, x, y);
             });
           });
@@ -1652,6 +1703,8 @@
       };
     }
     const minRotulo = v => v.toLocaleString('pt-BR') + ' min';
+    // Rotulo de dia, o mesmo em todos os graficos por dia: ["14/10", "qua"] (duas linhas)
+    const rotuloDia = dia => [fmtDiaBR(dia, { day: '2-digit', month: '2-digit' }), fmtDiaBR(dia, { weekday: 'short' }).replace('.', '')];
 
     // O seletor do dashboard e preenchido pelo loadDevices() (mantendo a escolha a cada
     // atualizacao); antes havia um segundo preenchimento aqui que apagava a selecao.
@@ -1665,8 +1718,9 @@
       [chartCiclos, chartProdutividade, chartEtapas, chartPizza, chartHorario].forEach(c => { if (c) c.destroy(); });
       chartCiclos = chartProdutividade = chartEtapas = chartPizza = chartHorario = null;
       ['etapaMaisRapida', 'etapaMaisLenta', 'desvioPadrao', 'ciclosAcimaMeta'].forEach(id => { document.getElementById(id).textContent = '-'; });
-      document.getElementById('timelineEtapas').innerHTML = ['Portão', 'Moega/Fosso', 'Trava Roda', 'Trava Chassi', 'Trava Pino E', 'Trava Pino D']
-        .map(n => `<div class="bg-gray-200 rounded p-2 text-center"><div class="text-xs font-bold text-gray-600">-</div><div class="text-[8px] text-gray-400">${n}</div></div>`).join('');
+      document.getElementById('timelineEtapas').className = 'flex flex-wrap gap-2 mb-2';
+      document.getElementById('timelineEtapas').innerHTML = sensoresDoTombador().map(s => s[0])   // so os sensores do tombador
+        .map(n => `<div class="flex-1 min-w-[100px] bg-gray-200 rounded p-2 text-center"><div class="text-sm font-bold text-gray-600">-</div><div class="text-[10px] text-gray-400">${n}</div></div>`).join('');
       document.getElementById('cyclesTable').innerHTML = `<tr><td colspan="5" class="px-4 py-8 text-center text-gray-500">${esc(mensagem || 'Nenhum ciclo registrado')}</td></tr>`;
     }
 
@@ -1901,7 +1955,8 @@
         }
 
         // Update charts
-        updateCiclosChart(stats.ciclosDiarios);
+        sensoresHab = Array.isArray(stats.sensorConfig) ? stats.sensorConfig : null;
+        updateCiclosChart(stats.ciclosDiarios, stats.ciclosSemData);
         updateProdutividadeChart(stats.ciclosDiarios);
       }
 
@@ -1928,28 +1983,12 @@
 
       if (chartPizza) chartPizza.destroy();
 
-      // Calcular media de tempo ON por sensor
+      // Media de tempo ON por sensor - so os sensores deste tombador
       const count = data.length || 1;
-      const sensores = {
-        'Portão': 0,
-        'Moega/Fosso': 0,
-        'Trava Roda': 0,
-        'Trava Chassi': 0,
-        'Trava Pino E': 0,
-        'Trava Pino D': 0
-      };
-
-      data.forEach(c => {
-        sensores['Portão'] += (c.portao || 0);
-        sensores['Moega/Fosso'] += (c.moega || 0);
-        sensores['Trava Roda'] += (c.trava_roda || 0);
-        sensores['Trava Chassi'] += (c.trava_chassi || 0);
-        sensores['Trava Pino E'] += (c.trava_pino_e || 0);
-        sensores['Trava Pino D'] += (c.trava_pino_d || 0);
-      });
-
-      const labels = Object.keys(sensores);
-      const values = Object.values(sensores).map(v => Math.round(v / count / 6) / 10);   // minutos
+      const sens = sensoresDoTombador();
+      const labels = sens.map(s => s[0]);
+      const values = sens.map(([, campo]) => Math.round(data.reduce((t, c) => t + (Number(c[campo]) || 0), 0) / count / 6) / 10);   // minutos
+      const cores = { portao: '#dc2626', moega: '#ef4444', trava_roda: '#b91c1c', trava_chassi: '#f87171', trava_pino_e: '#991b1b', trava_pino_d: '#fca5a5' };
 
       chartPizza = new Chart(ctx, {
         type: 'doughnut',
@@ -1957,7 +1996,7 @@
           labels,
           datasets: [{
             data: values,
-            backgroundColor: ['#dc2626', '#ef4444', '#b91c1c', '#f87171', '#991b1b', '#fca5a5'],
+            backgroundColor: sens.map(([, campo]) => cores[campo]),
             borderWidth: 0
           }]
         },
@@ -2018,23 +2057,12 @@
     function updateIndicadores(data) {
       if (!data || data.length === 0) return;
 
-      // Calcular medias dos 6 sensores
-      const sensorNomes = ['Portão', 'Moega', 'Tr.Roda', 'Tr.Chassi', 'Tr.Pino E', 'Tr.Pino D'];
-      const sensorMedia = [0, 0, 0, 0, 0, 0];
+      // Medias dos sensores deste tombador (moega cheia e parada/alarme, nao etapa do ciclo: fica fora)
+      const sens = sensoresDoTombador().filter(([, campo]) => campo !== 'moega');
+      const sensorNomes = sens.map(s => s[3]);
       const count = data.length;
-
-      data.forEach(c => {
-        sensorMedia[0] += c.portao || 0;
-        sensorMedia[1] += c.moega || 0;
-        sensorMedia[2] += c.trava_roda || 0;
-        sensorMedia[3] += c.trava_chassi || 0;
-        sensorMedia[4] += c.trava_pino_e || 0;
-        sensorMedia[5] += c.trava_pino_d || 0;
-      });
-
-      const medias = sensorMedia.map(v => Math.round(v / count));
-      medias[1] = 0;   // moega cheia e parada (alarme), nao etapa do ciclo
-      const maxTempo = Math.max(...medias);
+      const medias = sens.map(([, campo]) => Math.round(data.reduce((t, c) => t + (Number(c[campo]) || 0), 0) / count));
+      const maxTempo = medias.length ? Math.max(...medias) : 0;
       const positivos = medias.filter(v => v > 0);
       const minTempo = positivos.length ? Math.min(...positivos) : 0;
 
@@ -2066,15 +2094,25 @@
       return min + ':' + String(sec).padStart(2, '0');
     }
 
-    // Update Ciclos Chart
-    function updateCiclosChart(data) {
+    // Update Ciclos Chart. semData: ciclos que o contador da IoT somou enquanto ela estava sem
+    // conexao (lacuna de dias): nao tem dia certo, nao vao para nenhuma barra, ficam na nota.
+    function updateCiclosChart(data, semData) {
       const ctx = document.getElementById('chartCiclos');
       if (!ctx) return;
 
       if (chartCiclos) chartCiclos.destroy();
+      const nota = document.getElementById('ciclosSemDataNota');
+      if (nota) {
+        const lista = Array.isArray(semData) ? semData : [];
+        const dm = d => String(d).slice(8, 10) + '/' + String(d).slice(5, 7);
+        nota.innerHTML = lista.length ? lista.map(s => `<b>+${s.ciclos}</b> ciclo(s) entre ${dm(s.de)} e ${dm(s.ate)}`).join(' · ') +
+          ' sem dia certo: a IoT ficou sem conexão e só informou o total quando voltou (entram no total, não nas barras).' : '';
+        nota.classList.toggle('hidden', !lista.length);
+      }
 
-      const labels = data.map(d => fmtDiaBR(d.dia));
-      const values = data.map(d => parseInt(d.ciclos) || 0);
+      // padrao dos graficos por dia: data DD/MM + dia da semana, barra arredondada, dia sem ciclo marcado no pe
+      const labels = data.map(d => rotuloDia(d.dia));
+      const values = data.map(d => (parseInt(d.ciclos) || 0) || null);
 
       chartCiclos = new Chart(ctx, {
         type: 'bar',
@@ -2083,18 +2121,21 @@
           datasets: [{
             label: 'Ciclos',
             data: values,
-            backgroundColor: 'rgba(220, 38, 38, 0.7)',
-            borderColor: 'rgb(220, 38, 38)',
-            borderWidth: 1
+            backgroundColor: 'rgba(220, 38, 38, 0.85)',
+            borderRadius: 4,
+            maxBarThickness: 44
           }]
         },
         options: {
           responsive: true,
           layout: { padding: { top: 16 } },
-          plugins: { legend: { display: false } },
-          scales: { y: { beginAtZero: true, ticks: { precision: 0 } } }
+          plugins: {
+            legend: { display: false },
+            tooltip: { callbacks: { label: c => `${c.raw} ciclo(s)` } }
+          },
+          scales: { x: { grid: { display: false } }, y: { beginAtZero: true, ticks: { precision: 0 } } }
         },
-        plugins: [rotulosValores()]
+        plugins: [rotulosValores({ vazio: 'sem ciclo' })]
       });
     }
 
@@ -2107,7 +2148,7 @@
 
       const min1 = s => { const v = parseFloat(s); return v > 0 ? Math.round(v / 6) / 10 : null; };   // minutos, 1 casa
       const padB = TEMPO_PADRAO_CICLO / 60, padL = PADRAO_LIQUIDO / 60;
-      const labels = data.map(d => fmtDiaBR(d.dia, { day: '2-digit', month: '2-digit' }));
+      const labels = data.map(d => rotuloDia(d.dia));
       const brutos = data.map(d => min1(d.tempo_medio_bruto));
       const liquidos = data.map(d => min1(d.tempo_medio_liquido));
       const temBruto = brutos.some(v => v != null);
@@ -2136,7 +2177,7 @@
               }
             }
           },
-          scales: { y: { beginAtZero: true, suggestedMax: Math.max(padB, padL) * 1.5, ticks: { callback: v => v + ' min' } } }
+          scales: { x: { grid: { display: false } }, y: { beginAtZero: true, suggestedMax: Math.max(padB, padL) * 1.5, ticks: { callback: v => v + ' min' } } }
         },
         // tracejado do padrao + valor em cima de cada barra do 1o conjunto ("sem ciclo" no dia vazio)
         plugins: [rotulosValores({ fmt: minTxt, vazio: 'sem ciclo', meta: { valor: meta, texto: (temBruto ? 'padrão bruto ' : 'padrão líquido ') + minTxt(meta) } })]
@@ -2148,25 +2189,19 @@
       const timeline = document.getElementById('timelineEtapas');
       if (!timeline || !lastCycle) return;
 
-      // 6 sensores independentes
-      const sensores = [
-        { nome: 'Portão', tempo: lastCycle.portao || 0 },
-        { nome: 'Moega/Fosso', tempo: lastCycle.moega || 0 },
-        { nome: 'Trava Roda', tempo: lastCycle.trava_roda || 0 },
-        { nome: 'Trava Chassi', tempo: lastCycle.trava_chassi || 0 },
-        { nome: 'Trava Pino E', tempo: lastCycle.trava_pino_e || 0 },
-        { nome: 'Trava Pino D', tempo: lastCycle.trava_pino_d || 0 }
-      ];
+      // so os sensores deste tombador
+      const sensores = sensoresDoTombador().map(([nome, campo]) => ({ nome, tempo: Number(lastCycle[campo]) || 0 }));
 
       const maxTempo = Math.max(...sensores.map(e => e.tempo), 1);
 
+      timeline.className = 'flex flex-wrap gap-2 mb-2';
       timeline.innerHTML = sensores.map((e) => {
         const pct = (e.tempo / maxTempo) * 100;
         const opacity = Math.max(0.4, pct / 100);
         return `
-          <div class="bg-pili-red rounded p-2 text-center transition-all" style="opacity:${opacity}">
-            <div class="text-xs font-bold text-white">${fmtDur(e.tempo) === '-' ? '0 min' : fmtDur(e.tempo)}</div>
-            <div class="text-[8px] text-white/80">${e.nome}</div>
+          <div class="flex-1 min-w-[100px] bg-pili-red rounded p-2 text-center transition-all" style="opacity:${opacity}">
+            <div class="text-sm font-bold text-white">${fmtDur(e.tempo) === '-' ? '0 min' : fmtDur(e.tempo)}</div>
+            <div class="text-[10px] text-white/80">${e.nome}</div>
           </div>
         `;
       }).join('');
@@ -2179,21 +2214,13 @@
 
       if (chartEtapas) chartEtapas.destroy();
 
-      // Calcular media dos 6 sensores
-      const sensorMedia = [0, 0, 0, 0, 0, 0];
-      const count = data.length;
-
-      data.forEach(c => {
-        sensorMedia[0] += c.portao || 0;
-        sensorMedia[1] += c.moega || 0;
-        sensorMedia[2] += c.trava_roda || 0;
-        sensorMedia[3] += c.trava_chassi || 0;
-        sensorMedia[4] += c.trava_pino_e || 0;
-        sensorMedia[5] += c.trava_pino_d || 0;
-      });
-
-      const values = sensorMedia.map(v => Math.round(v / count / 6) / 10 || 0);   // minutos
-      const labels = ['Portão', 'Moega/Fosso', 'Tr.Roda', 'Tr.Chassi', 'Tr.Pino E', 'Tr.Pino D'];
+      // Media dos sensores deste tombador
+      const sens = sensoresDoTombador();
+      const count = data.length || 1;
+      const values = sens.map(([, campo]) => Math.round(data.reduce((t, c) => t + (Number(c[campo]) || 0), 0) / count / 6) / 10 || 0);   // minutos
+      const labels = sens.map(s => s[3]);
+      const badge = document.getElementById('etapasSensoresBadge');
+      if (badge) badge.textContent = `${sens.length} SENSORES`;
 
       chartEtapas = new Chart(ctx, {
         type: 'bar',
