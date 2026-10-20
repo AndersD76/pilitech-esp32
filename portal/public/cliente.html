@@ -1797,8 +1797,7 @@
       const tempos = ciclo == null ? '<p class="text-sm text-gray-400">Sem ciclos com tempo recebido neste período.</p>'
         : linhaC('Ciclo bruto', bruto, padB) +
           linhaC('Ciclo líquido', liquido, padL) +
-          (paradaMedia > 0 ? linhaT('dentro do líquido, parado com a moega cheia', fmtMin(paradaMedia), larg(paradaMedia), 'bg-amber-400') : '') +
-          `<div class="text-[11px] text-gray-500">Padrões = soma dos tempos das etapas do documento (descarga a definir).</div>`;
+          (paradaMedia > 0 ? linhaT('dentro do líquido, parado com a moega cheia', fmtMin(paradaMedia), larg(paradaMedia), 'bg-amber-400') : '');
 
       const caminhoes = ciclo > 0 ? Math.floor((t.paradaMoegaS || 0) / ciclo) : 0;
       const al = [];
@@ -1811,39 +1810,46 @@
       const alertas = al.length ? al.map(([c, txt]) => `<div class="border-l-4 ${cor[c]} rounded px-3 py-2 text-sm mb-2">${esc(txt)}</div>`).join('')
         : '<div class="border-l-4 border-green-500 bg-green-50 rounded px-3 py-2 text-sm">Nenhum alerta no período</div>';
 
+      // 20/10/2026: indicadores em quadros (o mesmo .pt-stat do portal), sem linhas de texto nem notas
       const hm = m => `${Math.floor((m || 0) / 60)}h${String(Math.round(m || 0) % 60).padStart(2, '0')}m`;
-      const rodape = [`Horímetro (IoT ligada): <b>${hm(t.horimetroMin)}</b>`,
-        `Ciclos com tempo recebido: <b>${t.ciclosRecebidos || 0} de ${stats.ciclosPeriodo || 0}</b> <span class="text-gray-400">(os demais ainda estão no buffer da IoT)</span>`];
-      if (cal.configurado) rodape.push(`Ciclos por hora: <b>${dec(pr.ciclos_hora_programada)}</b> · Disponibilidade: <b>${pct1(k.disponibilidade_pct)}</b> · Utilização: <b>${pct1(k.utilizacao_pct)}</b>`);
-      else rodape.push(`<a href="/config-tombador.html?serial=${encodeURIComponent(serial)}" class="underline">Cadastre os turnos</a> para ver ciclos por hora, disponibilidade e utilização.`);
+      const sc = CardTombador.statCard;
+      const linkCfg = `/config-tombador.html?serial=${encodeURIComponent(serial)}`;
+      const recebidos = t.ciclosRecebidos || 0, totalCic = stats.ciclosPeriodo || 0;
+      const pctRec = totalCic ? Math.min(100, Math.round(recebidos / totalCic * 100)) : 0;
+      const barraRec = `<div class="h-1.5 rounded bg-black/10 mt-1"><div class="h-1.5 rounded bg-current" style="width:${pctRec}%"></div></div>`;
+      const quadros = [
+        sc('Horímetro', hm(t.horimetroMin), 'IoT ligada no período'),
+        sc('Ciclos com tempo', `${recebidos} de ${totalCic}`, barraRec, !totalCic ? 'neutro' : recebidos >= totalCic ? 'ok' : 'alerta'),
+      ];
+      if (cal.configurado) quadros.push(sc('Ciclos por hora', dec(pr.ciclos_hora_programada), 'no horário programado'),
+                                        sc('Disponibilidade', pct1(k.disponibilidade_pct), ''), sc('Utilização', pct1(k.utilizacao_pct), ''));
+      else quadros.push(`<a href="${linkCfg}" class="pt-stat pt-tom-info hover:opacity-90"><div class="pt-stat-t">Ciclos por hora · disponibilidade · utilização</div>
+        <div class="pt-stat-v text-base">Cadastrar turnos →</div><div class="pt-stat-s"></div></a>`);
 
-      // detalhe (escondido): so as etapas medidas
-      const medidas = (k.etapas || []).filter(e => e.medido), naoMedidas = (k.etapas || []).filter(e => !e.medido);
-      const cs = { acima: 'text-red-600', abaixo: 'text-blue-600', dentro: 'text-green-600' };
+      // etapas medidas (grafico) e ocorrencias, sempre visiveis
+      const medidas = (k.etapas || []).filter(e => e.medido);
       const tend = { piorando: '↑ piorando', melhorando: '↓ melhorando', estavel: '→ estável' };
-      // 20/10/2026: grafico de barras (real x padrao por etapa) no lugar da tabela
       const alturaEtapas = Math.max(140, 44 * medidas.length + 40);
-      const ocs = ((oc && oc.ocorrencias) || []).slice(0, 10).map(o => `<div class="flex justify-between gap-3 py-1 border-t text-xs">
-          <span><b>${esc(ROT_OC[o.tipo] || o.tipo)}</b>${o.duracao_s ? ' · ' + fmtMin(o.duracao_s) : ''}${o.qualidade && o.qualidade !== 'medido' ? ' <span class="text-gray-400">(' + esc(o.qualidade.replace('_', ' ')) + ')</span>' : ''}</span>
-          <span class="text-gray-400 whitespace-nowrap">${fmtDataBR(o.fim, { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}${o.ciclo_numero ? ' · #' + o.ciclo_numero : ''}</span></div>`).join('');
-      const detalhe = `<details class="mt-4" ontoggle="if (this.open && window.chartEtapasResumo) setTimeout(() => chartEtapasResumo.resize(), 50)"><summary class="cursor-pointer text-sm font-bold text-gray-600">Ver detalhes por etapa e ocorrências</summary>
-        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-3">
-          <div><div class="text-xs font-bold text-gray-500 mb-1">TEMPO REAL × PADRÃO POR ETAPA</div>
-            ${medidas.length ? `<div style="position:relative;height:${alturaEtapas}px"><canvas id="chartEtapasResumo"></canvas></div>
-            <p class="text-[11px] text-gray-500 mt-1">Barra escura = tempo real médio (verde dentro do padrão, vermelho acima, azul abaixo) · barra clara = padrão.</p>` : '<p class="text-xs text-gray-400">Nenhuma etapa medida no período.</p>'}
-            ${naoMedidas.length ? `<p class="text-[11px] text-gray-400 mt-2">Sem medida: ${naoMedidas.map(e => esc(e.nome.split(' (')[0].toLowerCase())).join(', ')}. Posicionar e liberar saída não têm sensor; subir e descer só aparecem quando o 40° bate.</p>` : ''}
-            <a href="/config-tombador.html?serial=${encodeURIComponent(serial)}" class="text-xs underline text-gray-500">Configurar padrões e calendário</a></div>
-          <div><div class="text-xs font-bold text-gray-500 mb-1">OCORRÊNCIAS</div>${ocs || '<p class="text-xs text-gray-400">Nenhuma ocorrência no período.</p>'}</div>
-        </div></details>`;
+      const ocs = ((oc && oc.ocorrencias) || []).slice(0, 10).map(o => `<div class="flex justify-between gap-3 px-3 py-2 rounded-lg bg-gray-50 text-sm">
+          <span><b>${esc(ROT_OC[o.tipo] || o.tipo)}</b>${o.duracao_s ? ' · ' + fmtMin(o.duracao_s) : ''}</span>
+          <span class="text-xs text-gray-400 whitespace-nowrap">${fmtDataBR(o.fim, { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}${o.ciclo_numero ? ' · #' + o.ciclo_numero : ''}</span></div>`).join('');
 
       el.innerHTML = `<div class="pt-card">
-        <div class="text-xs font-bold text-gray-500 mb-3">RESUMO DO PERÍODO · ${esc(p.texto.toUpperCase())}</div>
+        <div class="flex items-center justify-between gap-3 mb-3">
+          <div class="text-xs font-bold text-gray-500">RESUMO DO PERÍODO · ${esc(p.texto.toUpperCase())}</div>
+          <a href="${linkCfg}" class="text-xs font-medium px-3 py-1 rounded-lg border border-gray-300 text-gray-600 hover:bg-gray-50">Configurar padrões e turnos</a>
+        </div>
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <div><div class="text-sm font-bold text-gray-800 mb-2">Ciclo (média)</div>${tempos}</div>
           <div><div class="text-sm font-bold text-gray-800 mb-2">Atenção</div>${alertas}</div>
         </div>
-        <div class="mt-4 pt-3 border-t text-xs text-gray-600 space-y-1">${rodape.map(r => `<div>${r}</div>`).join('')}</div>
-        ${detalhe}</div>`;
+        <div class="grid grid-cols-2 lg:grid-cols-${quadros.length} gap-3 mt-5">${quadros.join('')}</div>
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
+          <div><div class="text-sm font-bold text-gray-800 mb-2">Tempo real × padrão por etapa</div>
+            ${medidas.length ? `<div style="position:relative;height:${alturaEtapas}px"><canvas id="chartEtapasResumo"></canvas></div>` : '<p class="text-sm text-gray-400">Nenhuma etapa medida no período.</p>'}</div>
+          <div><div class="text-sm font-bold text-gray-800 mb-2">Ocorrências</div>
+            <div class="space-y-1.5">${ocs || '<p class="text-sm text-gray-400">Nenhuma ocorrência no período.</p>'}</div></div>
+        </div></div>`;
 
       // Grafico real x padrao por etapa (barras horizontais, valor escrito em cada barra)
       const cv = document.getElementById('chartEtapasResumo');
@@ -1865,7 +1871,13 @@
             responsive: true, maintainAspectRatio: false,
             layout: { padding: { right: 56 } },
             plugins: {
-              legend: { position: 'bottom', labels: { boxWidth: 12, font: { size: 11 } } },
+              // legenda com o significado das cores (no lugar da nota de texto)
+              legend: { position: 'bottom', onClick: () => {}, labels: { boxWidth: 12, font: { size: 11 }, generateLabels: () => [
+                { text: 'Real: dentro do padrão', fillStyle: corReal.dentro, strokeStyle: 'transparent', lineWidth: 0 },
+                { text: 'acima', fillStyle: corReal.acima, strokeStyle: 'transparent', lineWidth: 0 },
+                { text: 'abaixo', fillStyle: corReal.abaixo, strokeStyle: 'transparent', lineWidth: 0 },
+                { text: 'Padrão', fillStyle: 'rgba(156, 163, 175, 0.45)', strokeStyle: 'transparent', lineWidth: 0 },
+              ] } },
               tooltip: { callbacks: {
                 label: c => `${c.dataset.label}: ${minRotulo(c.raw)}`,
                 afterBody: items => { const e = medidas[items[0].dataIndex]; return e ? [`Desvio: ${e.desvio_s >= 0 ? '+' : '-'}${fmtMin(Math.abs(e.desvio_s))}`] : []; }
