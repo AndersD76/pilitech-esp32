@@ -494,7 +494,6 @@
             <span class="periodo-rotulo px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-xs font-bold">7 DIAS</span>
           </div>
           <canvas id="chartCiclos" height="180"></canvas>
-          <p id="ciclosSemDataNota" class="hidden text-[11px] text-gray-500 mt-2"></p>
         </div>
       </div>
 
@@ -1956,7 +1955,7 @@
 
         // Update charts
         sensoresHab = Array.isArray(stats.sensorConfig) ? stats.sensorConfig : null;
-        updateCiclosChart(stats.ciclosDiarios, stats.ciclosSemData);
+        updateCiclosChart(stats.ciclosDiarios);
         updateProdutividadeChart(stats.ciclosDiarios);
       }
 
@@ -2094,21 +2093,14 @@
       return min + ':' + String(sec).padStart(2, '0');
     }
 
-    // Update Ciclos Chart. semData: ciclos que o contador da IoT somou enquanto ela estava sem
-    // conexao (lacuna de dias): nao tem dia certo, nao vao para nenhuma barra, ficam na nota.
-    function updateCiclosChart(data, semData) {
+    // Update Ciclos Chart. Ciclos que o contador da IoT somou enquanto ela estava sem conexao
+    // (lacuna de dias) nao tem dia certo: nao vao para nenhuma barra (o servidor tira) e entram so
+    // no total. Sem nota abaixo do grafico (20/10/2026, pedido do cliente).
+    function updateCiclosChart(data) {
       const ctx = document.getElementById('chartCiclos');
       if (!ctx) return;
 
       if (chartCiclos) chartCiclos.destroy();
-      const nota = document.getElementById('ciclosSemDataNota');
-      if (nota) {
-        const lista = Array.isArray(semData) ? semData : [];
-        const dm = d => String(d).slice(8, 10) + '/' + String(d).slice(5, 7);
-        nota.innerHTML = lista.length ? lista.map(s => `<b>+${s.ciclos}</b> ciclo(s) entre ${dm(s.de)} e ${dm(s.ate)}`).join(' · ') +
-          ' sem dia certo: a IoT ficou sem conexão e só informou o total quando voltou (entram no total, não nas barras).' : '';
-        nota.classList.toggle('hidden', !lista.length);
-      }
 
       // padrao dos graficos por dia: data DD/MM + dia da semana, barra arredondada, dia sem ciclo marcado no pe
       const labels = data.map(d => rotuloDia(d.dia));
