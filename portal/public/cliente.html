@@ -477,7 +477,6 @@
           <div class="flex items-center justify-between mb-4">
             <div>
               <h4 class="font-bold text-gray-800">Ciclo por Dia</h4>
-              <p class="text-xs text-gray-500">Ciclo bruto e ciclo líquido · verde = dentro do padrão, vermelho = acima · tracejado = padrão</p>
             </div>
             <span class="periodo-rotulo px-3 py-1 bg-green-100 text-green-700 rounded-full text-xs font-bold">7 DIAS</span>
           </div>
@@ -489,7 +488,6 @@
           <div class="flex items-center justify-between mb-4">
             <div>
               <h4 class="font-bold text-gray-800">Ciclos por Dia</h4>
-              <p class="text-xs text-gray-500">Volume de produção diário</p>
             </div>
             <span class="periodo-rotulo px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-xs font-bold">7 DIAS</span>
           </div>
@@ -501,15 +499,13 @@
       <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 mb-6">
         <!-- Grafico de Rosca - Distribuicao por Sensor -->
         <div class="pt-card">
-          <h4 class="font-bold text-gray-800 mb-2">Tempo por Sensor</h4>
-          <p class="text-xs text-gray-500 mb-4">Distribuição do tempo ON</p>
+          <h4 class="font-bold text-gray-800 mb-4">Tempo por Sensor</h4>
           <canvas id="chartPizza" height="180"></canvas>
         </div>
 
         <!-- Grafico de Linha - Tendencia Horaria -->
         <div class="pt-card">
-          <h4 class="font-bold text-gray-800 mb-2">Ciclos por Hora</h4>
-          <p class="text-xs text-gray-500 mb-4">Produção nas últimas 24h</p>
+          <h4 class="font-bold text-gray-800 mb-4">Ciclos por Hora</h4>
           <canvas id="chartHorario" height="180"></canvas>
         </div>
 
@@ -552,14 +548,10 @@
       </div>
 
       <!-- Timeline dos 6 Sensores -->
-      <div class="border rounded-lg p-3 sm:p-4 mb-6">
-        <h4 class="font-semibold text-gray-700 mb-2 sm:mb-4 text-sm sm:text-base">Tempo ON por Sensor - Último Ciclo</h4>
-        <p class="text-xs text-gray-500 mb-3 sm:mb-4">Duração ativa de cada sensor no último ciclo registrado</p>
-        <div class="flex flex-wrap gap-2 mb-2" id="timelineEtapas">
+      <div class="pt-card mb-6">
+        <h4 class="font-bold text-gray-800 mb-4">Tempo ON por Sensor - Último Ciclo</h4>
+        <div class="flex flex-wrap gap-2" id="timelineEtapas">
           <p class="text-xs text-gray-400">Selecione um tombador</p>
-        </div>
-        <div class="text-center text-[10px] text-gray-400">
-          Tempo ON de cada sensor durante o ciclo (da plataforma sair do 0° até voltar)
         </div>
       </div>
 
@@ -568,7 +560,6 @@
         <div class="flex items-center justify-between mb-4">
           <div>
             <h4 class="font-bold text-gray-800">Tempo Médio por Sensor</h4>
-            <p class="text-xs text-gray-500">Tempo ON médio de cada sensor no ciclo</p>
           </div>
           <span id="etapasSensoresBadge" class="px-3 py-1 bg-pili-red/10 text-pili-red rounded-full text-xs font-bold">SENSORES</span>
         </div>
@@ -613,15 +604,13 @@
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
           <!-- Ciclos por Dia -->
           <div class="pt-card">
-            <h4 class="font-bold text-gray-800 mb-1">Ciclos por Dia</h4>
-            <p class="text-xs text-gray-500 mb-4">Volume de produção comparado</p>
+            <h4 class="font-bold text-gray-800 mb-4">Ciclos por Dia</h4>
             <canvas id="chartCompareCiclos" height="200"></canvas>
           </div>
 
           <!-- Radar - Tempo por Sensor -->
           <div class="pt-card">
-            <h4 class="font-bold text-gray-800 mb-1">Perfil de Sensores</h4>
-            <p class="text-xs text-gray-500 mb-4">Tempo médio ON por sensor (minutos)</p>
+            <h4 class="font-bold text-gray-800 mb-4">Perfil de Sensores</h4>
             <canvas id="chartCompareRadar" height="200"></canvas>
           </div>
         </div>
@@ -629,15 +618,13 @@
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
           <!-- Barras - Produtividade -->
           <div class="pt-card">
-            <h4 class="font-bold text-gray-800 mb-1">Produtividade & Eficiência</h4>
-            <p class="text-xs text-gray-500 mb-4">Percentual vs padrão do ciclo (soma das etapas)</p>
+            <h4 class="font-bold text-gray-800 mb-4">Produtividade & Eficiência</h4>
             <canvas id="chartCompareProd" height="200"></canvas>
           </div>
 
           <!-- Barras - Tempo Médio -->
           <div class="pt-card">
-            <h4 class="font-bold text-gray-800 mb-1">Tempo Médio por Ciclo</h4>
-            <p class="text-xs text-gray-500 mb-4">Melhor ciclo / Médio / Pior ciclo</p>
+            <h4 class="font-bold text-gray-800 mb-4">Tempo Médio por Ciclo</h4>
             <canvas id="chartCompareTempo" height="200"></canvas>
           </div>
         </div>
