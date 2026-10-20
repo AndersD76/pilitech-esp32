@@ -1827,7 +1827,8 @@
         <div class="pt-stat-v text-base">Cadastrar turnos →</div><div class="pt-stat-s"></div></a>`);
 
       // etapas medidas (grafico) e ocorrencias, sempre visiveis
-      const medidas = (k.etapas || []).filter(e => e.medido);
+      // so as etapas: ciclo liquido e bruto ja estao em "Ciclo (media)" no topo do card
+      const medidas = (k.etapas || []).filter(e => e.medido && e.chave !== 'movimento' && e.chave !== 'bruto');
       const tend = { piorando: '↑ piorando', melhorando: '↓ melhorando', estavel: '→ estável' };
       const alturaEtapas = Math.max(140, 44 * medidas.length + 40);
       const ocs = ((oc && oc.ocorrencias) || []).slice(0, 10).map(o => `<div class="flex justify-between gap-3 px-3 py-2 rounded-lg bg-gray-50 text-sm">
