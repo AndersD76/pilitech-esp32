@@ -2921,6 +2921,36 @@ async function recuperarItensDoCorpo(sn, corpo, recebidoEm) {
   return { itens: itens.length, gravados };
 }
 
+// ---- 21/10/2026: SILENCIO PARA A OTA (IoT 10.54..10.57) ----
+// A vigia dessas versoes tem uma corrida no millis (corrigida na 10.58): logo depois de um envio ACEITO a IoT
+// pode reiniciar ("nenhum envio aceito ha 12 h"), e a OTA recomeca do zero a cada reinicio - em 21/10 a 10.58
+// nunca terminou (reinicios 12:15, 12:19, 12:23, 12:54, 13:04, 13:12, 13:13, 13:54). Enquanto houver OTA da IoT
+// pendente e o lote vier com outra versao, o portal aceita UM contato (entrega o OTA_UPDATE) e responde 429 aos
+// seguintes por ate 4 h: 429 nao e "envio aceito" (a vigia nao dispara), o servidor respondeu (o modem nao e
+// dado como morto) e 4xx nao descarta item (so 5xx descarta): a IoT guarda tudo e manda depois da OTA. Se a
+// IoT reiniciar no meio (uptime menor que o silencio), o proximo contato e aceito de novo (reentrega a OTA).
+// Lote com a versao nova = OTA concluida, tudo volta ao normal.
+const silencioOta = new Map();   // serial -> { version, desde }
+const SILENCIO_OTA_MAX_MS = 4 * 3600 * 1000;
+const UPTIME_NO_ITEM_R = 15;     // ["r", idade, ...f]: f[13] = uptime (s)
+function uptimesDoCorpo(corpo) {   // lote corrompido: o que der para ler
+  const u = [];
+  for (const m of String(corpo || '').matchAll(/\["r",(?:-?\d+,){14}(\d{1,7}),/g)) u.push(Number(m[1]));
+  return u;
+}
+function silencioParaOta(sn, fw, uptimes) {
+  const cmd = (pendingCommands.get(sn) || []).find(c => c.cmd === 'OTA_UPDATE' && c.tipo !== 'display');
+  const s = silencioOta.get(sn);
+  if (!cmd || (fw && fw === cmd.version) || (fw && !/^10\.5[4-7]$/.test(fw))) { if (s) silencioOta.delete(sn); return false; }
+  const agora = Date.now();
+  const reiniciou = !!s && (uptimes || []).some(u => Number.isFinite(u) && u >= 0 && u * 1000 < agora - s.desde);
+  if (s && s.version === cmd.version && !reiniciou && agora - s.desde < SILENCIO_OTA_MAX_MS) return true;
+  silencioOta.set(sn, { version: cmd.version, desde: agora });
+  console.warn(`[OTA] ${sn}: contato aceito (entrega OTA ${cmd.version}); os proximos recebem 429 ate chegar a versao nova` +
+               (reiniciou ? ' (a IoT reiniciou)' : s ? ' (silencio venceu)' : ''));
+  return false;
+}
+
 async function loteRecusado(req, res, motivo) {
   const raw = req.rawBody;
   const sn = snDoCorpo(raw);
@@ -2938,6 +2968,12 @@ async function loteRecusado(req, res, motivo) {
     if (sn) {
       const r = await pool.query(`UPDATE devices SET ultimo_contato = NOW() WHERE serial_number = $1 RETURNING resgate, firmware_version`, [sn]);
       if (r.rows.length && r.rows[0].resgate === true) {
+        // 21/10/2026: OTA pendente numa IoT 10.54..10.57 = 429 tambem no resgate (ver silencioParaOta)
+        const fwCorpo = (String(corpo || '').match(/"fw":"(\d+\.\d+)"/) || [])[1] || r.rows[0].firmware_version || null;
+        if (silencioParaOta(sn, fwCorpo, uptimesDoCorpo(corpo))) {
+          console.warn(`[BATCH] ${sn}: RESGATE - lote corrompido respondido com 429 - OTA em andamento`);
+          return res.status(429).json({ error: 'ota em andamento' });
+        }
         // 19/10/2026: confere a versao instalada (a ultima que um lote integro informou), senao a OTA da
         // versao ja instalada era entregue de novo num lote corrompido (10.55 -> 10.55 iniciada as 14:44)
         const cmds = pendingCommands.retirar(sn, r.rows[0].firmware_version || null);
@@ -2982,6 +3018,12 @@ app.post('/api/batch', validateApiKey, async (req, res) => {
       await pool.query(`UPDATE devices SET firmware_version = $1, firmware_at = NOW()
                         WHERE id = $2 AND firmware_version IS DISTINCT FROM $1`, [fw, deviceId])
         .catch(e => console.error('lote fw:', e.message));
+    }
+    // 21/10/2026: OTA pendente numa IoT 10.54..10.57 = 429 (ver silencioParaOta); os itens ficam na IoT
+    if (silencioParaOta(sn, typeof fw === 'string' ? fw : null,
+                        it.filter(i => Array.isArray(i) && i[0] === 'r').map(i => Number(i[UPTIME_NO_ITEM_R])))) {
+      console.warn(`[OTA] ${sn}: lote integro (${it.length} itens) respondido com 429 - OTA em andamento`);
+      return res.status(429).json({ error: 'ota em andamento' });
     }
 
     let gravados = 0, semHora = 0;
