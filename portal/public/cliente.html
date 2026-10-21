@@ -470,19 +470,33 @@
       <!-- INDICADORES DO PERIODO (etapas, calendario, ocorrencias) -->
       <div id="kpisPeriodo" class="mb-6"></div>
 
-      <!-- GRAFICOS PROFISSIONAIS -->
+      <!-- GRAFICOS PROFISSIONAIS: 21/10/2026 - ciclo bruto e ciclo liquido em 2 graficos (pedido do cliente) -->
       <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-        <!-- Grafico de Area - Produtividade -->
+        <!-- Ciclo bruto por dia (portao/travas -> portao/travas) -->
         <div class="pt-card">
           <div class="flex items-center justify-between mb-4">
             <div>
-              <h4 class="font-bold text-gray-800">Ciclo por Dia</h4>
+              <h4 class="font-bold text-gray-800">Ciclo Bruto por Dia</h4>
             </div>
             <span class="periodo-rotulo px-3 py-1 bg-green-100 text-green-700 rounded-full text-xs font-bold">7 DIAS</span>
           </div>
           <canvas id="chartProdutividade" height="180"></canvas>
         </div>
 
+        <!-- Ciclo liquido por dia (0° -> 0°) -->
+        <div class="pt-card">
+          <div class="flex items-center justify-between mb-4">
+            <div>
+              <h4 class="font-bold text-gray-800">Ciclo Líquido por Dia</h4>
+            </div>
+            <span class="periodo-rotulo px-3 py-1 bg-green-100 text-green-700 rounded-full text-xs font-bold">7 DIAS</span>
+          </div>
+          <canvas id="chartLiquido" height="180"></canvas>
+        </div>
+      </div>
+
+      <!-- GRAFICOS SECUNDARIOS -->
+      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 mb-6">
         <!-- Grafico de Barras - Ciclos por Dia -->
         <div class="pt-card">
           <div class="flex items-center justify-between mb-4">
@@ -493,10 +507,7 @@
           </div>
           <canvas id="chartCiclos" height="180"></canvas>
         </div>
-      </div>
 
-      <!-- GRAFICOS SECUNDARIOS -->
-      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 mb-6">
         <!-- Grafico de Rosca - Distribuicao por Sensor -->
         <div class="pt-card">
           <h4 class="font-bold text-gray-800 mb-4">Tempo por Sensor</h4>
@@ -509,42 +520,6 @@
           <canvas id="chartHorario" height="180"></canvas>
         </div>
 
-        <!-- Indicadores de Desempenho -->
-        <div class="bg-gradient-to-br from-gray-900 to-gray-800 pt-hero">
-          <h4 class="font-bold mb-4">Indicadores Chave</h4>
-          <div class="space-y-4">
-            <div>
-              <div class="flex justify-between text-sm mb-1">
-                <span class="text-gray-400">Sensor mais rápido</span>
-                <span class="font-bold text-green-400" id="etapaMaisRapida">-</span>
-              </div>
-              <div class="h-2 bg-gray-700 rounded-full overflow-hidden">
-                <div class="h-full bg-green-500 rounded-full" id="barraRapida" style="width: 0%"></div>
-              </div>
-            </div>
-            <div>
-              <div class="flex justify-between text-sm mb-1">
-                <span class="text-gray-400">Sensor mais lento</span>
-                <span class="font-bold text-red-400" id="etapaMaisLenta">-</span>
-              </div>
-              <div class="h-2 bg-gray-700 rounded-full overflow-hidden">
-                <div class="h-full bg-red-500 rounded-full" id="barraLenta" style="width: 100%"></div>
-              </div>
-            </div>
-            <div class="pt-3 border-t border-gray-700">
-              <div class="flex justify-between text-sm mb-1">
-                <span class="text-gray-400">Desvio padrão</span>
-                <span class="font-bold" id="desvioPadrao">-</span>
-              </div>
-            </div>
-            <div>
-              <div class="flex justify-between text-sm mb-1">
-                <span class="text-gray-400">Ciclos dentro da meta</span>
-                <span class="font-bold text-green-400" id="ciclosAcimaMeta">-</span>
-              </div>
-            </div>
-          </div>
-        </div>
       </div>
 
       <!-- Timeline dos 6 Sensores -->
@@ -1552,15 +1527,20 @@
     }
 
     // ========== TELEMETRIA E PRODUTIVIDADE ==========
-    let chartCiclos, chartProdutividade, chartEtapas, chartPizza, chartHorario, chartEtapasResumo;
+    let chartCiclos, chartProdutividade, chartLiquido, chartEtapas, chartPizza, chartHorario, chartEtapasResumo;
     // Sensores do tombador escolhido: so os habilitados na IoT (sensor_config, que vem no device-stats)
     // aparecem nos graficos e quadros por sensor (20/10/2026: o 001430 nao tem portao nem pinos).
     // [nome, campo do ciclo, indice na config da IoT, nome curto]
-    const SENSORES_CICLO = [['Portão', 'portao', 7, 'Portão'], ['Moega/Fosso', 'moega', 6, 'Moega/Fosso'],
+    // 21/10/2026: 0° e 40° tambem (pedido do cliente). 0° = travar + destravar (parado no 0° com o caminhao
+    // travado); 40° = tempo no alto. Vem das etapas do ciclo (IoT 10.49+); ciclo sem etapas = 0.
+    const SENSORES_CICLO = [['Sensor 0°', 'zero', 0, '0°'], ['Sensor 40°', 'alto', 1, '40°'],
+      ['Portão', 'portao', 7, 'Portão'], ['Moega/Fosso', 'moega', 6, 'Moega/Fosso'],
       ['Trava Roda', 'trava_roda', 2, 'Tr.Roda'], ['Trava Chassi', 'trava_chassi', 3, 'Tr.Chassi'],
       ['Trava Pino E', 'trava_pino_e', 4, 'Tr.Pino E'], ['Trava Pino D', 'trava_pino_d', 5, 'Tr.Pino D']];
     let sensoresHab = null;
     const sensoresDoTombador = () => SENSORES_CICLO.filter(s => !(Array.isArray(sensoresHab) && sensoresHab[s[2]] === false));
+    const segPos = v => (Number(v) > 0 ? Number(v) : 0);
+    const tempoSensor = (c, campo) => campo === 'zero' ? segPos(c.t_travar) + segPos(c.t_destravar) : campo === 'alto' ? segPos(c.t_alto) : segPos(c[campo]);
     let PADRAO_LIQUIDO = 360;       // padrao do ciclo liquido (0° -> 0°) = subir + descarga + descer
     let TEMPO_PADRAO_CICLO = 450;   // padrao do ciclo = soma das etapas do documento; vem do device-stats (metaCicloS) de cada tombador
 
@@ -1701,9 +1681,8 @@
       document.getElementById('teleCiclosTendencia').textContent = mensagem || 'sem ciclos';
       const gauge = document.getElementById('gaugeProgress');
       if (gauge) gauge.setAttribute('stroke-dasharray', '0, 100');
-      [chartCiclos, chartProdutividade, chartEtapas, chartPizza, chartHorario].forEach(c => { if (c) c.destroy(); });
-      chartCiclos = chartProdutividade = chartEtapas = chartPizza = chartHorario = null;
-      ['etapaMaisRapida', 'etapaMaisLenta', 'desvioPadrao', 'ciclosAcimaMeta'].forEach(id => { document.getElementById(id).textContent = '-'; });
+      [chartCiclos, chartProdutividade, chartLiquido, chartEtapas, chartPizza, chartHorario].forEach(c => { if (c) c.destroy(); });
+      chartCiclos = chartProdutividade = chartLiquido = chartEtapas = chartPizza = chartHorario = null;
       document.getElementById('timelineEtapas').className = 'flex flex-wrap gap-2 mb-2';
       document.getElementById('timelineEtapas').innerHTML = sensoresDoTombador().map(s => s[0])   // so os sensores do tombador
         .map(n => `<div class="flex-1 min-w-[100px] bg-gray-200 rounded p-2 text-center"><div class="text-sm font-bold text-gray-600">-</div><div class="text-[10px] text-gray-400">${n}</div></div>`).join('');
@@ -1801,21 +1780,22 @@
       const hm = m => `${Math.floor((m || 0) / 60)}h${String(Math.round(m || 0) % 60).padStart(2, '0')}m`;
       const sc = CardTombador.statCard;
       const linkCfg = `/config-tombador.html?serial=${encodeURIComponent(serial)}`;
-      const recebidos = t.ciclosRecebidos || 0, totalCic = stats.ciclosPeriodo || 0;
-      const pctRec = totalCic ? Math.min(100, Math.round(recebidos / totalCic * 100)) : 0;
-      const barraRec = `<div class="h-1.5 rounded bg-black/10 mt-1"><div class="h-1.5 rounded bg-current" style="width:${pctRec}%"></div></div>`;
+      // 21/10/2026: horimetro = o MESMO numero do card do tombador (IoT ligada desde sempre), com o do periodo embaixo;
+      // "ciclos com tempo" e "cadastrar turnos" sairam (pedido do cliente): moega cheia e batidas no 40 no lugar
+      const totalLig = t.horimetroTotalMin != null ? t.horimetroTotalMin : t.horimetroMin;
       const quadros = [
-        sc('Horímetro', hm(t.horimetroMin), 'IoT ligada no período'),
-        sc('Ciclos com tempo', `${recebidos} de ${totalCic}`, barraRec, !totalCic ? 'neutro' : recebidos >= totalCic ? 'ok' : 'alerta'),
+        sc('Horímetro', hm(totalLig), `IoT ligada · ${hm(t.horimetroMin)} no período`),
+        sc('Moega cheia', t.paradaMoegaS > 0 ? fmtMin(t.paradaMoegaS) : '0 min',
+           t.paradaMoegaS > 0 ? `parado em ${t.ciclosComMoega} ciclo(s)` : 'sem parada no período', t.paradaMoegaS > 0 ? 'alerta' : 'ok'),
+        sc('Bateu no 40°', t.batidas40 != null ? String(t.batidas40) : '-', t.batidas40 != null ? 'vez(es) no período' : 'IoT ainda não conta', 'neutro'),
       ];
       if (cal.configurado) quadros.push(sc('Ciclos por hora', dec(pr.ciclos_hora_programada), 'no horário programado'),
                                         sc('Disponibilidade', pct1(k.disponibilidade_pct), ''), sc('Utilização', pct1(k.utilizacao_pct), ''));
-      else quadros.push(`<a href="${linkCfg}" class="pt-stat pt-tom-info hover:opacity-90"><div class="pt-stat-t">Ciclos por hora · disponibilidade · utilização</div>
-        <div class="pt-stat-v text-base">Cadastrar turnos →</div><div class="pt-stat-s"></div></a>`);
 
       // etapas medidas (grafico) e ocorrencias, sempre visiveis
       // so as etapas: ciclo liquido e bruto ja estao em "Ciclo (media)" no topo do card
-      const medidas = (k.etapas || []).filter(e => e.medido && e.chave !== 'movimento' && e.chave !== 'bruto');
+      // 21/10/2026: so etapa medida E com padrao cadastrado (descarga com padrao 0 aparecia contra 0)
+      const medidas = (k.etapas || []).filter(e => e.medido && e.padrao_s > 0 && e.chave !== 'movimento' && e.chave !== 'bruto');
       const tend = { piorando: '↑ piorando', melhorando: '↓ melhorando', estavel: '→ estável' };
       const alturaEtapas = Math.max(140, 44 * medidas.length + 40);
       const ocs = ((oc && oc.ocorrencias) || []).slice(0, 10).map(o => `<div class="flex justify-between gap-3 px-3 py-2 rounded-lg bg-gray-50 text-sm">
@@ -1967,7 +1947,6 @@
         updateEtapasChart(cycleData);
         updateCyclesTable(cycleData);
         updatePizzaChart(cycleData);
-        updateIndicadores(cycleData);
       } else {
         updateCyclesTable([]);
       }
@@ -1986,8 +1965,8 @@
       const count = data.length || 1;
       const sens = sensoresDoTombador();
       const labels = sens.map(s => s[0]);
-      const values = sens.map(([, campo]) => Math.round(data.reduce((t, c) => t + (Number(c[campo]) || 0), 0) / count / 6) / 10);   // minutos
-      const cores = { portao: '#dc2626', moega: '#ef4444', trava_roda: '#b91c1c', trava_chassi: '#f87171', trava_pino_e: '#991b1b', trava_pino_d: '#fca5a5' };
+      const values = sens.map(([, campo]) => Math.round(data.reduce((t, c) => t + tempoSensor(c, campo), 0) / count / 6) / 10);   // minutos
+      const cores = { zero: '#7f1d1d', alto: '#fecaca', portao: '#dc2626', moega: '#ef4444', trava_roda: '#b91c1c', trava_chassi: '#f87171', trava_pino_e: '#991b1b', trava_pino_d: '#fca5a5' };
 
       chartPizza = new Chart(ctx, {
         type: 'doughnut',
@@ -2052,39 +2031,6 @@
       });
     }
 
-    // Update Indicadores
-    function updateIndicadores(data) {
-      if (!data || data.length === 0) return;
-
-      // Medias dos sensores deste tombador (moega cheia e parada/alarme, nao etapa do ciclo: fica fora)
-      const sens = sensoresDoTombador().filter(([, campo]) => campo !== 'moega');
-      const sensorNomes = sens.map(s => s[3]);
-      const count = data.length;
-      const medias = sens.map(([, campo]) => Math.round(data.reduce((t, c) => t + (Number(c[campo]) || 0), 0) / count));
-      const maxTempo = medias.length ? Math.max(...medias) : 0;
-      const positivos = medias.filter(v => v > 0);
-      const minTempo = positivos.length ? Math.min(...positivos) : 0;
-
-      const maxIdx = medias.indexOf(maxTempo);
-      const minIdx = medias.indexOf(minTempo);
-
-      document.getElementById('etapaMaisRapida').textContent = minTempo > 0 ? `${sensorNomes[minIdx]} (${fmtDur(minTempo)})` : '-';
-      document.getElementById('etapaMaisLenta').textContent = maxTempo > 0 ? `${sensorNomes[maxIdx]} (${fmtDur(maxTempo)})` : '-';
-      document.getElementById('barraRapida').style.width = (maxTempo > 0 ? (minTempo / maxTempo * 100) : 0) + '%';
-
-      // Desvio padrao
-      const temposTotal = data.map(c => Number(c.tempo_ciclo ?? c.tempo_total) || 0);
-      const mediaTempo = temposTotal.reduce((a, b) => a + b, 0) / count;
-      const variancia = temposTotal.reduce((sum, t) => sum + Math.pow(t - mediaTempo, 2), 0) / count;
-      const desvio = Math.sqrt(variancia);
-      document.getElementById('desvioPadrao').textContent = fmtDur(desvio);
-
-      // Ciclos acima da meta
-      const acimaMeta = data.filter(c => (Number(c.tempo_ciclo ?? c.tempo_total) || 0) <= TEMPO_PADRAO_CICLO).length;
-      const pctAcima = Math.round((acimaMeta / count) * 100);
-      document.getElementById('ciclosAcimaMeta').textContent = `${acimaMeta}/${count} (${pctAcima}%)`;
-    }
-
     // Format time in seconds to min:sec
     function formatTime(seconds) {
       if (!seconds || seconds <= 0) return '-';
@@ -2131,49 +2077,39 @@
       });
     }
 
-    // Tempo medio do ciclo por dia, em minutos, contra a meta (antes: linha de "produtividade %"
-    // curva, que inventava valor entre os dias e saia do grafico)
-    function updateProdutividadeChart(data) {
-      const ctx = document.getElementById('chartProdutividade');
-      if (!ctx) return;
-      if (chartProdutividade) chartProdutividade.destroy();
-
+    // Tempo medio do ciclo por dia, em minutos, contra o padrao. 21/10/2026: DOIS graficos (pedido do
+    // cliente) - ciclo bruto (portao/travas -> portao/travas) e ciclo liquido (0° -> 0°), cada um com o seu padrao.
+    function graficoCicloDia(id, anterior, data, campo, padraoS, rotulo, vazio) {
+      const ctx = document.getElementById(id);
+      if (!ctx) return null;
+      if (anterior) anterior.destroy();
       const min1 = s => { const v = parseFloat(s); return v > 0 ? Math.round(v / 6) / 10 : null; };   // minutos, 1 casa
-      const padB = TEMPO_PADRAO_CICLO / 60, padL = PADRAO_LIQUIDO / 60;
+      const padM = padraoS / 60;
       const labels = data.map(d => rotuloDia(d.dia));
-      const brutos = data.map(d => min1(d.tempo_medio_bruto));
-      const liquidos = data.map(d => min1(d.tempo_medio_liquido));
-      const temBruto = brutos.some(v => v != null);
-      const cor = (v, p, a) => v == null ? 'transparent' : v > p ? `rgba(220, 38, 38, ${a})` : `rgba(22, 163, 74, ${a})`;
-      const minTxt = minRotulo;
-      const conjuntos = [];
-      if (temBruto) conjuntos.push({ label: 'Ciclo bruto', data: brutos, backgroundColor: brutos.map(v => cor(v, padB, 0.85)), borderRadius: 4, maxBarThickness: 44 });
-      conjuntos.push({ label: 'Ciclo líquido', data: liquidos, backgroundColor: liquidos.map(v => cor(v, padL, temBruto ? 0.45 : 0.85)), borderRadius: 4, maxBarThickness: 44 });
-      const meta = temBruto ? padB : padL;
-
-      chartProdutividade = new Chart(ctx, {
+      const valores = data.map(d => min1(d[campo]));
+      const cor = v => v == null ? 'transparent' : v > padM ? 'rgba(220, 38, 38, 0.85)' : 'rgba(22, 163, 74, 0.85)';
+      return new Chart(ctx, {
         type: 'bar',
-        data: { labels, datasets: conjuntos },
+        data: { labels, datasets: [{ label: rotulo, data: valores, backgroundColor: valores.map(cor), borderRadius: 4, maxBarThickness: 44 }] },
         options: {
           responsive: true,
           layout: { padding: { top: 16 } },
           plugins: {
-            legend: { display: true, position: 'bottom', labels: { boxWidth: 12, font: { size: 11 } } },
-            tooltip: {
-              callbacks: {
-                label: c => {
-                  const d = data[c.dataIndex], ehBruto = temBruto && c.datasetIndex === 0;
-                  return [`${ehBruto ? 'Ciclo bruto' : 'Ciclo líquido'}: ${minTxt(c.raw)} (padrão ${minTxt(ehBruto ? padB : padL)})`,
-                          `${d.ciclos_com_tempo || 0} ciclo(s) com tempo recebido de ${d.ciclos || 0} no dia`];
-                }
-              }
-            }
+            legend: { display: false },
+            tooltip: { callbacks: { label: c => {
+              const d = data[c.dataIndex];
+              return [`${rotulo}: ${minRotulo(c.raw)} (padrão ${minRotulo(padM)})`, `${d.ciclos_com_tempo || 0} ciclo(s) com tempo recebido de ${d.ciclos || 0} no dia`];
+            } } }
           },
-          scales: { x: { grid: { display: false } }, y: { beginAtZero: true, suggestedMax: Math.max(padB, padL) * 1.5, ticks: { callback: v => v + ' min' } } }
+          scales: { x: { grid: { display: false } }, y: { beginAtZero: true, suggestedMax: padM * 1.5, ticks: { callback: v => v + ' min' } } }
         },
-        // tracejado do padrao + valor em cima de cada barra do 1o conjunto ("sem ciclo" no dia vazio)
-        plugins: [rotulosValores({ fmt: minTxt, vazio: 'sem ciclo', meta: { valor: meta, texto: (temBruto ? 'padrão bruto ' : 'padrão líquido ') + minTxt(meta) } })]
+        // tracejado do padrao + valor em cima de cada barra (texto no dia vazio)
+        plugins: [rotulosValores({ fmt: minRotulo, vazio, meta: { valor: padM, texto: 'padrão ' + minRotulo(padM) } })]
       });
+    }
+    function updateProdutividadeChart(data) {
+      chartProdutividade = graficoCicloDia('chartProdutividade', chartProdutividade, data, 'tempo_medio_bruto', TEMPO_PADRAO_CICLO, 'Ciclo bruto', 'sem medida');
+      chartLiquido = graficoCicloDia('chartLiquido', chartLiquido, data, 'tempo_medio_liquido', PADRAO_LIQUIDO, 'Ciclo líquido', 'sem ciclo');
     }
 
     // Update Timeline dos 6 Sensores
@@ -2182,7 +2118,7 @@
       if (!timeline || !lastCycle) return;
 
       // so os sensores deste tombador
-      const sensores = sensoresDoTombador().map(([nome, campo]) => ({ nome, tempo: Number(lastCycle[campo]) || 0 }));
+      const sensores = sensoresDoTombador().map(([nome, campo]) => ({ nome, tempo: tempoSensor(lastCycle, campo) }));
 
       const maxTempo = Math.max(...sensores.map(e => e.tempo), 1);
 
@@ -2209,7 +2145,7 @@
       // Media dos sensores deste tombador
       const sens = sensoresDoTombador();
       const count = data.length || 1;
-      const values = sens.map(([, campo]) => Math.round(data.reduce((t, c) => t + (Number(c[campo]) || 0), 0) / count / 6) / 10 || 0);   // minutos
+      const values = sens.map(([, campo]) => Math.round(data.reduce((t, c) => t + tempoSensor(c, campo), 0) / count / 6) / 10 || 0);   // minutos
       const labels = sens.map(s => s[3]);
       const badge = document.getElementById('etapasSensoresBadge');
       if (badge) badge.textContent = `${sens.length} SENSORES`;

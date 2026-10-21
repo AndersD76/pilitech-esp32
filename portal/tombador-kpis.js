@@ -255,22 +255,24 @@ function calcularKpis({ ciclos, contador, cfg, hab, paradas, ligadaMin, de, ate,
   // desvio por etapa
   const serie = (campo, ajuste) => ciclos.filter(c => !incompleto(c) && Number.isFinite(Number(ajuste ? ajuste(c) : c[campo])) && (ajuste || c[campo] != null))
     .map(c => ({ t: new Date(c.created_at).getTime(), v: Number(ajuste ? ajuste(c) : c[campo]) }));
-  const etapaDe = (chave, nome, padrao, pontos) => {
+  const etapaDe = (chave, nome, padrao, pontos, semMedida) => {
     const m = media(pontos.map(p => p.v));
-    if (m == null) return { chave, nome, medido: false, motivo: 'sem leitura nos ciclos do período', padrao_s: padrao };
+    if (m == null) return { chave, nome, medido: false, motivo: semMedida || 'sem leitura nos ciclos do período', padrao_s: padrao };
     const dev = m - padrao, pct = padrao > 0 ? Math.round(dev / padrao * 1000) / 10 : null;
     return { chave, nome, medido: true, n: pontos.length, real_s: Math.round(m), padrao_s: padrao, desvio_s: Math.round(dev), desvio_pct: pct,
              status: pct == null ? null : pct > tol ? 'acima' : pct < -tol ? 'abaixo' : 'dentro', tendencia: tendencia(pontos) };
   };
   const etapas = [
     { chave: 'posicionar', nome: 'Posicionar caminhão / fechar portão', medido: false, padrao_s: cfg.padroes.posicionar, motivo: 'sem sensor de chegada do caminhão' },
-    etapaDe('travar', 'Travar (chassi ou rodas + pinos)', pd.travar, serie('t_travar')),
+    // travar/destravar: com travamento "chassi OU rodas" a 1a trava ja confirma e a IoT mede 0 s. 0 s nao e
+    // medida de etapa (21/10/2026: o grafico mostrava Travar 0 min): so entram os ciclos com tempo > 0.
+    etapaDe('travar', 'Travar (chassi ou rodas + pinos)', pd.travar, serie('t_travar').filter(p => p.v > 0), 'travas engatam no mesmo instante (0 s): sem medida'),
     etapaDe('subir', 'Subir (até o 40°, quando bate)', pd.subir, serie('t_subir')),
     etapaDe('descarga', 'Descarregar (no 40°, sem a espera)', pd.descarga, serie(null, c => c.t_alto != null ? Number(c.t_alto) - Number(c.espera || 0) : NaN)),
     etapaDe('descer', 'Descer (do 40° ao 0°)', pd.descer, serie('t_descer')),
     etapaDe('movimento', 'Ciclo líquido (0° → 0°: subir + descarregar + descer)', pd.movimento, serie(null, c => Number(c.tempo_total))),
     etapaDe('bruto', 'Ciclo bruto (portão/travas → portão/travas)', pd.completo, serie('bruto')),
-    etapaDe('destravar', 'Destravar', pd.destravar, serie('t_destravar')),
+    etapaDe('destravar', 'Destravar', pd.destravar, serie('t_destravar').filter(p => p.v > 0), 'travas soltam no mesmo instante (0 s): sem medida'),
     { chave: 'saida', nome: 'Liberar saída / operar portão', medido: false, padrao_s: cfg.padroes.saida, motivo: 'sem sensor de saída do caminhão' },
   ];
   const medidas = etapas.filter(e => e.medido && !['movimento', 'bruto'].includes(e.chave) && e.desvio_pct != null);

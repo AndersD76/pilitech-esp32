@@ -3103,7 +3103,9 @@ app.get('/api/device-stats/:serialNumber', authenticateToken, checkSubscription,
     const plataformaForaMin = Math.max(0, (Number(h.ate_fim) || 0) - (h.antes != null ? Number(h.antes) : (Number(h.primeiro) || 0)));
     // horimetro: tempo com a IoT ligada dentro do periodo
     const diaSeguinte = new Date(Date.parse(ate) + 86400000).toISOString().slice(0, 10);
-    const horimetroMin = (await minutosLigada([deviceId], inicioDiaUTC(de), inicioDiaUTC(diaSeguinte)))[deviceId] || 0;
+    const [ligadaPeriodo, ligadaTotal] = await Promise.all([minutosLigada([deviceId], inicioDiaUTC(de), inicioDiaUTC(diaSeguinte)), minutosLigada([deviceId])]);
+    const horimetroMin = ligadaPeriodo[deviceId] || 0;
+    const horimetroTotalMin = ligadaTotal[deviceId] != null ? ligadaTotal[deviceId] : null;   // o mesmo numero do card do tombador
 
     res.json({
       periodo: { de, ate },
@@ -3128,6 +3130,7 @@ app.get('/api/device-stats/:serialNumber', authenticateToken, checkSubscription,
         ciclosComMoega: ciclos.filter(c => ocorrenciasDoCiclo(c, cfg).moega_cheia).length,
         ciclosSemTravas: ciclos.filter(c => ocorrenciasDoCiclo(c, cfg).sem_travas).length,
         horimetroMin,                                                    // IoT ligada no periodo
+        horimetroTotalMin,                                               // IoT ligada desde sempre (= horimetro do card)
         plataformaForaMin,
         ciclosSaiuMoegaCheia: ciclos.filter(c => c.saiu_moega_cheia === true).length,   // IoT v10.48+
         // vezes que bateu no 40 no periodo (IoT v10.48+; null = IoT ainda nao conta)

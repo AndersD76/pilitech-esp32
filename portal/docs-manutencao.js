@@ -703,14 +703,14 @@ function setupDocsManutencao(app, pool, deps) {
         SELECT d.serial_number, c.ciclo_numero, c.tempo_total, c.portao, c.moega,
           c.trava_roda, c.trava_chassi, c.trava_pino_e, c.trava_pino_d, c.eficiencia, c.created_at,
           c.batidas_40, c.saiu_sem_travas, c.saiu_moega_cheia,
-          c.t_travar, c.t_destravar, c.t_subir, c.espera_aproximada, c.padrao_s, c.t_bruto, c.padrao_liq_s
+          c.t_travar, c.t_destravar, c.t_subir, c.t_alto, c.espera_aproximada, c.padrao_s, c.t_bruto, c.padrao_liq_s
         FROM devices d
         LEFT JOIN unidades un ON un.id = d.unidade_id
         JOIN LATERAL (
           SELECT cd.ciclo_numero, cd.tempo_total,
             COALESCE(cd.sensor0, 0) AS portao,
             (CASE WHEN cd.espera_moega IS NOT NULL THEN cd.espera_moega ELSE COALESCE(cd.sensor40, 0) END) AS moega,   -- espera por moega (IoT 10.49+: so a medida; antes: toda a moega)
-            cd.t_travar, cd.t_destravar, cd.t_subir, (cd.espera_moega IS NULL OR cd.t_subir IS NULL) AS espera_aproximada,
+            cd.t_travar, cd.t_destravar, cd.t_subir, cd.t_alto, (cd.espera_moega IS NULL OR cd.t_subir IS NULL) AS espera_aproximada,
             cd.padrao_s, cd.t_bruto, cd.padrao_liq_s,
             COALESCE(cd.trava_roda, 0) AS trava_roda, COALESCE(cd.trava_chassi, 0) AS trava_chassi,
             COALESCE(cd.trava_pino_e, 0) AS trava_pino_e, COALESCE(cd.trava_pino_d, 0) AS trava_pino_d,

@@ -174,7 +174,9 @@
     return `M${x.toFixed(1)} ${y.toFixed(1)} L${(x - 5).toFixed(1)} 404`;
   }
   // Travas na viga: [indice em SENSORES, x do LED, altura da chamada, x da chamada na etiqueta, x da etiqueta]
-  const TRAVAS = [[2, 228, 416, 228, 192], [4, 533.5, 422, 533.5, 466], [5, 554.5, 418, 612, 600], [3, 592, 410, 742, 734]];
+  // 21/10/2026: trava chassi perto da moega (bloco que sobe do meio da plataforma logo a frente do rodado
+  // traseiro e engancha a travessa do chassi), como nos tombadores reais - antes estava atras do cavalo.
+  const TRAVAS = [[2, 228, 416, 228, 192], [3, 361, 406, 530, 466], [4, 533.5, 422, 664, 600], [5, 554.5, 418, 798, 734]];
 
   function desenhoTombador(t, hab) {
     const id = 'tb' + (++seqDesenho);
@@ -222,10 +224,11 @@
     const pino = (x, letra, ok) => fenda(x - 1, x + 8) + (ok
       ? `<rect x="${x}" y="362" width="7" height="16" rx="2" fill="${VERDE}" stroke="${VERDE_E}"/><text x="${x + 3.5}" y="358" font-size="10" font-weight="800" text-anchor="middle" fill="#86efac">${letra}</text>`
       : `<rect x="${x}" y="374" width="7" height="4" rx="1.5" fill="${SOLTA}"/><text x="${x + 3.5}" y="370" font-size="10" font-weight="800" text-anchor="middle" fill="#94a3b8">${letra}</text>`);
-    // trava chassi: bloco que sobe ate a longarina do cavalo, atras do tandem
-    const blocoChassi = ok => fenda(584, 600) + (ok
-      ? `<rect x="585" y="348" width="14" height="30" rx="1.5" fill="${VERDE}" stroke="${VERDE_E}" stroke-width="1.2"/><line x1="588" y1="355" x2="596" y2="355" stroke="#bbf7d0" stroke-width="1.5" opacity="0.6"/>`
-      : `<rect x="585" y="374" width="14" height="4" rx="1" fill="${SOLTA}"/>`);
+    // trava chassi: bloco que sobe do meio da plataforma, logo a frente do rodado traseiro da carreta, e
+    // engancha (boca no topo) a travessa do chassi - como nos tombadores Saur/Pili. Solto = recolhido na fenda.
+    const blocoChassi = ok => fenda(349, 373) + (ok
+      ? `<rect x="351" y="351" width="20" height="27" rx="1.5" fill="${VERDE}" stroke="${VERDE_E}" stroke-width="1.2"/><rect x="347" y="347" width="28" height="5" rx="1" fill="${VERDE}" stroke="${VERDE_E}" stroke-width="1"/><path d="M356,352 V358 H366 V352" fill="none" stroke="#bbf7d0" stroke-width="1.5" opacity="0.7"/>`
+      : `<rect x="351" y="374" width="20" height="4" rx="1" fill="${SOLTA}"/>`);
     const mecanismo = { 2: calco, 3: blocoChassi, 4: ok => pino(530, 'E', ok), 5: ok => pino(551, 'D', ok) };
     const travas = TRAVAS.filter(([i]) => usa(i));
     const pneu = x => `<circle cx="${x}" cy="361" r="17" fill="#09090b"/><circle cx="${x}" cy="361" r="13" fill="none" stroke="#27272a" stroke-width="2"/>
@@ -397,7 +400,11 @@
     ['Moega/Fosso', 'moega_fosso', 'moega', 'CHEIO!', 'OK', true],
     ['Portão', 'portao_fechado', 'portao', 'Fechado', 'Aberto', false],
   ];
-  const ORDEM_TEMPOS = [7, 6, 2, 3, 4, 5];   // portao, moega, travas (indices de SENSORES)
+  // 21/10/2026: 0° e 40° tambem (0° = travar + destravar, parado no 0° com o caminhao travado; 40° = tempo no alto)
+  const ORDEM_TEMPOS = [0, 1, 7, 6, 2, 3, 4, 5];   // 0°, 40°, portao, moega, travas (indices de SENSORES)
+  const CAMPO_TEMPO = { 0: 'zero', 1: 'alto' };
+  const segPos = v => (Number(v) > 0 ? Number(v) : 0);
+  const tempoSensorCiclo = (c, campo) => !c ? 0 : campo === 'zero' ? segPos(c.t_travar) + segPos(c.t_destravar) : campo === 'alto' ? segPos(c.t_alto) : Number(c[campo]) || 0;
 
   // 20/10/2026: sensor desabilitado na IoT (o tombador nao tem) nao aparece. data-idx = indice em
   // SENSORES: o ao vivo do cliente acha cada quadro por ele (antes era pela posicao).
@@ -502,8 +509,9 @@
     const cicloQuando = ciclo && ciclo.created_at ? curto(ciclo.created_at) : '';
     const [plat, platCor] = plataforma(t);
     const linhasTempo = ORDEM_TEMPOS.filter(i => !(hab && hab[i] === false)).map((i, k) => {   // so os sensores do tombador
-      const [nome, , campo] = SENSORES[i];
-      const val = ciclo ? Number(ciclo[campo]) || 0 : 0;
+      const [nome, , campoCiclo] = SENSORES[i];
+      const campo = campoCiclo || CAMPO_TEMPO[i];
+      const val = tempoSensorCiclo(ciclo, campo);
       const pct = total > 0 ? Math.min(Math.round(val / total * 100), 100) : 0;
       return `<div class="live-dur-row flex items-center gap-2 ${k % 2 ? 'bg-gray-50' : ''} px-2 py-1 rounded" data-sensor="${campo}">
         <span class="text-xs text-gray-600 w-24 shrink-0">${nome === 'Trava Rodas' ? 'Trava Roda' : nome}</span>
