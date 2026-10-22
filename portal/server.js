@@ -2960,15 +2960,138 @@ async function recuperarItensDoCorpo(sn, corpo, recebidoEm) {
   const deviceId = dev.rows[0].id;
   const itens = itensDoCorpo(corpo);
   const atrasoS = Math.max(0, Math.round((Date.now() - recebidoEm.getTime()) / 1000));
-  let gravados = 0;
+  let gravados = 0, falhas = 0;
   for (const item of itens) {
     const chave = chaveItem(deviceId, item, recebidoEm);
     const ins = await pool.query('INSERT INTO pilitech_item_recuperado (chave, device_id, recebido_em) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING', [chave, deviceId, recebidoEm]);
     if (ins.rowCount === 0) continue;                       // ja recuperado antes
     try { if (await gravarItemLote(sn, deviceId, item, atrasoS) === 'gravado') gravados++; }
-    catch (e) { console.error('[RECUPERA] item:', e.message); }
+    catch (e) { falhas++; console.error('[RECUPERA] item:', e.message); }
   }
-  return { itens: itens.length, gravados };
+  return { itens: itens.length, gravados, falhas, deviceId };
+}
+
+// ---- 22/10/2026: LOTE CORROMPIDO CONFIRMADO QUANDO TODOS OS ITENS DELE JA ESTAO NO BANCO ----
+// A IoT so apaga um item do buffer quando o lote dele recebe 200 e, a cada falha, remonta o lote
+// a partir do inicio do buffer. Com 1 byte trocado a cada ~120 quase nenhum lote chega integro e a
+// fila dela nao anda (213 pendentes em 22/10), embora cada copia traga inteira a maior parte dos
+// itens (a recuperacao acima ja grava esses). Aqui o lote corrompido recebe 200 quando TODOS os
+// itens dele estao gravados - desta copia ou de uma anterior. Conferencia conservadora:
+//  - a lista "it" tem de fechar certinho (aspas e colchetes casados ate o fim do lote): so assim
+//    se sabe quantos itens o lote tem e onde cada um comeca e termina;
+//  - item que nao fecha como JSON so conta se for igual, a menos de 3 bytes, a UM item ja gravado
+//    da mesma hora (nenhum outro a menos de 3 bytes dele) e com a mesma identidade intacta (leitura:
+//    uptime; ciclo: numero; evento: valor do sensor). A idade muda a cada envio: fica fora.
+//  - o 1o item "r" pode ser a leitura do momento (nao vem do buffer, a IoT nao apaga nada por ele).
+// Qualquer duvida = 400 como antes (a IoT guarda e manda de novo).
+const itensVistos = new Map();   // serial -> Map(chave -> { tipo, txt sem a idade, nasceu (s) ou null, em })
+const VISTOS_MAX = 600, VISTOS_MS = 48 * 3600 * 1000;
+const ITEM_INI = /^\["([recm])",(-?\d{1,7}),/;
+const semIdade = txt => txt.replace(ITEM_INI, '["$1",');
+// Campo que identifica o item no texto sem a idade (leitura: uptime; ciclo: numero; evento: valor
+// do sensor). undefined = ilegivel (byte trocado nele ou virgula a mais/a menos antes dele).
+function identidade(tipo, txt) {
+  const num = s => (/^\d{1,9}$/.test(s || '') ? s : undefined);
+  if (tipo === 'r') return num((txt.split(',')[14] || '').replace(/\]$/, ''));
+  if (tipo === 'c') return num(txt.split(',')[1]);
+  if (tipo === 'e') return (/,(0|1|null)\]$/.exec(txt) || [])[1];
+  return null;
+}
+function lembrarItem(vistos, chave, txt, item, recebidoEm) {
+  const t = semIdade(txt);
+  vistos.delete(chave);
+  vistos.set(chave, { tipo: item[0], txt: t, id: identidade(item[0], t), nasceu: item[1] >= 0 ? recebidoEm.getTime() / 1000 - item[1] : null, em: recebidoEm.getTime() });
+  for (const [k, v] of vistos) { if (vistos.size <= VISTOS_MAX && Date.now() - v.em < VISTOS_MS) break; vistos.delete(k); }
+}
+// Fatia a lista "it" do lote em itens (texto de cada um). null = a estrutura nao fecha.
+function fatiasDoLote(corpo) {
+  const ini = corpo.indexOf('"it":[');
+  if (ini < 0) return null;
+  const fatias = [];
+  let depth = 0, emStr = false, inicio = -1;
+  for (let j = ini + 5; j < corpo.length; j++) {
+    const ch = corpo[j];
+    if (emStr) { if (ch === '\\') j++; else if (ch === '"') emStr = false; continue; }
+    if (ch === '"') { if (depth < 2) return null; emStr = true; }
+    else if (ch === '[') { if (++depth === 2) inicio = j; if (depth > 3) return null; }
+    else if (ch === ']') {
+      depth--;
+      if (depth === 1) fatias.push(corpo.slice(inicio, j + 1));
+      else if (depth === 0) return corpo.length - (j + 1) <= 20 && corpo[j + 1] === ',' ? fatias : null;   // so ,"crc":"..."} depois
+      else if (depth < 0) return null;
+    } else if (depth === 1 && ch !== ',') return null;
+  }
+  return null;
+}
+function distanciaAte(a, b, max) {   // Levenshtein; acima de max devolve max + 1
+  if (Math.abs(a.length - b.length) > max) return max + 1;
+  let ant = Array.from({ length: b.length + 1 }, (_, j) => j), cur = new Array(b.length + 1);
+  for (let i = 1; i <= a.length; i++) {
+    cur[0] = i; let menor = i;
+    for (let j = 1; j <= b.length; j++) {
+      cur[j] = Math.min(ant[j] + 1, cur[j - 1] + 1, ant[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+      if (cur[j] < menor) menor = cur[j];
+    }
+    if (menor > max) return max + 1;
+    [ant, cur] = [cur, ant];
+  }
+  return Math.min(ant[b.length], max + 1);
+}
+// Item com byte trocado: e um item ja gravado? So se um unico candidato da mesma hora ficar perto.
+function itemJaGravado(txt, vistos, agoraS) {
+  const m = ITEM_INI.exec(txt);
+  if (!m) return false;
+  const nasceu = Number(m[2]) >= 0 ? agoraS - Number(m[2]) : null;
+  const alvo = semIdade(txt);
+  const id = identidade(m[1], alvo);
+  if (id === undefined) return false;
+  let melhor = 99, segundo = 99;
+  for (const v of vistos.values()) {
+    if (v.tipo !== m[1] || v.id !== id) continue;
+    // mesma hora (+-2 min); a mesma leitura/ciclo vem com idade -1 quando a IoT reiniciou e ainda nao tem relogio
+    if (nasceu !== null && v.nasceu !== null ? Math.abs(v.nasceu - nasceu) > 120 : (nasceu !== v.nasceu && m[1] !== 'r' && m[1] !== 'c')) continue;
+    const d = distanciaAte(alvo, v.txt, 6);
+    if (d < melhor) { segundo = melhor; melhor = d; } else if (d < segundo) segundo = d;
+  }
+  return melhor <= 3 && segundo >= melhor + 3;
+}
+// Itens recuperados das ultimas 48 h (corpos gravados), para o portal recem-iniciado ja conferir
+async function itensVistosDe(sn, deviceId) {
+  if (itensVistos.has(sn)) return itensVistos.get(sn);
+  const vistos = new Map();
+  itensVistos.set(sn, vistos);
+  try {
+    const r = await pool.query(`SELECT corpo, recebido_em FROM pilitech_lote_recusado
+                                WHERE serial_number = $1 AND corpo IS NOT NULL AND recebido_em > NOW() - INTERVAL '48 hours' ORDER BY id`, [sn]);
+    const achados = new Map();
+    for (const row of r.rows) {
+      const em = new Date(row.recebido_em);
+      for (const txt of fatiasDoLote(row.corpo) || []) {
+        let item = null; try { item = JSON.parse(txt); } catch (e) { continue; }
+        if (itemPlausivel(item)) achados.set(chaveItem(deviceId, item, em), { txt, item, em });
+      }
+    }
+    const ok = await pool.query('SELECT chave FROM pilitech_item_recuperado WHERE chave = ANY($1)', [[...achados.keys()]]);
+    const gravados = new Set(ok.rows.map(x => x.chave));
+    for (const [chave, a] of achados) if (gravados.has(chave)) lembrarItem(vistos, chave, a.txt, a.item, a.em);
+    console.log(`[BATCH] ${sn}: ${vistos.size} item(ns) recuperados carregados para conferir lotes corrompidos`);
+  } catch (e) { console.error('[BATCH] itens vistos:', e.message); }
+  return vistos;
+}
+// true = todos os itens deste lote corrompido ja estao gravados (rec = resultado de recuperarItensDoCorpo)
+async function loteCorrompidoCompleto(sn, corpo, recebidoEm, rec) {
+  if (!rec || !rec.deviceId || rec.falhas) return false;
+  const fatias = fatiasDoLote(corpo);
+  if (!fatias || !fatias.length) return false;
+  const vistos = await itensVistosDe(sn, rec.deviceId);
+  const faltam = [];
+  fatias.forEach((txt, k) => {
+    let item = null; try { item = JSON.parse(txt); } catch (e) { /* byte trocado */ }
+    if (item && itemPlausivel(item)) lembrarItem(vistos, chaveItem(rec.deviceId, item, recebidoEm), txt, item, recebidoEm);   // gravado agora
+    else faltam.push({ txt, k });
+  });
+  const agoraS = recebidoEm.getTime() / 1000;
+  return faltam.every(f => itemJaGravado(f.txt, vistos, agoraS) || (f.k === 0 && f.txt.startsWith('["r",')));
 }
 
 // ---- 21/10/2026: SILENCIO PARA A OTA (IoT 10.54..10.57) ----
@@ -3010,24 +3133,28 @@ async function loteRecusado(req, res, motivo) {
     const corpo = raw ? raw.subarray(0, 4000).toString('latin1') : null;
     await pool.query(`INSERT INTO pilitech_lote_recusado (serial_number, motivo, bytes, corpo) VALUES ($1, $2, $3, $4)`,
                      [sn, motivo, bytes, corpo]);
+    let completo = false;
     if (sn && corpo) {
       // o que ainda estiver inteiro dentro do lote corrompido vai para o banco agora
-      const rec = await recuperarItensDoCorpo(sn, corpo, new Date());
+      const recebidoEm = new Date();
+      const rec = await recuperarItensDoCorpo(sn, corpo, recebidoEm);
       if (rec.itens) console.warn(`[BATCH] ${sn}: ${rec.gravados} de ${rec.itens} item(ns) recuperados do lote corrompido`);
+      completo = await loteCorrompidoCompleto(sn, corpo, recebidoEm, rec);
     }
     if (sn) {
-      const r = await pool.query(`UPDATE devices SET ultimo_contato = NOW() WHERE serial_number = $1 RETURNING resgate, firmware_version`, [sn]);
-      if (r.rows.length && r.rows[0].resgate === true) {
+      const r = await pool.query(`UPDATE devices SET ultimo_contato = NOW()${completo ? ', last_seen = NOW()' : ''} WHERE serial_number = $1 RETURNING resgate, firmware_version`, [sn]);
+      if (r.rows.length && (r.rows[0].resgate === true || completo)) {
+        const como = r.rows[0].resgate === true && !completo ? 'RESGATE - lote corrompido' : 'lote corrompido com todos os itens ja gravados';
         // 21/10/2026: OTA pendente numa IoT 10.54..10.57 = 429 tambem no resgate (ver silencioParaOta)
         const fwCorpo = (String(corpo || '').match(/"fw":"(\d+\.\d+)"/) || [])[1] || r.rows[0].firmware_version || null;
         if (silencioParaOta(sn, fwCorpo, uptimesDoCorpo(corpo))) {
-          console.warn(`[BATCH] ${sn}: RESGATE - lote corrompido respondido com 429 - OTA em andamento`);
+          console.warn(`[BATCH] ${sn}: ${como} respondido com 429 - OTA em andamento`);
           return res.status(429).json({ error: 'ota em andamento' });
         }
         // 19/10/2026: confere a versao instalada (a ultima que um lote integro informou), senao a OTA da
         // versao ja instalada era entregue de novo num lote corrompido (10.55 -> 10.55 iniciada as 14:44)
         const cmds = pendingCommands.retirar(sn, r.rows[0].firmware_version || null);
-        console.warn(`[BATCH] ${sn}: RESGATE - lote corrompido aceito (200) com ${cmds.length} comando(s)`);
+        console.warn(`[BATCH] ${sn}: ${como} aceito (200) com ${cmds.length} comando(s)`);
         return res.json(cmds.length > 0 ? { success: true, n: 0, resgate: true, commands: cmds } : { success: true, n: 0, resgate: true });
       }
     }
