@@ -223,18 +223,49 @@ docsManutencao.registrarAntesDasRotas(app, { pool, authenticateToken, requireSup
 
 // Middleware
 app.use(cors());
+// 22/10/2026: pedido da IoT com caractere trocado no caminho (a UART da IoT troca ~1 byte em 120). Byte >= 0x80 o
+// proxy do Railway recusa sozinho (400); troca dentro do ASCII chegava aqui e virava 404 - em 22/10 a OTA 10.58 foi
+// cancelada com "pedaco 4 nao baixou" 8x seguidas. Caminho do MESMO tamanho com ate 2 caracteres diferentes de um
+// caminho valido (o lote, ou o firmware de uma OTA pendente) = o caminho certo. Tem de vir antes do express.json
+// (o CRC do lote usa os bytes brutos, guardados so para /api/batch).
+function difs(a, b) {
+  if (!a || !b || a.length !== b.length) return 99;
+  let d = 0;
+  for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) d++;
+  return d;
+}
+app.use((req, res, next) => {
+  const p = req.path;
+  if (p.length > 48 || p === '/api/batch') return next();
+  let certo = null;
+  if (req.method === 'POST' && difs(p, '/api/batch') <= 2) certo = '/api/batch';
+  else if (req.method === 'GET' && p.startsWith('/') && difs(p.slice(0, 8), '/api/fw/') <= 2) {
+    const n = (p.match(/(\d{1,3})$/) || [])[1];
+    for (const [, cmds] of pendingCommands) for (const c of cmds || []) {
+      if (certo || c.cmd !== 'OTA_UPDATE') continue;
+      const cands = [`/api/fw/${c.version}/info`].concat(n !== undefined ? [`/api/fw/${c.version}/c/${n}`] : []);
+      for (const cand of cands) if (!certo && difs(p, cand) <= 2) certo = cand;
+    }
+  }
+  if (certo && certo !== p) {
+    console.warn(`[UART] caminho com byte trocado ${JSON.stringify(p)} -> ${certo}`);
+    const qs = req.url.indexOf('?');
+    req.url = certo + (qs >= 0 ? req.url.slice(qs) : '');
+  }
+  next();
+});
+
 app.use(express.json({
   limit: '6mb',
   // /api/batch confere um CRC calculado sobre os bytes brutos do corpo
-  verify: (req, res, buf) => { if (req.originalUrl === '/api/batch') req.rawBody = buf; }
+  verify: (req, res, buf) => { if (req.url === '/api/batch') req.rawBody = buf; }
 }));
 // Lote 4G cujo JSON nem abre (byte trocado pela UART do modem): antes o express respondia 400
 // sozinho e o portal nao ficava sabendo que o equipamento tentou falar. Agora conta como
 // contato (ver loteRecusado); a chave de API e conferida antes, como na rota.
 app.use((err, req, res, next) => {
-  if (req.originalUrl === '/api/batch' && err && err.type === 'entity.parse.failed') {
-    const apiKey = req.headers['x-api-key'];
-    if (!apiKey || !API_KEYS_VALIDAS.has(apiKey)) return res.status(401).json({ error: 'API Key inválida' });
+  if (req.url === '/api/batch' && err && err.type === 'entity.parse.failed') {
+    if (!chaveValida(req.headers['x-api-key'])) return res.status(401).json({ error: 'API Key inválida' });
     return loteRecusado(req, res, 'json invalido');
   }
   next(err);
@@ -2457,9 +2488,16 @@ app.post('/api/cupons/apply', authenticateToken, async (req, res) => {
 // gravar leituras, eventos e manutencoes para qualquer numero de serie.
 const API_KEYS_VALIDAS = new Set(['pilitech_00002025_secret_key',
   ...String(process.env.API_KEYS || process.env.API_KEY || '').split(',').map(k => k.trim()).filter(Boolean)]);
+// 22/10/2026: a chave chega pela UART da IoT (USERDATA do modem) e as vezes com 1 caractere trocado:
+// do mesmo tamanho e ate 2 caracteres diferentes de uma chave valida tambem vale (antes: 401).
+function chaveValida(k) {
+  if (!k) return false;
+  if (API_KEYS_VALIDAS.has(k)) return true;
+  for (const v of API_KEYS_VALIDAS) if (difs(k, v) <= 2) return true;
+  return false;
+}
 function validateApiKey(req, res, next) {
-  const apiKey = req.headers['x-api-key'];
-  if (!apiKey || !API_KEYS_VALIDAS.has(apiKey)) {
+  if (!chaveValida(req.headers['x-api-key'])) {
     return res.status(401).json({ error: 'API Key inválida' });
   }
   next();
