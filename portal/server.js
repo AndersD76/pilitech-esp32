@@ -1567,6 +1567,18 @@ app.post('/api/admin/device-command', authenticateToken, requireSuperAdmin, (req
   res.json({ success: true, message: `Comando ${cmd} enfileirado para ${serial_number}` });
 });
 
+// Tira comandos da fila antes de serem entregues: todos, ou so os de um tipo ({cmd: 'SET_BAUD'}).
+// 22/10/2026: nao havia como desfazer um comando enfileirado por engano.
+app.post('/api/admin/device-command/limpar', authenticateToken, requireSuperAdmin, (req, res) => {
+  const { serial_number, cmd } = req.body;
+  if (!serial_number) return res.status(400).json({ error: 'serial_number obrigatório' });
+  const fila = pendingCommands.get(serial_number) || [];
+  const ficam = cmd ? fila.filter(c => c.cmd !== cmd) : [];
+  if (ficam.length) pendingCommands.set(serial_number, ficam); else pendingCommands.delete(serial_number);
+  console.log(`[ADMIN CMD] ${serial_number}: ${fila.length - ficam.length} comando(s) tirado(s) da fila${cmd ? ' (' + cmd + ')' : ''}`);
+  res.json({ success: true, removidos: fila.length - ficam.length, fila: ficam });
+});
+
 // Resgate: o portal passa a aceitar (200 + comandos da fila) os lotes corrompidos deste
 // equipamento, para que um comando/OTA chegue a uma IoT que so entrega lote corrompido.
 // Ver loteRecusado(). Desligar assim que ela voltar a entregar lotes integros.

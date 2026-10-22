@@ -403,6 +403,9 @@
                   <button onclick="setResgate(false)" class="w-full px-3 py-2 bg-gray-50 border border-gray-200 text-gray-700 rounded-lg hover:bg-gray-100 text-sm font-medium">
                     Desligar resgate
                   </button>
+                  <button onclick="limparFilaCmd()" class="w-full px-3 py-2 bg-gray-50 border border-gray-200 text-gray-700 rounded-lg hover:bg-gray-100 text-sm font-medium" title="Tira da fila os comandos que ainda nao foram entregues ao equipamento">
+                    Limpar fila de comandos
+                  </button>
                   <button onclick="verLotesRecusados()" class="w-full px-3 py-2 bg-gray-50 border border-gray-200 text-gray-700 rounded-lg hover:bg-gray-100 text-sm font-medium" title="Lotes que chegaram corrompidos: prova de que o equipamento esta vivo">
                     Ver lotes recusados
                   </button>
@@ -1477,6 +1480,16 @@
       });
       if (result && result.success) addCmdLog(result.resgate ? 'RESGATE LIGADO' : 'RESGATE desligado', serial);
       else alert('Erro ao alterar o resgate');
+    }
+
+    async function limparFilaCmd() {
+      const serial = document.getElementById('ctrlDeviceSelect').value;
+      if (!serial) return alert('Selecione um dispositivo');
+      if (!confirm(`Tirar da fila todos os comandos ainda não entregues a ${serial}?`)) return;
+      const r = await api('/api/admin/device-command/limpar', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ serial_number: serial })
+      });
+      if (r && r.success) addCmdLog(`FILA LIMPA (${r.removidos})`, serial); else alert('Erro ao limpar a fila');
     }
 
     async function verLotesRecusados() {
