@@ -2553,7 +2553,15 @@ class FilaComandos extends Map {
     if (validos.length < cmds.length) console.log(`[CMD] ${serial}: ${cmds.length - validos.length} comando(s) vencido(s) descartado(s)`);
     const ficam = [], entregar = [];
     for (const c of validos) {
-      if (c.cmd !== 'OTA_UPDATE') { entregar.push(c); continue; }
+      // 24/10/2026: SET_BAUD tambem fica ate a IoT aparecer no baud novo (confirmarBaud): a 19200 a
+      // resposta chega com byte trocado quase sempre e a de 23/10 00:49 se perdeu. Ja no baud pedido a
+      // IoT ignora ("SET_BAUD: ja em ..."). Vai so com o essencial: cada byte a menos e mais chance.
+      if (c.cmd === 'SET_BAUD') {
+        ficam.push({ ...c, entregas: (c.entregas || 0) + 1, ultimaEntrega: new Date(agora).toISOString() });
+        entregar.push({ cmd: c.cmd, baud: c.baud });
+        continue;
+      }
+      if (c.cmd !== 'OTA_UPDATE') { const { from, timestamp, ...essencial } = c; entregar.push(essencial); continue; }
       const instalada = c.tipo === 'display' ? displayInstalado.get(serial) : fwAtual;
       if (instalada && c.version === instalada) { console.log(`[OTA] ${serial}: ${c.tipo === 'display' ? 'display ' : ''}${instalada} instalada`); continue; }
       // 19/10/2026: com a UART IoT<->modem ruim (~5% dos lotes passam e a resposta tambem pode chegar
@@ -3094,6 +3102,25 @@ async function loteCorrompidoCompleto(sn, corpo, recebidoEm, rec) {
   return faltam.every(f => itemJaGravado(f.txt, vistos, agoraS) || (f.k === 0 && f.txt.startsWith('["r",')));
 }
 
+// ---- 24/10/2026: SET_BAUD sai da fila quando a IoT aparece no baud novo ----
+// A IoT nao informa o baud. Sinais: o evento "trocado para <baud>" (em lote integro ou corrompido) ou,
+// para 115200, um lote de 200 B ou mais integro ou com ate 3 bytes nao-ASCII. O erro da UART e por
+// tempo (~1 a cada 10 ms de transmissao): a 19200 vieram 10 a 23 nao-ASCII por lote de ~280 B em 23-24/10;
+// a 115200, ~1.
+function confirmarBaud(sn, corpo, integro) {
+  const fila = pendingCommands.get(sn) || [];
+  const sb = fila.find(c => c.cmd === 'SET_BAUD');
+  if (!sb) return;
+  const txt = String(corpo || '');
+  const naoAscii = (txt.match(/[^\x20-\x7e]/g) || []).length;
+  const ok = new RegExp(`trocado para ${Number(sb.baud)}\\b`).test(txt) ||
+             (Number(sb.baud) === 115200 && txt.length >= 200 && (integro || naoAscii <= 3));
+  if (!ok) return;
+  const ficam = fila.filter(c => c.cmd !== 'SET_BAUD');
+  if (ficam.length) pendingCommands.set(sn, ficam); else pendingCommands.delete(sn);
+  console.warn(`[CMD] ${sn}: baud ${sb.baud} confirmado (${integro ? 'lote integro' : `${naoAscii} byte(s) nao-ASCII`}, ${sb.entregas || 0} entrega(s)) - SET_BAUD sai da fila`);
+}
+
 // ---- 21/10/2026: SILENCIO PARA A OTA (IoT 10.54..10.57) ----
 // A vigia dessas versoes tem uma corrida no millis (corrigida na 10.58): logo depois de um envio ACEITO a IoT
 // pode reiniciar ("nenhum envio aceito ha 12 h"), e a OTA recomeca do zero a cada reinicio - em 21/10 a 10.58
@@ -3140,6 +3167,7 @@ async function loteRecusado(req, res, motivo) {
       const rec = await recuperarItensDoCorpo(sn, corpo, recebidoEm);
       if (rec.itens) console.warn(`[BATCH] ${sn}: ${rec.gravados} de ${rec.itens} item(ns) recuperados do lote corrompido`);
       completo = await loteCorrompidoCompleto(sn, corpo, recebidoEm, rec);
+      confirmarBaud(sn, corpo, false);
     }
     if (sn) {
       const r = await pool.query(`UPDATE devices SET ultimo_contato = NOW()${completo ? ', last_seen = NOW()' : ''} WHERE serial_number = $1 RETURNING resgate, firmware_version`, [sn]);
@@ -3155,7 +3183,8 @@ async function loteRecusado(req, res, motivo) {
         // versao ja instalada era entregue de novo num lote corrompido (10.55 -> 10.55 iniciada as 14:44)
         const cmds = pendingCommands.retirar(sn, r.rows[0].firmware_version || null);
         console.warn(`[BATCH] ${sn}: ${como} aceito (200) com ${cmds.length} comando(s)`);
-        return res.json(cmds.length > 0 ? { success: true, n: 0, resgate: true, commands: cmds } : { success: true, n: 0, resgate: true });
+        // so "commands" (a IoT nao le o resto): resposta curta passa mais inteira pela UART
+        return res.json(cmds.length > 0 ? { commands: cmds } : { success: true, n: 0, resgate: true });
       }
     }
   } catch (e) {
@@ -3233,6 +3262,7 @@ app.post('/api/batch', validateApiKey, async (req, res) => {
         .catch(e => console.error('lote diag:', e.message));
     }
 
+    confirmarBaud(sn, raw.toString('latin1'), true);
     const cmds = pendingCommands.retirar(sn, typeof fw === 'string' ? fw : null);
     // resposta curta: ela volta pela UART IoT<->modem, que troca bytes (o comando so vale se chegar inteiro)
     res.json(cmds.length > 0 ? { commands: cmds } : { success: true, n: gravados });
