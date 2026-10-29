@@ -2578,7 +2578,8 @@ class FilaComandos extends Map {
 const pendingCommands = new FilaComandos();
 
 // Firmware a distancia (OTA): cadastro, envio e download pelo equipamento
-setupOta(app, pool, { authenticateToken, requireSuperAdmin, validateApiKey, pendingCommands, statusSql: STATUS_CONEXAO_SQL });
+setupOta(app, pool, { authenticateToken, requireSuperAdmin, validateApiKey, pendingCommands, statusSql: STATUS_CONEXAO_SQL,
+                      aoBaixar: version => downloadOta.set(version, Date.now()) });
 
 // ESP32 envia status ao vivo a cada 10 segundos (sem gravar no banco)
 // Resposta inclui comandos pendentes para o dispositivo
@@ -3126,28 +3127,29 @@ function confirmarBaud(sn, corpo, integro) {
 // pode reiniciar ("nenhum envio aceito ha 12 h"), e a OTA recomeca do zero a cada reinicio - em 21/10 a 10.58
 // nunca terminou (reinicios 12:15, 12:19, 12:23, 12:54, 13:04, 13:12, 13:13, 13:54). Enquanto houver OTA da IoT
 // pendente e o lote vier com outra versao, o portal aceita UM contato (entrega o OTA_UPDATE) e responde 429 aos
-// seguintes por ate 4 h: 429 nao e "envio aceito" (a vigia nao dispara), o servidor respondeu (o modem nao e
+// seguintes enquanto ela baixa: 429 nao e "envio aceito" (a vigia nao dispara), o servidor respondeu (o modem nao e
 // dado como morto) e 4xx nao descarta item (so 5xx descarta): a IoT guarda tudo e manda depois da OTA. Se a
-// IoT reiniciar no meio (uptime menor que o silencio), o proximo contato e aceito de novo (reentrega a OTA).
+// IoT parar de baixar (reiniciou, desistiu ou nao recebeu o comando), o proximo contato e aceito de novo.
 // Lote com a versao nova = OTA concluida, tudo volta ao normal.
+//
+// 29/10/2026: "parou de baixar" agora e medido pelos pedidos de /api/fw/<versao>/... (downloadOta). Antes era
+// pelo uptime das leituras do lote, e leitura velha do buffer (uptime 28 s de um boot anterior) passava por
+// "a IoT reiniciou": 26 entregas da 10.58 em 22 h, cada contato aceito arriscando a corrida, 7 reinicios e a
+// OTA recomecando do zero (so uma vez chegou ao ultimo pedaco). Enquanto a IoT pede pedacos, nenhum lote e
+// aceito, sem limite de tempo.
 const silencioOta = new Map();   // serial -> { version, desde }
-const SILENCIO_OTA_MAX_MS = 4 * 3600 * 1000;
-const UPTIME_NO_ITEM_R = 15;     // ["r", idade, ...f]: f[13] = uptime (s)
-function uptimesDoCorpo(corpo) {   // lote corrompido: o que der para ler
-  const u = [];
-  for (const m of String(corpo || '').matchAll(/\["r",(?:-?\d+,){14}(\d{1,7}),/g)) u.push(Number(m[1]));
-  return u;
-}
-function silencioParaOta(sn, fw, uptimes) {
+const downloadOta = new Map();   // versao -> ms do ultimo pedido de /api/fw/<versao>/... (ota.js)
+const OTA_PARADA_MS = 20 * 60 * 1000;   // a IoT pede um pedaco a cada ~3-4 min
+function silencioParaOta(sn, fw) {
   const cmd = (pendingCommands.get(sn) || []).find(c => c.cmd === 'OTA_UPDATE' && c.tipo !== 'display');
   const s = silencioOta.get(sn);
   if (!cmd || (fw && fw === cmd.version) || (fw && !/^10\.5[4-7]$/.test(fw))) { if (s) silencioOta.delete(sn); return false; }
   const agora = Date.now();
-  const reiniciou = !!s && (uptimes || []).some(u => Number.isFinite(u) && u >= 0 && u * 1000 < agora - s.desde);
-  if (s && s.version === cmd.version && !reiniciou && agora - s.desde < SILENCIO_OTA_MAX_MS) return true;
+  const ultimoPedido = Math.max(s ? s.desde : 0, downloadOta.get(cmd.version) || 0);
+  if (s && s.version === cmd.version && agora - ultimoPedido < OTA_PARADA_MS) return true;
   silencioOta.set(sn, { version: cmd.version, desde: agora });
   console.warn(`[OTA] ${sn}: contato aceito (entrega OTA ${cmd.version}); os proximos recebem 429 ate chegar a versao nova` +
-               (reiniciou ? ' (a IoT reiniciou)' : s ? ' (silencio venceu)' : ''));
+               (s ? ` (${Math.round((agora - ultimoPedido) / 60000)} min sem pedir pedaco)` : ''));
   return false;
 }
 
@@ -3175,7 +3177,7 @@ async function loteRecusado(req, res, motivo) {
         const como = r.rows[0].resgate === true && !completo ? 'RESGATE - lote corrompido' : 'lote corrompido com todos os itens ja gravados';
         // 21/10/2026: OTA pendente numa IoT 10.54..10.57 = 429 tambem no resgate (ver silencioParaOta)
         const fwCorpo = (String(corpo || '').match(/"fw":"(\d+\.\d+)"/) || [])[1] || r.rows[0].firmware_version || null;
-        if (silencioParaOta(sn, fwCorpo, uptimesDoCorpo(corpo))) {
+        if (silencioParaOta(sn, fwCorpo)) {
           console.warn(`[BATCH] ${sn}: ${como} respondido com 429 - OTA em andamento`);
           return res.status(429).json({ error: 'ota em andamento' });
         }
@@ -3226,8 +3228,7 @@ app.post('/api/batch', validateApiKey, async (req, res) => {
         .catch(e => console.error('lote fw:', e.message));
     }
     // 21/10/2026: OTA pendente numa IoT 10.54..10.57 = 429 (ver silencioParaOta); os itens ficam na IoT
-    if (silencioParaOta(sn, typeof fw === 'string' ? fw : null,
-                        it.filter(i => Array.isArray(i) && i[0] === 'r').map(i => Number(i[UPTIME_NO_ITEM_R])))) {
+    if (silencioParaOta(sn, typeof fw === 'string' ? fw : null)) {
       console.warn(`[OTA] ${sn}: lote integro (${it.length} itens) respondido com 429 - OTA em andamento`);
       return res.status(429).json({ error: 'ota em andamento' });
     }

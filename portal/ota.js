@@ -55,7 +55,7 @@ async function criarTabelasOta(pool) {
   console.log('✅ OTA: colunas tipo/md5 (firmwares) e firmware_version (devices) verificadas');
 }
 
-function setupOta(app, pool, { authenticateToken, requireSuperAdmin, validateApiKey, pendingCommands, statusSql }) {
+function setupOta(app, pool, { authenticateToken, requireSuperAdmin, validateApiKey, pendingCommands, statusSql, aoBaixar = () => {} }) {
   const cache = new Map();   // versao -> { buf, md5, tipo, size } (o equipamento pede ~20 pedacos seguidos)
 
   async function carregar(versao) {
@@ -181,6 +181,7 @@ function setupOta(app, pool, { authenticateToken, requireSuperAdmin, validateApi
 
   // ---- equipamento ----
   app.get('/api/fw/:version/info', validateApiKey, async (req, res) => {
+    aoBaixar(req.params.version);   // o portal so aceita lote de novo se a IoT parar de baixar (silencioParaOta)
     try {
       const fw = await carregar(req.params.version);
       if (!fw) return res.status(404).type('text/plain').send('não encontrado');
@@ -194,6 +195,7 @@ function setupOta(app, pool, { authenticateToken, requireSuperAdmin, validateApi
   });
 
   app.get('/api/fw/:version/c/:n', validateApiKey, async (req, res) => {
+    aoBaixar(req.params.version);
     try {
       const fw = await carregar(req.params.version);
       const n = parseInt(req.params.n, 10);
