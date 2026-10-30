@@ -2845,14 +2845,17 @@ function snDoCorpo(raw) {
 // ---- Um item do lote 4G -> banco (usado pelo /api/batch e pela recuperacao de lotes corrompidos) ----
 // item = [tipo, idade_s, ...campos]; atrasoS = segundos a somar na idade (recuperacao de um corpo
 // guardado: agora - recebido_em). Devolve 'gravado' | 'semHora' | 'ignorado'.
-async function gravarItemLote(sn, deviceId, item, atrasoS) {
+async function gravarItemLote(sn, deviceId, item, atrasoS, aoVivo) {
   const b = v => (v === null || v === undefined) ? null : !!v;
   if (!Array.isArray(item) || item.length < 2) return 'ignorado';
   const [tipo, idade, ...f] = item;
   // idade -1 = hora desconhecida: item de outro boot sem o relogio da rede (_t, IoT 10.46+),
   // p.ex. o buffer da 10.45. Gravado com a hora da chegada, leitura velha passaria por atual
   // e ciclo de outro dia contaria hoje -> descartado (o 200 confirma o lote e a IoT apaga).
-  if (idade === -1) return 'semHora';
+  // 30/10/2026: a leitura AO VIVO do lote (1o item, "r" com idade -1: a IoT a monta na hora em que o
+  // lote sai, sem _ms/_t) vale a hora da chegada. Desde 19/10 ela era descartada aqui como "sem hora"
+  // e o card ficava "SEM LEITURA" com o tombador operando: so entrava leitura de mudanca de sensor.
+  if (idade === -1 && !(aoVivo && tipo === 'r')) return 'semHora';
   const seg = (typeof idade === 'number' && idade >= 0) ? Math.min(idade + (atrasoS || 0), 30 * 86400) : (atrasoS || 0);
   if (tipo === 'r') {
     await pool.query(`
@@ -2946,6 +2949,7 @@ function itensDoCorpo(corpo) {
   const itens = [];
   let i = corpo.indexOf('"it":[');
   i = i < 0 ? 0 : i + 5;
+  const primeiro = i + 1;   // posicao do 1o item do lote (a leitura ao vivo)
   while ((i = corpo.indexOf('["', i)) >= 0) {
     if (!/^\["[recm]",-?\d/.test(corpo.slice(i, i + 8))) { i += 2; continue; }
     let depth = 0, emStr = false, j = i;
@@ -2957,7 +2961,7 @@ function itensDoCorpo(corpo) {
       else if (ch === ']') { depth--; if (depth === 0) break; }
     }
     if (depth !== 0) { i += 2; continue; }
-    try { const it = JSON.parse(corpo.slice(i, j + 1)); if (itemPlausivel(it)) itens.push(it); } catch (e) { /* corrompido */ }
+    try { const it = JSON.parse(corpo.slice(i, j + 1)); if (itemPlausivel(it)) { if (i === primeiro) it.aoVivo = true; itens.push(it); } } catch (e) { /* corrompido */ }
     i = j + 1;
   }
   return itens;
@@ -2974,7 +2978,7 @@ async function recuperarItensDoCorpo(sn, corpo, recebidoEm) {
     const chave = chaveItem(deviceId, item, recebidoEm);
     const ins = await pool.query('INSERT INTO pilitech_item_recuperado (chave, device_id, recebido_em) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING', [chave, deviceId, recebidoEm]);
     if (ins.rowCount === 0) continue;                       // ja recuperado antes
-    try { if (await gravarItemLote(sn, deviceId, item, atrasoS) === 'gravado') gravados++; }
+    try { if (await gravarItemLote(sn, deviceId, item, atrasoS, item.aoVivo === true) === 'gravado') gravados++; }
     catch (e) { falhas++; console.error('[RECUPERA] item:', e.message); }
   }
   return { itens: itens.length, gravados, falhas, deviceId };
@@ -3234,8 +3238,9 @@ app.post('/api/batch', validateApiKey, async (req, res) => {
     }
 
     let gravados = 0, semHora = 0;
-    for (const item of it) {
-      const r = await gravarItemLote(sn, deviceId, item, 0);
+    for (let i = 0; i < it.length; i++) {
+      const item = it[i];
+      const r = await gravarItemLote(sn, deviceId, item, 0, i === 0);   // 1o item = leitura ao vivo
       if (r === 'gravado') gravados++; else if (r === 'semHora') semHora++;
     }
     if (typeof kb === 'number') {
