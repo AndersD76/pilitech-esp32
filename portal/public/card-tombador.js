@@ -404,7 +404,19 @@
   const ORDEM_TEMPOS = [0, 1, 7, 6, 2, 3, 4, 5];   // 0°, 40°, portao, moega, travas (indices de SENSORES)
   const CAMPO_TEMPO = { 0: 'zero', 1: 'alto' };
   const segPos = v => (Number(v) > 0 ? Number(v) : 0);
-  const tempoSensorCiclo = (c, campo) => !c ? 0 : campo === 'zero' ? segPos(c.t_travar) + segPos(c.t_destravar) : campo === 'alto' ? segPos(c.t_alto) : Number(c[campo]) || 0;
+  // 30/10/2026: tempos no CICLO BRUTO (bate com o "ciclo bruto"): 0° = bruto - liquido (parado no 0° travado);
+  // trava = antes de sair do 0° + durante o 0°->0° + depois de voltar (transicoes ant/dep da IoT 10.50+)
+  const IDX_TRANS = { trava_roda: 1, trava_chassi: 2, trava_pino_e: 3, trava_pino_d: 4 };
+  const tempoSensorCiclo = (c, campo) => {
+    if (!c) return 0;
+    const tr = c.transicoes && Array.isArray(c.transicoes.ant) ? c.transicoes : null;
+    const bruto = segPos(c.t_bruto);
+    if (campo === 'zero') return bruto > 0 ? Math.max(0, bruto - segPos(c.tempo_total)) : segPos(c.t_travar) + segPos(c.t_destravar);
+    if (campo === 'alto') return segPos(c.t_alto);
+    let t = Number(c[campo]) || 0;
+    if (tr && IDX_TRANS[campo] != null) { const i = IDX_TRANS[campo]; t += segPos(tr.ant[i]) + segPos(tr.dep[i]); }
+    return t;
+  };
 
   // 20/10/2026: sensor desabilitado na IoT (o tombador nao tem) nao aparece. data-idx = indice em
   // SENSORES: o ao vivo do cliente acha cada quadro por ele (antes era pela posicao).
@@ -512,7 +524,8 @@
       const [nome, , campoCiclo] = SENSORES[i];
       const campo = campoCiclo || CAMPO_TEMPO[i];
       const val = tempoSensorCiclo(ciclo, campo);
-      const pct = total > 0 ? Math.min(Math.round(val / total * 100), 100) : 0;
+      const base = ciclo && Number(ciclo.t_bruto) > 0 ? Number(ciclo.t_bruto) : total;   // barra em relacao ao ciclo bruto
+      const pct = base > 0 ? Math.min(Math.round(val / base * 100), 100) : 0;
       return `<div class="live-dur-row flex items-center gap-2 ${k % 2 ? 'bg-gray-50' : ''} px-2 py-1 rounded" data-sensor="${campo}">
         <span class="text-xs text-gray-600 w-24 shrink-0">${nome === 'Trava Rodas' ? 'Trava Roda' : nome}</span>
         <span class="live-dur-val text-xs font-bold w-20 text-right">${min(val)}</span>

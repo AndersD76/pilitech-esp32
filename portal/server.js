@@ -3426,7 +3426,7 @@ app.get('/api/cycle-data/:serialNumber', authenticateToken, checkSubscription, a
         tempo_total,
         ${TEMPO_CICLO_SQL} as tempo_ciclo, ${TEMPO_LIQUIDO_SQL} as tempo_liquido, ${TEMPO_BRUTO_SQL} as tempo_bruto, ${BRUTO_ESTIMADO_SQL} as bruto_estimado,
         ${ESPERA_SQL} as parada_moega,
-        t_travar, t_subir, t_alto, t_descer, t_destravar, flags_ciclo,
+        t_travar, t_subir, t_alto, t_descer, t_destravar, flags_ciclo, transicoes,
         (espera_moega IS NULL OR t_subir IS NULL) as espera_aproximada,
         COALESCE(sensor0, 0) as portao,
         COALESCE(sensor40, 0) as moega_total,

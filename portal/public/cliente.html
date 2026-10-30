@@ -1540,7 +1540,22 @@
     let sensoresHab = null;
     const sensoresDoTombador = () => SENSORES_CICLO.filter(s => !(Array.isArray(sensoresHab) && sensoresHab[s[2]] === false));
     const segPos = v => (Number(v) > 0 ? Number(v) : 0);
-    const tempoSensor = (c, campo) => campo === 'zero' ? segPos(c.t_travar) + segPos(c.t_destravar) : campo === 'alto' ? segPos(c.t_alto) : segPos(c[campo]);
+    // 30/10/2026: tempo de cada sensor no CICLO BRUTO (travas engatadas -> soltas), para bater com o ciclo bruto:
+    //  - 0°   = parado no 0° com o caminhao travado = bruto - liquido (antes de sair + depois de voltar)
+    //  - 40°  = tempo no alto
+    //  - trava = antes de sair do 0° (ant) + durante o 0°->0° (medido pela IoT) + depois de voltar (dep)
+    //  - moega/portao = medido pela IoT dentro do 0°->0°
+    // Sem as transicoes (ciclo antigo), fica so o que a IoT mediu dentro do 0°->0°.
+    const IDX_TRANS = { portao: 0, trava_roda: 1, trava_chassi: 2, trava_pino_e: 3, trava_pino_d: 4 };
+    const tempoSensor = (c, campo) => {
+      const tr = c.transicoes && Array.isArray(c.transicoes.ant) ? c.transicoes : null;
+      const bruto = c.bruto_estimado === true ? 0 : segPos(c.tempo_bruto != null ? c.tempo_bruto : c.t_bruto);
+      if (campo === 'zero') return bruto > 0 ? Math.max(0, bruto - segPos(c.tempo_total)) : segPos(c.t_travar) + segPos(c.t_destravar);
+      if (campo === 'alto') return segPos(c.t_alto);
+      let t = segPos(c[campo]);
+      if (tr && IDX_TRANS[campo] != null && campo !== 'portao') { const i = IDX_TRANS[campo]; t += segPos(tr.ant[i]) + segPos(tr.dep[i]); }
+      return t;
+    };
     let PADRAO_LIQUIDO = 360;       // padrao do ciclo liquido (0° -> 0°) = subir + descarga + descer
     let TEMPO_PADRAO_CICLO = 450;   // padrao do ciclo = soma das etapas do documento; vem do device-stats (metaCicloS) de cada tombador
 
@@ -1595,12 +1610,14 @@
           // dia sem nenhum valor: uma marca so, no meio do dia
           if (vazio && tipo === 'bar' && chart.options.indexAxis !== 'y' && visiveis.length) {
             c.font = '10px sans-serif'; c.fillStyle = '#9ca3af'; c.textBaseline = 'bottom';
-            const cabe = c.measureText(vazio).width + 6 <= fatia;
             for (let i = 0; i < nCat; i++) {
               const semValor = visiveis.every(di => { const v = chart.data.datasets[di].data[i]; return v == null || !isFinite(v); });
               if (!semValor) continue;
+              const txt = typeof vazio === 'function' ? vazio(i) : vazio;   // 30/10/2026: texto por dia (sem ciclo x sem dados)
+              if (!txt) continue;
+              const cabe = c.measureText(txt).width + 6 <= fatia;
               const x = chart.scales.x.getPixelForValue(i);
-              c.fillText(cabe ? vazio : '–', x, a.bottom - 4);
+              c.fillText(cabe ? txt : '–', x, a.bottom - 4);
             }
           }
           let modo = 'normal';                                             // normal | curto | vertical
@@ -2108,8 +2125,12 @@
       });
     }
     function updateProdutividadeChart(data) {
-      chartProdutividade = graficoCicloDia('chartProdutividade', chartProdutividade, data, 'tempo_medio_bruto', TEMPO_PADRAO_CICLO, 'Ciclo bruto', 'sem medida');
-      chartLiquido = graficoCicloDia('chartLiquido', chartLiquido, data, 'tempo_medio_liquido', PADRAO_LIQUIDO, 'Ciclo líquido', 'sem ciclo');
+      // dia sem barra: 'sem ciclo' (contador zerado), 'sem dados' (teve ciclo, o tempo nao chegou ao portal)
+      // ou 'sem medida' (so no bruto: chegou o liquido mas a IoT nao mediu o bruto)
+      const semL = i => (Number(data[i].ciclos) > 0 ? 'sem dados' : 'sem ciclo');
+      const semB = i => (Number(data[i].ciclos) > 0 ? (parseFloat(data[i].tempo_medio_liquido) > 0 ? 'sem medida' : 'sem dados') : 'sem ciclo');
+      chartProdutividade = graficoCicloDia('chartProdutividade', chartProdutividade, data, 'tempo_medio_bruto', TEMPO_PADRAO_CICLO, 'Ciclo bruto', semB);
+      chartLiquido = graficoCicloDia('chartLiquido', chartLiquido, data, 'tempo_medio_liquido', PADRAO_LIQUIDO, 'Ciclo líquido', semL);
     }
 
     // Update Timeline dos 6 Sensores
