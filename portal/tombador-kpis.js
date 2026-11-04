@@ -162,7 +162,7 @@ async function gravarCiclo(pool, deps, deviceId, seg, c) {
      v48 ? c.batidas_40 : null, v48 ? (flags & 1) === 1 : null, v48 ? (flags & 2) === 2 : null,
      v49 ? nn(c.t_travar) : null, v49 ? nn(c.t_subir) : null, v49 ? nn(c.t_alto) : null, v49 ? nn(c.t_descer) : null,
      v49 ? nn(c.t_destravar) : null, v49 ? nn(c.espera) : null, padrao, versao, v48 ? flags : null,
-     bruto, padraoLiq, Array.isArray(c.ant) ? JSON.stringify({ ant: c.ant, dep: c.dep }) : null, c.hora_aproximada === true]);
+     bruto, padraoLiq, Array.isArray(c.ant) ? JSON.stringify({ ant: c.ant, dep: Array.isArray(c.dep) ? c.dep : [-1, -1, -1, -1, -1] }) : null, c.hora_aproximada === true]);
   if (v49) {
     try { await registrarOcorrencias(pool, deviceId, r.rows[0].created_at, { ...c, t_bruto: bruto }, flags, cfg, hab); }
     catch (e) { console.error('[ocorrencias]', e.message); }

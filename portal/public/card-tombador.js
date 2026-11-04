@@ -409,7 +409,7 @@
   const IDX_TRANS = { trava_roda: 1, trava_chassi: 2, trava_pino_e: 3, trava_pino_d: 4 };
   const tempoSensorCiclo = (c, campo) => {
     if (!c) return 0;
-    const tr = c.transicoes && Array.isArray(c.transicoes.ant) ? c.transicoes : null;
+    const tr = c.transicoes && Array.isArray(c.transicoes.ant) && Array.isArray(c.transicoes.dep) ? c.transicoes : null;   // 04/11/2026: sem dep nao pode quebrar o card
     const bruto = segPos(c.t_bruto);
     if (campo === 'zero') return bruto > 0 ? Math.max(0, bruto - segPos(c.tempo_total)) : segPos(c.t_travar) + segPos(c.t_destravar);
     if (campo === 'alto') return segPos(c.t_alto);
