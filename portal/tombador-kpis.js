@@ -40,7 +40,8 @@ async function criarTabelas(pool) {
       ADD COLUMN IF NOT EXISTS t_destravar INTEGER, ADD COLUMN IF NOT EXISTS espera_moega INTEGER,
       ADD COLUMN IF NOT EXISTS padrao_s INTEGER, ADD COLUMN IF NOT EXISTS cfg_versao INTEGER,
       ADD COLUMN IF NOT EXISTS flags_ciclo INTEGER, ADD COLUMN IF NOT EXISTS t_bruto INTEGER,
-      ADD COLUMN IF NOT EXISTS padrao_liq_s INTEGER, ADD COLUMN IF NOT EXISTS transicoes JSONB`);
+      ADD COLUMN IF NOT EXISTS padrao_liq_s INTEGER, ADD COLUMN IF NOT EXISTS transicoes JSONB,
+      ADD COLUMN IF NOT EXISTS hora_aproximada BOOLEAN`);   // 04/11/2026: ciclo que chegou com idade -1 (IoT sem relogio)
   await pool.query(`CREATE TABLE IF NOT EXISTS pilitech_config_tombador (
       device_id INTEGER PRIMARY KEY, versao INTEGER NOT NULL DEFAULT 1, config JSONB NOT NULL,
       vigente_desde TIMESTAMP DEFAULT CURRENT_TIMESTAMP, alterado_por TEXT)`);
@@ -152,16 +153,16 @@ async function gravarCiclo(pool, deps, deviceId, seg, c) {
       device_id, created_at, ciclo_numero, tempo_total, sensor0, sensor40,
       trava_roda, trava_chassi, trava_pino_e, trava_pino_d, tempo_padrao, eficiencia,
       batidas_40, saiu_sem_travas, saiu_moega_cheia,
-      t_travar, t_subir, t_alto, t_descer, t_destravar, espera_moega, padrao_s, cfg_versao, flags_ciclo, t_bruto, padrao_liq_s, transicoes
+      t_travar, t_subir, t_alto, t_descer, t_destravar, espera_moega, padrao_s, cfg_versao, flags_ciclo, t_bruto, padrao_liq_s, transicoes, hora_aproximada
     ) VALUES ($1, NOW() - ($2 * INTERVAL '1 second'), $3, $4, $5, $6, $7, $8, $9, $10, $11, $12,
-              $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27)
+              $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28)
     RETURNING created_at`,
     [deviceId, seg || 0, c.ciclo_numero, c.tempo_total, c.portao, c.moega, c.trava_roda, c.trava_chassi,
      c.trava_pino_e, c.trava_pino_d, c.tempo_padrao, c.eficiencia,
      v48 ? c.batidas_40 : null, v48 ? (flags & 1) === 1 : null, v48 ? (flags & 2) === 2 : null,
      v49 ? nn(c.t_travar) : null, v49 ? nn(c.t_subir) : null, v49 ? nn(c.t_alto) : null, v49 ? nn(c.t_descer) : null,
      v49 ? nn(c.t_destravar) : null, v49 ? nn(c.espera) : null, padrao, versao, v48 ? flags : null,
-     bruto, padraoLiq, Array.isArray(c.ant) ? JSON.stringify({ ant: c.ant, dep: c.dep }) : null]);
+     bruto, padraoLiq, Array.isArray(c.ant) ? JSON.stringify({ ant: c.ant, dep: c.dep }) : null, c.hora_aproximada === true]);
   if (v49) {
     try { await registrarOcorrencias(pool, deviceId, r.rows[0].created_at, { ...c, t_bruto: bruto }, flags, cfg, hab); }
     catch (e) { console.error('[ocorrencias]', e.message); }

@@ -2855,7 +2855,12 @@ async function gravarItemLote(sn, deviceId, item, atrasoS, aoVivo) {
   // 30/10/2026: a leitura AO VIVO do lote (1o item, "r" com idade -1: a IoT a monta na hora em que o
   // lote sai, sem _ms/_t) vale a hora da chegada. Desde 19/10 ela era descartada aqui como "sem hora"
   // e o card ficava "SEM LEITURA" com o tombador operando: so entrava leitura de mudanca de sensor.
-  if (idade === -1 && !(aoVivo && tipo === 'r')) return 'semHora';
+  // 04/11/2026: ciclo/evento/manutencao com idade -1 (a IoT reiniciou sem o relogio da rede, p.ex. dias sem
+  // 4G) NAO e mais descartado: vale a hora da chegada, marcado como hora aproximada. Em 03/11 os ciclos
+  // 198-208 vieram assim, foram jogados fora aqui e a IoT os apagou (o lote foi confirmado). So a leitura
+  // velha de outro boot continua de fora: como "agora" ela enganaria o card.
+  const horaAprox = idade === -1;
+  if (horaAprox && tipo === 'r' && !aoVivo) return 'semHora';
   const seg = (typeof idade === 'number' && idade >= 0) ? Math.min(idade + (atrasoS || 0), 30 * 86400) : (atrasoS || 0);
   if (tipo === 'r') {
     await pool.query(`
@@ -2892,6 +2897,7 @@ async function gravarItemLote(sn, deviceId, item, atrasoS, aoVivo) {
       trava_pino_e: f[6], trava_pino_d: f[7], tempo_padrao: f[8], eficiencia: f[9],
       batidas_40: f[10], flags: f[11],
       t_travar: f[12], t_subir: f[13], t_alto: f[14], t_descer: f[15], t_destravar: f[16], espera: f[17], ant: f[18], dep: f[19],
+      hora_aproximada: horaAprox,
     });
     // a v10.48 nao manda mais o evento "Ciclo completo" pelo 4G (um item a menos por
     // ciclo no chip): o portal grava o evento a partir do ciclo
@@ -2899,7 +2905,7 @@ async function gravarItemLote(sn, deviceId, item, atrasoS, aoVivo) {
       await pool.query(`
         INSERT INTO event_logs (device_id, timestamp, event_type, message, sensor_name, sensor_value)
         VALUES ($1, NOW() - ($2 * INTERVAL '1 second'), 'INFO', $3, 'ciclo_completo', true)
-      `, [deviceId, seg, `Ciclo completo em ${f[1]} seg - Total: ${f[0]}`]);
+      `, [deviceId, seg, `Ciclo completo em ${f[1]} seg - Total: ${f[0]}${horaAprox ? ' (hora aproximada: a IoT estava sem relogio)' : ''}`]);
     }
   } else if (tipo === 'm') {
     await pool.query(`
@@ -3431,7 +3437,7 @@ app.get('/api/cycle-data/:serialNumber', authenticateToken, checkSubscription, a
         tempo_total,
         ${TEMPO_CICLO_SQL} as tempo_ciclo, ${TEMPO_LIQUIDO_SQL} as tempo_liquido, ${TEMPO_BRUTO_SQL} as tempo_bruto, ${BRUTO_ESTIMADO_SQL} as bruto_estimado,
         ${ESPERA_SQL} as parada_moega,
-        t_travar, t_subir, t_alto, t_descer, t_destravar, flags_ciclo, transicoes,
+        t_travar, t_subir, t_alto, t_descer, t_destravar, flags_ciclo, transicoes, hora_aproximada,
         (espera_moega IS NULL OR t_subir IS NULL) as espera_aproximada,
         COALESCE(sensor0, 0) as portao,
         COALESCE(sensor40, 0) as moega_total,

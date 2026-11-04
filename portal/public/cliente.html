@@ -2223,7 +2223,7 @@
 
         return `
           <tr class="hover:bg-gray-50 border-b">
-            <td class="px-4 py-3 text-xs text-gray-600">${fmtDataBR(c.timestamp)}</td>
+            <td class="px-4 py-3 text-xs text-gray-600">${fmtDataBR(c.timestamp)}${c.hora_aproximada ? ' <span class="text-amber-600" title="Hora aproximada: o ciclo chegou ao portal depois de um período sem 4G, com a IoT sem relógio. É a hora em que chegou, não em que aconteceu.">≈</span>' : ''}</td>
             <td class="px-4 py-3 text-center font-bold text-gray-800">#${c.ciclo_numero || '-'}</td>
             <td class="px-4 py-3 text-center font-bold text-gray-800">${c.tempo_bruto != null ? fmtDur(c.tempo_bruto) : '-'}</td>
             <td class="px-4 py-3 text-center font-medium text-gray-700">${fmtDur(Number(c.tempo_liquido ?? c.tempo_total) || 0)}</td>
