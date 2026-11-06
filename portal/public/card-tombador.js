@@ -458,7 +458,7 @@
       ['sensor_0_graus', 'sensor_40_graus', 'trava_roda', 'trava_chassi', 'trava_pino_e', 'trava_pino_d', 'moega_fosso', 'portao_fechado'].forEach(k => { t[k] = null; });
     }
     const leituraFonte = leituraEm
-      ? (leituraVelha ? `SEM LEITURA RECENTE · última ${leituraEm} (${haQuanto(t.reading_timestamp)})` : `Leitura de ${leituraEm} · ${haQuanto(t.reading_timestamp)} (4G: chega a cada ~30 min)`)
+      ? (leituraVelha ? `SEM LEITURA RECENTE · última ${leituraEm} (${haQuanto(t.reading_timestamp)})` : `Leitura de ${leituraEm} · ${haQuanto(t.reading_timestamp)} (4G: chega a cada lote)`)
       : 'Sem leitura gravada';
     const hab = Array.isArray(t.sensor_config) ? t.sensor_config : null;
     const serialUrl = encodeURIComponent(d.serial_number);

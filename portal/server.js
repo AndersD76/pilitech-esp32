@@ -2886,10 +2886,20 @@ function snDoCorpo(raw) {
   const m = s.match(/sn\W{0,4}(\d{6,8})/i);           // {"sn":"001430",... mesmo com aspas/virgula trocadas
   return m ? m[1] : null;
 }
+// horimetro (min) de uma leitura "r" do lote: f[10] = horas, f[11] = minutos (null se nao for leitura)
+function horimetroDoItem(item) {
+  if (!Array.isArray(item) || item[0] !== 'r') return null;
+  const h = item[12], m = item[13];
+  return Number.isInteger(h) && Number.isInteger(m) && h >= 0 && h < 1000000 ? h * 60 + m : null;
+}
 // ---- Um item do lote 4G -> banco (usado pelo /api/batch e pela recuperacao de lotes corrompidos) ----
 // item = [tipo, idade_s, ...campos]; atrasoS = segundos a somar na idade (recuperacao de um corpo
 // guardado: agora - recebido_em). Devolve 'gravado' | 'semHora' | 'ignorado'.
-async function gravarItemLote(sn, deviceId, item, atrasoS, aoVivo) {
+// 06/11/2026: horAgora = horimetro (min) da leitura ao vivo do lote (1o item). Item com idade -1 que traz o
+// horimetro de quando aconteceu (leitura: f[10] h + f[11] min; ciclo IoT 10.63+: f[20] min) ganha a hora pela
+// diferenca de horimetro - a IoT conta continuamente enquanto ligada. Foi assim que os ciclos 198-208 de
+// 01-03/11 foram datados a mao; agora e automatico, com erro de poucos minutos.
+async function gravarItemLote(sn, deviceId, item, atrasoS, aoVivo, horAgora) {
   const b = v => (v === null || v === undefined) ? null : !!v;
   if (!Array.isArray(item) || item.length < 2) return 'ignorado';
   const [tipo, idade, ...f] = item;
@@ -2904,8 +2914,14 @@ async function gravarItemLote(sn, deviceId, item, atrasoS, aoVivo) {
   // 198-208 vieram assim, foram jogados fora aqui e a IoT os apagou (o lote foi confirmado). So a leitura
   // velha de outro boot continua de fora: como "agora" ela enganaria o card.
   const horaAprox = idade === -1;
-  if (horaAprox && tipo === 'r' && !aoVivo) return 'semHora';
-  const seg = (typeof idade === 'number' && idade >= 0) ? Math.min(idade + (atrasoS || 0), 30 * 86400) : (atrasoS || 0);
+  let segHor = null;   // segundos atras, pelo horimetro
+  if (horaAprox && !aoVivo && Number.isInteger(horAgora)) {
+    const horItem = tipo === 'r' ? (Number.isInteger(f[10]) && Number.isInteger(f[11]) ? f[10] * 60 + f[11] : null)
+                  : tipo === 'c' ? (Number.isInteger(f[20]) ? f[20] : null) : null;
+    if (horItem !== null && horAgora - horItem >= 0 && horAgora - horItem <= 30 * 1440) segHor = (horAgora - horItem) * 60 + (atrasoS || 0);
+  }
+  if (horaAprox && tipo === 'r' && !aoVivo && segHor === null) return 'semHora';   // leitura velha sem como datar
+  const seg = segHor !== null ? segHor : (typeof idade === 'number' && idade >= 0) ? Math.min(idade + (atrasoS || 0), 30 * 86400) : (atrasoS || 0);
   if (tipo === 'r') {
     await pool.query(`
       INSERT INTO sensor_readings (
@@ -3023,12 +3039,13 @@ async function recuperarItensDoCorpo(sn, corpo, recebidoEm) {
   const deviceId = dev.rows[0].id;
   const itens = itensDoCorpo(corpo);
   const atrasoS = Math.max(0, Math.round((Date.now() - recebidoEm.getTime()) / 1000));
+  const horAgoraRec = itens.length && itens[0].aoVivo ? horimetroDoItem(itens[0]) : null;
   let gravados = 0, falhas = 0;
   for (const item of itens) {
     const chave = chaveItem(deviceId, item, recebidoEm);
     const ins = await pool.query('INSERT INTO pilitech_item_recuperado (chave, device_id, recebido_em) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING', [chave, deviceId, recebidoEm]);
     if (ins.rowCount === 0) continue;                       // ja recuperado antes
-    try { if (await gravarItemLote(sn, deviceId, item, atrasoS, item.aoVivo === true) === 'gravado') gravados++; }
+    try { if (await gravarItemLote(sn, deviceId, item, atrasoS, item.aoVivo === true, horAgoraRec) === 'gravado') gravados++; }
     catch (e) { falhas++; console.error('[RECUPERA] item:', e.message); }
   }
   return { itens: itens.length, gravados, falhas, deviceId };
@@ -3288,9 +3305,10 @@ app.post('/api/batch', validateApiKey, async (req, res) => {
     }
 
     let gravados = 0, semHora = 0;
+    const horAgora = horimetroDoItem(it[0]);
     for (let i = 0; i < it.length; i++) {
       const item = it[i];
-      const r = await gravarItemLote(sn, deviceId, item, 0, i === 0);   // 1o item = leitura ao vivo
+      const r = await gravarItemLote(sn, deviceId, item, 0, i === 0, horAgora);   // 1o item = leitura ao vivo
       if (r === 'gravado') gravados++; else if (r === 'semHora') semHora++;
     }
     if (typeof kb === 'number') {
