@@ -185,23 +185,50 @@ function ocorrenciasDoCiclo(c, cfg) {
 // desligada nao conta; ligada sem 4G conta (o uptime segue e chega na proxima leitura).
 // O horimetro do firmware (horas_operacao) conta so a plataforma fora do 0 grau.
 // ini/fim: 'YYYY-MM-DD HH:MM:SS' em UTC (como o banco grava); null = desde sempre / ate agora.
+// 06/11/2026: HORIMETRO = o contador da propria IoT (horas_operacao/minutos_operacao da leitura), o
+// mesmo numero do display e do card de manutencao. Antes o portal somava trechos (leitura - uptime,
+// leitura) e dava outro numero (418 h contra 595 h da IoT): num periodo sem leitura (sem rede, ou lote
+// longo) os trechos nao cobrem o tempo, e a cada reinicio o uptime recomeca. A IoT conta continuamente
+// enquanto ligada e guarda na NVS; e ajustavel por SET_HORIMETRO.
+//   total (sem ini/fim): o contador da ultima leitura de cada equipamento
+//   periodo: soma dos acrescimos positivos do contador entre leituras dentro do periodo (inclui o
+//            acrescimo entre a ultima leitura antes do inicio e a primeira dentro); contador que
+//            diminuiu (reset) nao desconta; acrescimo maior que o tempo decorrido (+5 min) e ignorado
+//            (leitura corrompida).
 async function minutosLigada(deviceIds, ini = null, fim = null) {
   if (!deviceIds.length) return {};
+  if (!ini && !fim) {
+    const r = await pool.query(`SELECT DISTINCT ON (device_id) device_id,
+                                  horas_operacao * 60 + COALESCE(minutos_operacao, 0) AS min
+                                FROM sensor_readings WHERE device_id = ANY($1::int[]) AND horas_operacao IS NOT NULL
+                                ORDER BY device_id, timestamp DESC, id DESC`, [deviceIds]);
+    return Object.fromEntries(r.rows.map(x => [x.device_id, Number(x.min)]));
+  }
   const r = await pool.query(`
-    WITH iv AS (
-      SELECT device_id, timestamp - make_interval(secs => uptime_seconds) AS ini, timestamp AS fim
-      FROM sensor_readings
-      WHERE device_id = ANY($1::int[]) AND uptime_seconds > 0
-        AND ($2::timestamp IS NULL OR timestamp > $2::timestamp)),
-    o AS (SELECT device_id, ini, fim, MAX(fim) OVER (PARTITION BY device_id ORDER BY ini, fim
-                 ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING) AS fim_ant FROM iv),
-    g AS (SELECT device_id, ini, fim, SUM(CASE WHEN fim_ant IS NULL OR ini > fim_ant THEN 1 ELSE 0 END)
-                 OVER (PARTITION BY device_id ORDER BY ini, fim) AS trecho FROM o),
-    t AS (SELECT device_id, MIN(ini) AS ini, MAX(fim) AS fim FROM g GROUP BY device_id, trecho)
-    SELECT device_id, ROUND(SUM(GREATEST(EXTRACT(EPOCH FROM
-             LEAST(fim, COALESCE($3::timestamp, fim)) - GREATEST(ini, COALESCE($2::timestamp, ini))), 0)) / 60)::int AS min
-    FROM t GROUP BY device_id`, [deviceIds, ini, fim]);
-  return Object.fromEntries(r.rows.map(x => [x.device_id, x.min]));
+    (SELECT DISTINCT ON (device_id) device_id, timestamp, horas_operacao * 60 + COALESCE(minutos_operacao, 0) AS min
+       FROM sensor_readings WHERE device_id = ANY($1::int[]) AND horas_operacao IS NOT NULL
+         AND $2::timestamp IS NOT NULL AND timestamp <= $2::timestamp
+       ORDER BY device_id, timestamp DESC, id DESC)
+    UNION ALL
+    (SELECT device_id, timestamp, horas_operacao * 60 + COALESCE(minutos_operacao, 0) AS min
+       FROM sensor_readings WHERE device_id = ANY($1::int[]) AND horas_operacao IS NOT NULL
+         AND ($2::timestamp IS NULL OR timestamp > $2::timestamp) AND ($3::timestamp IS NULL OR timestamp <= $3::timestamp))
+    ORDER BY device_id, timestamp`, [deviceIds, ini, fim]);
+  const out = {}, ant = {}, tIni = ini ? new Date(String(ini).replace(' ', 'T')).getTime() : null   // mesma interpretacao que o driver pg da ao timestamp sem fuso;
+  for (const x of r.rows) {
+    const d = x.device_id, m = Number(x.min), t = new Date(x.timestamp).getTime();
+    if (ant[d]) {
+      let inc = m - ant[d].m;
+      const decorrido = (t - ant[d].t) / 60000 + 5;
+      // a leitura anterior e de antes do periodo: so a parte do acrescimo que cai dentro dele
+      if (tIni && ant[d].t < tIni && t > ant[d].t) inc = inc * (t - tIni) / (t - ant[d].t);
+      if (inc > 0 && inc <= decorrido) out[d] = (out[d] || 0) + inc;
+    }
+    out[d] = out[d] || 0;
+    ant[d] = { m, t };
+  }
+  for (const d in out) out[d] = Math.round(out[d]);
+  return out;
 }
 // dia 'YYYY-MM-DD' (horario de Brasilia, sem horario de verao) -> inicio do dia em UTC
 const inicioDiaUTC = dia => new Date(`${dia}T00:00:00-03:00`).toISOString().slice(0, 19).replace('T', ' ');
