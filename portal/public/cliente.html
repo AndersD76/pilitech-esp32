@@ -2219,11 +2219,14 @@
         if (c.sem_travas) ocorr.push('<span class="px-2 py-0.5 rounded bg-red-100 text-red-700">Saiu do 0° sem travas</span>');
         if (c.saiu_moega_cheia) ocorr.push('<span class="px-2 py-0.5 rounded bg-red-100 text-red-700">Saiu do 0° com moega cheia</span>');
         if (c.batidas_40 > 1) ocorr.push(`<span class="px-2 py-0.5 rounded bg-slate-100 text-slate-700">Bateu no 40° ${c.batidas_40}x</span>`);
+        // 06/11/2026: o ciclo #210 (145 min, flag "fora do tempo") aparecia sem ocorrencia na lista
+        if ((Number(c.flags_ciclo) & 8) === 8) ocorr.push('<span class="px-2 py-0.5 rounded bg-orange-100 text-orange-800" title="Plataforma fora do 0° além do timeout do ciclo (máquina parada no meio do ciclo)">Fora do tempo</span>');
+        if ((Number(c.flags_ciclo) & 32) === 32) ocorr.push('<span class="px-2 py-0.5 rounded bg-orange-100 text-orange-800" title="Sensores de 0° e 40° ligados ao mesmo tempo">Posição incoerente</span>');
         const celulaParada = ocorr.length ? `<div class="flex flex-wrap justify-center gap-1">${ocorr.join('')}</div>` : '<span class="text-gray-400">—</span>';
 
         return `
           <tr class="hover:bg-gray-50 border-b">
-            <td class="px-4 py-3 text-xs text-gray-600">${fmtDataBR(c.timestamp)}${c.hora_aproximada ? ' <span class="text-amber-600" title="Hora aproximada: o ciclo chegou ao portal depois de um período sem 4G, com a IoT sem relógio. É a hora em que chegou, não em que aconteceu.">≈</span>' : ''}</td>
+            <td class="px-4 py-3 text-xs text-gray-600">${fmtDataBR(c.timestamp)}${c.hora_aproximada ? ' <span class="text-amber-600" title="Hora aproximada (±15 min): o ciclo chegou ao portal depois de um período sem 4G, com a IoT sem relógio; a hora foi reconstituída pelo horímetro.">≈</span>' : ''}</td>
             <td class="px-4 py-3 text-center font-bold text-gray-800">#${c.ciclo_numero || '-'}</td>
             <td class="px-4 py-3 text-center font-bold text-gray-800">${c.tempo_bruto != null ? fmtDur(c.tempo_bruto) : '-'}</td>
             <td class="px-4 py-3 text-center font-medium text-gray-700">${fmtDur(Number(c.tempo_liquido ?? c.tempo_total) || 0)}</td>

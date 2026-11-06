@@ -133,12 +133,29 @@ async function ciclosPorDiaIoT(deviceId, de, ate) {
     }
     tAnt = r.t; diaAnt = r.dia;
   }
+  // 06/11/2026: ciclos gravados em cycle_data tambem contam. O contador da IoT so diz o DIA quando a
+  // leitura seguinte vem no mesmo dia; num periodo sem rede (01-03/11: 11 ciclos) ele vira "sem data",
+  // mas os ciclos chegaram depois com a hora (mesmo aproximada) e estao no historico - o grafico tem
+  // de mostrar o mesmo que o historico. Por dia vale o maior dos dois; o "sem data" desconta o que
+  // o historico ja colocou no dia certo.
+  const cd = await pool.query(`SELECT to_char(${DIA_BR('created_at')}, 'YYYY-MM-DD') AS dia, COUNT(*)::int AS n
+                               FROM cycle_data WHERE device_id = $1 AND COALESCE(tempo_total, 0) >= 60
+                                 AND ${DIA_BR('created_at')} BETWEEN ($2::date - 60) AND $3::date GROUP BY 1`, [deviceId, de, ate]);
+  const porDiaCd = {}; cd.rows.forEach(x => { porDiaCd[x.dia] = x.n; });
+  for (const s of semData) {
+    let extra = 0;
+    for (let t = Date.parse(s.de); t <= Date.parse(s.ate); t += 86400000) {
+      const dia = new Date(t).toISOString().slice(0, 10);
+      extra += Math.max(0, (porDiaCd[dia] || 0) - (porDia[dia] || 0));
+    }
+    s.ciclos = Math.max(0, s.ciclos - extra);
+  }
   const rows = [];
   for (let t = Date.parse(de); t <= Date.parse(ate); t += 86400000) {
     const dia = new Date(t).toISOString().slice(0, 10);
-    rows.push({ dia, ciclos: porDia[dia] || 0 });
+    rows.push({ dia, ciclos: Math.max(porDia[dia] || 0, porDiaCd[dia] || 0) });
   }
-  rows.semData = semData.filter(s => s.ate >= de && s.ate <= ate);
+  rows.semData = semData.filter(s => s.ate >= de && s.ate <= ate && s.ciclos > 0);
   rows.semDataPeriodo = rows.semData.reduce((s, x) => s + x.ciclos, 0);
   return rows;
 }
