@@ -2672,6 +2672,74 @@ setInterval(() => {
   });
 }, 60000);
 
+// ---- Item que saiu do BUFFER da IoT pelo WiFi (17/11/2026) ----
+// Pelo WiFi a IoT reenvia o JSON guardado como ele esta (syncBufferedData): vem com _bt/_ms (boot e millis de
+// quando nasceu) e, se ela tinha o relogio da rede 4G naquele boot, _t (hora local, segundos desde 2000).
+// Estas rotas ignoravam isso e gravavam tudo com a hora da CHEGADA. Em 17/11 a 001430, 11 dias sem 4G, foi ligada
+// num WiFi por 3 min: os ciclos 211-215 (de 06/11 em diante) entraram como "17/11 11:45", leituras velhas como
+// atuais e alerta de moega de dias atras virou notificacao. Agora o item guardado segue a regra do lote 4G:
+//   _t valido            -> hora real;
+//   senao horimetro      -> leitura (horas/minutos) e ciclo da IoT 10.63+ ("hor"): hora pela diferenca para a
+//                           ultima leitura AO VIVO do equipamento (a IoT conta o horimetro enquanto ligada);
+//   senao                -> ciclo/evento/manutencao: hora da chegada, marcada como aproximada;
+//                           leitura: descartada (como "agora" ela enganaria o card). Sempre 200: a IoT apaga.
+const T2000_S = 946684800, FUSO_IOT_S = 3 * 3600;   // _t = hora local do Brasil (UTC-3)
+const horVivoWifi = new Map();                       // serial -> { hor (min), em (ms) }: ultima leitura ao vivo pelo WiFi
+const horimetroMin = (h, m) => (Number.isInteger(h) && Number.isInteger(m) && h >= 0 && h < 1000000 && m >= 0 && m < 60) ? h * 60 + m : null;
+async function idadeDoGuardado(serial, deviceId, body, horItem) {
+  if (!body || (body._bt === undefined && body._ms === undefined && body._t === undefined)) return { guardado: false, seg: 0, aprox: false, datado: true };
+  const agoraMs = Date.now();
+  const t = Number(body._t);
+  if (Number.isFinite(t) && t > 0) {
+    const seg = Math.round(agoraMs / 1000 - (T2000_S + t + FUSO_IOT_S));
+    if (seg >= -300 && seg <= 60 * 86400) return { guardado: true, seg: Math.max(0, seg), aprox: false, datado: true };
+  }
+  if (Number.isInteger(horItem)) {
+    let ref = horVivoWifi.get(serial);
+    if (!ref || agoraMs - ref.em > 30 * 60000) {
+      // portal reiniciou ha pouco: a leitura de maior horimetro dos ultimos 30 min e a ao vivo (as guardadas sao mais velhas)
+      const r = await pool.query(`SELECT horas_operacao * 60 + minutos_operacao AS hor, timestamp FROM sensor_readings
+                                   WHERE device_id = $1 AND timestamp > NOW() - INTERVAL '30 minutes' AND horas_operacao IS NOT NULL
+                                   ORDER BY 1 DESC, timestamp DESC LIMIT 1`, [deviceId]);
+      ref = r.rows.length && Number.isInteger(Number(r.rows[0].hor)) ? { hor: Number(r.rows[0].hor), em: new Date(r.rows[0].timestamp).getTime() } : null;
+    }
+    if (ref) {
+      const seg = await segPeloHorimetro(deviceId, horItem, ref.hor, (agoraMs - ref.em) / 1000);
+      if (seg !== null) return { guardado: true, seg, aprox: true, datado: true };
+    }
+  }
+  return { guardado: true, seg: 0, aprox: true, datado: false };
+}
+// Ha quantos segundos aconteceu um item, pelo horimetro (lote 4G e buffer pelo WiFi). B = referencia recente:
+// leitura ao vivo com horimetro horB, recebida ha segB0 segundos. So com B, o item e de (horB - hor) minutos
+// antes de B. Mas o horimetro ANDA MENOS que o relogio: a cada reinicio a IoT perde o que nao tinha salvo
+// (17/11/2026, 001430: 146 min a menos em 11 dias reiniciando a cada 3 h sem 4G) e a conta so por B erra por
+// horas num item antigo. Por isso entra A = a leitura ja gravada de maior horimetro <= o do item: ele aconteceu
+// entre (A + difA) e (B - difB), e dentro dessa janela a hora sai proporcional ao horimetro. Janela incoerente
+// ou grande demais (IoT desligada por dias, horimetro zerado, leitura antiga gravada com a hora da chegada)
+// -> fica so com B, como era. null = nao da para datar.
+async function segPeloHorimetro(deviceId, horItem, horB, segB0) {
+  if (!Number.isInteger(horItem) || !Number.isInteger(horB)) return null;
+  const difB = horB - horItem;
+  if (difB < 0 || difB > 30 * 1440) return null;
+  const segB = Math.max(0, Math.round(segB0 || 0)) + difB * 60;
+  if (difB < 60) return segB;                          // colado na referencia: nada a corrigir
+  try {
+    const r = await pool.query(`SELECT horas_operacao * 60 + minutos_operacao AS hor_a, EXTRACT(EPOCH FROM (NOW() - timestamp)) AS ha_s
+                                 FROM sensor_readings WHERE device_id = $1 AND horas_operacao * 60 + minutos_operacao <= $2
+                                   AND timestamp > NOW() - INTERVAL '45 days' ORDER BY 1 DESC, timestamp ASC LIMIT 1`, [deviceId, horItem]);
+    if (!r.rows.length) return segB;
+    const difA = horItem - Number(r.rows[0].hor_a), segA = Number(r.rows[0].ha_s) - difA * 60;
+    const janela = segA - segB;
+    if (!Number.isFinite(janela) || difA < 0 || janela <= 0 || janela > 0.10 * (difA + difB) * 60 + 3600) return segB;
+    return Math.round(segB + janela * difB / (difA + difB));
+  } catch (e) {
+    console.error('[horimetro] referencia anterior:', e.message);
+    return segB;
+  }
+}
+const SUFIXO_SEM_RELOGIO = ' (hora aproximada: a IoT estava sem relogio)';
+
 // Receber leitura de sensores do ESP32 (auto-detecta e registra dispositivo)
 app.post('/api/sensor-reading', validateApiKey, async (req, res) => {
   try {
@@ -2712,16 +2780,25 @@ app.post('/api/sensor-reading', validateApiKey, async (req, res) => {
       );
     }
 
+    // Leitura ao vivo: hora da chegada e vira a referencia de horimetro. Leitura guardada: hora real ou descartada.
+    const horLeitura = horimetroMin(horas_operacao, minutos_operacao);
+    const quando = await idadeDoGuardado(serial_number, deviceId, req.body, horLeitura);
+    if (!quando.guardado && horLeitura !== null) horVivoWifi.set(serial_number, { hor: horLeitura, em: Date.now() });
+    if (quando.guardado && !quando.datado) {
+      console.log(`📡 leitura guardada de ${serial_number} sem como datar (horimetro ${horLeitura}): descartada`);
+      return res.json({ success: true, message: 'Leitura guardada sem como datar: descartada', newDevice: isNewDevice });
+    }
+
     // Inserir leitura
     await pool.query(`
       INSERT INTO sensor_readings (
-        device_id, sensor_0_graus, sensor_40_graus, trava_roda, trava_chassi,
+        device_id, timestamp, sensor_0_graus, sensor_40_graus, trava_roda, trava_chassi,
         trava_pino_e, trava_pino_d, moega_fosso, portao_fechado,
         ciclos_hoje, ciclos_total, horas_operacao, minutos_operacao,
         free_heap, uptime_seconds, wifi_connected, sistema_ativo, sensor_config
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
+      ) VALUES ($1, NOW() - ($2 * INTERVAL '1 second'), $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)
     `, [
-      deviceId, sensor_0_graus, sensor_40_graus, trava_roda, trava_chassi,
+      deviceId, quando.seg, sensor_0_graus, sensor_40_graus, trava_roda, trava_chassi,
       trava_pino_e, trava_pino_d, moega_fosso, portao_fechado,
       ciclos_hoje, ciclos_total, horas_operacao, minutos_operacao,
       free_heap, uptime_seconds, wifi_connected || true, sistema_ativo || false,
@@ -2763,14 +2840,18 @@ app.post('/api/event', validateApiKey, async (req, res) => {
       return res.status(404).json({ error: 'Dispositivo não encontrado' });
     }
 
+    // evento guardado no buffer: hora real se a IoT tinha relogio (_t); senao hora da chegada, dito no texto
+    const quando = await idadeDoGuardado(serial_number, deviceResult.rows[0].id, req.body, null);
+    const texto = quando.guardado && !quando.datado && typeof message === 'string' ? message + SUFIXO_SEM_RELOGIO : message;
     await pool.query(`
-      INSERT INTO event_logs (device_id, event_type, message, sensor_name, sensor_value)
-      VALUES ($1, $2, $3, $4, $5)
-    `, [deviceResult.rows[0].id, event_type, message, sensor_name || null, sensor_value || null]);
+      INSERT INTO event_logs (device_id, timestamp, event_type, message, sensor_name, sensor_value)
+      VALUES ($1, NOW() - ($2 * INTERVAL '1 second'), $3, $4, $5, $6)
+    `, [deviceResult.rows[0].id, quando.seg, event_type, texto, sensor_name || null, sensor_value || null]);
 
     // Push dos alertas: a IoT manda event_type "ALERT" (moega cheia etc.) - antes so os
-    // tipos antigos da lista disparavam, e o alerta de moega nunca virava notificacao
-    if (ehEventoDeAlerta(event_type)) {
+    // tipos antigos da lista disparavam, e o alerta de moega nunca virava notificacao.
+    // Alerta guardado (velho ou sem hora) nao vira notificacao: nao e de agora.
+    if (ehEventoDeAlerta(event_type) && !(quando.guardado && (!quando.datado || quando.seg > 600))) {
       sendAlertPush(serial_number, event_type, message || `Alerta: ${event_type}`).catch(e => console.error('Push error:', e));
     }
 
@@ -2795,10 +2876,11 @@ app.post('/api/maintenance', validateApiKey, async (req, res) => {
       return res.status(404).json({ error: 'Dispositivo não encontrado' });
     }
 
+    const quando = await idadeDoGuardado(serial_number, deviceResult.rows[0].id, req.body, null);   // guardada: hora real se houver _t
     await pool.query(`
-      INSERT INTO maintenances (device_id, technician, description, horas_operacao)
-      VALUES ($1, $2, $3, $4)
-    `, [deviceResult.rows[0].id, technician || 'Técnico', description || 'Manutenção registrada', horas_operacao || 0]);
+      INSERT INTO maintenances (device_id, timestamp, technician, description, horas_operacao)
+      VALUES ($1, NOW() - ($2 * INTERVAL '1 second'), $3, $4, $5)
+    `, [deviceResult.rows[0].id, quando.seg, technician || 'Técnico', description || 'Manutenção registrada', horas_operacao || 0]);
 
     console.log(`🔧 Manutenção registrada para ${serial_number}: ${description}`);
     res.json({ success: true, message: 'Manutenção registrada' });
@@ -2815,7 +2897,7 @@ app.post('/api/cycle-data', validateApiKey, async (req, res) => {
       serial_number, ciclo_numero, tempo_total, portao, moega,
       trava_roda, trava_chassi, trava_pino_e, trava_pino_d,
       tempo_padrao, eficiencia, batidas_40, flags,
-      t_travar, t_subir, t_alto, t_descer, t_destravar, espera, ant, dep
+      t_travar, t_subir, t_alto, t_descer, t_destravar, espera, ant, dep, hor
     } = req.body;
 
     const deviceResult = await pool.query(
@@ -2827,9 +2909,13 @@ app.post('/api/cycle-data', validateApiKey, async (req, res) => {
       return res.status(404).json({ error: 'Dispositivo não encontrado' });
     }
 
-    await kpis.gravarCiclo(pool, kpisDeps, deviceResult.rows[0].id, 0, {
+    // ciclo guardado no buffer: hora real (_t), ou pelo horimetro (IoT 10.63+ manda "hor"), ou a da chegada - e
+    // nesses dois ultimos casos marcado como hora aproximada (o historico mostra o sinal de aproximado)
+    const quando = await idadeDoGuardado(serial_number, deviceResult.rows[0].id, req.body, Number.isInteger(hor) && hor >= 0 ? hor : null);
+    await kpis.gravarCiclo(pool, kpisDeps, deviceResult.rows[0].id, quando.seg, {
       ciclo_numero, tempo_total, portao, moega, trava_roda, trava_chassi, trava_pino_e, trava_pino_d,
-      tempo_padrao, eficiencia, batidas_40, flags, t_travar, t_subir, t_alto, t_descer, t_destravar, espera, ant, dep
+      tempo_padrao, eficiencia, batidas_40, flags, t_travar, t_subir, t_alto, t_descer, t_destravar, espera, ant, dep,
+      hora_aproximada: quando.aprox,
     });
 
     console.log(`📊 Ciclo #${ciclo_numero} registrado - ${tempo_total}s - Eficiência: ${eficiencia}%`);
@@ -2918,7 +3004,7 @@ async function gravarItemLote(sn, deviceId, item, atrasoS, aoVivo, horAgora) {
   if (horaAprox && !aoVivo && Number.isInteger(horAgora)) {
     const horItem = tipo === 'r' ? (Number.isInteger(f[10]) && Number.isInteger(f[11]) ? f[10] * 60 + f[11] : null)
                   : tipo === 'c' ? (Number.isInteger(f[20]) ? f[20] : null) : null;
-    if (horItem !== null && horAgora - horItem >= 0 && horAgora - horItem <= 30 * 1440) segHor = (horAgora - horItem) * 60 + (atrasoS || 0);
+    if (horItem !== null) segHor = await segPeloHorimetro(deviceId, horItem, horAgora, atrasoS || 0);   // 17/11: entre duas referencias
   }
   if (horaAprox && tipo === 'r' && !aoVivo && segHor === null) return 'semHora';   // leitura velha sem como datar
   const seg = segHor !== null ? segHor : (typeof idade === 'number' && idade >= 0) ? Math.min(idade + (atrasoS || 0), 30 * 86400) : (atrasoS || 0);
@@ -2940,8 +3026,8 @@ async function gravarItemLote(sn, deviceId, item, atrasoS, aoVivo, horAgora) {
     await pool.query(`
       INSERT INTO event_logs (device_id, timestamp, event_type, message, sensor_name, sensor_value)
       VALUES ($1, NOW() - ($2 * INTERVAL '1 second'), $3, $4, $5, $6)
-    `, [deviceId, seg, f[0], f[1], f[2] || null, b(f[3])]);
-    if (ehEventoDeAlerta(f[0]) && !(atrasoS > 600)) {           // recuperacao tardia nao dispara push
+    `, [deviceId, seg, f[0], horaAprox && typeof f[1] === 'string' ? f[1] + SUFIXO_SEM_RELOGIO : f[1], f[2] || null, b(f[3])]);   // 17/11: sem hora = dito no texto
+    if (ehEventoDeAlerta(f[0]) && !(atrasoS > 600) && !horaAprox) {   // recuperacao tardia ou evento sem hora nao dispara push
       sendAlertPush(sn, f[0], f[1] || `Alerta: ${f[0]}`).catch(e => console.error('Push error:', e));
     }
     // "Display atualizado: v1.3 -> <versao> (reiniciando)": a OTA do display sai da fila
