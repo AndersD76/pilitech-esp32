@@ -3304,11 +3304,27 @@ app.post('/api/batch', validateApiKey, async (req, res) => {
       return res.status(429).json({ error: 'ota em andamento' });
     }
 
-    let gravados = 0, semHora = 0;
+    let gravados = 0, semHora = 0, itensRuins = 0;
     const horAgora = horimetroDoItem(it[0]);
     for (let i = 0; i < it.length; i++) {
       const item = it[i];
-      const r = await gravarItemLote(sn, deviceId, item, 0, i === 0, horAgora);   // 1o item = leitura ao vivo
+      let r;
+      try {
+        r = await gravarItemLote(sn, deviceId, item, 0, i === 0, horAgora);   // 1o item = leitura ao vivo
+      } catch (e) {
+        // 17/11/2026: um item com dado que o banco recusa (classes 22/23: texto invalido, numero fora da
+        // faixa, restricao) nao pode derrubar o lote. O 500 fazia a IoT reenviar o lote inteiro e os itens
+        // bons anteriores entravam de novo a cada tentativa (leitura, evento e ciclo duplicados). O item
+        // ruim fica guardado em pilitech_lote_recusado e o lote segue. Erro de infraestrutura (conexao com
+        // o banco) continua virando 500: nesse caso a IoT tem mesmo de guardar e mandar de novo.
+        if (!(e && typeof e.code === 'string' && /^(22|23)/.test(e.code))) throw e;
+        itensRuins++;
+        console.error(`[BATCH] ${sn}: item ${i} recusado pelo banco (${e.code} ${e.message}) - guardado em pilitech_lote_recusado`);
+        pool.query('INSERT INTO pilitech_lote_recusado (serial_number, motivo, bytes, corpo) VALUES ($1, $2, $3, $4)',
+                   [sn, 'item recusado pelo banco', 0, JSON.stringify(item).replace(/\\u0000/g, '').slice(0, 4000)])
+          .catch(e2 => console.error('[BATCH] item ruim (guardar):', e2.message));
+        continue;
+      }
       if (r === 'gravado') gravados++; else if (r === 'semHora') semHora++;
     }
     if (typeof kb === 'number') {
