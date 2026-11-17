@@ -2711,5 +2711,17 @@
     setInterval(checkAlerts, 15000);
 
   </script>
+  <!-- 17/11/2026: campo de busca em todas as listas do portal do cliente (busca-listas.js) -->
+  <script>
+    window.PILI_BUSCA = [
+      { id: 'devicesGrid',      ph: 'Buscar tombador (nome, N/S, unidade)...' },
+      { id: 'manutCards',       ph: 'Buscar tombador...' },
+      { id: 'manutHistBody',    ph: 'Buscar no histórico de manutenções...' },
+      { select: 'deviceSelector', ph: 'Buscar tombador...' },
+      { id: 'cyclesTable',      ph: 'Buscar ciclo (número, data, ocorrência)...' },
+      { id: 'eventosLista',     ph: 'Buscar nos alertas e eventos...', itens: ':scope > div > div' },
+    ];
+  </script>
+  <script src="/busca-listas.js"></script>
 </body>
 </html>

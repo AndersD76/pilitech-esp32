@@ -3047,5 +3047,29 @@
       }
     }
   </script>
+  <!-- 17/11/2026: campo de busca em todas as listas do painel (busca-listas.js) -->
+  <script>
+    window.PILI_BUSCA = [
+      { id: 'devicesGrid',          ph: 'Buscar dispositivo (N/S, nome, empresa)...' },
+      { id: 'telDevicesLive',       ph: 'Buscar tombador (nome, N/S, unidade)...' },
+      { id: 'telEventosLista',      ph: 'Buscar nos alertas e eventos...', itens: ':scope > div > div' },
+      { id: 'telMaintList',         ph: 'Buscar manutenção...' },
+      { select: 'ctrlDeviceSelect', ph: 'Buscar dispositivo...', classe: 'w-full' },
+      { select: 'fwEquip',          ph: 'Buscar tombador...', classe: 'w-full' },
+      { id: 'fwStatus',             ph: 'Buscar equipamento...' },
+      { id: 'fwLista',              ph: 'Buscar firmware (versão, placa)...' },
+      { id: 'allDevicesGrid',       ph: 'Buscar dispositivo (N/S, nome, empresa, unidade)...' },
+      { id: 'manutStatusBody',      ph: 'Buscar tombador ou empresa...' },
+      { id: 'manutHistBody',        ph: 'Buscar no histórico (tombador, técnico, descrição)...' },
+      { id: 'docsTableBody',        ph: 'Buscar documento...' },
+      { id: 'docsLinksBody',        ph: 'Buscar tombador...' },
+      { id: 'empresasList',         ph: 'Buscar empresa (nome, CNPJ)...' },
+      { id: 'unidadesList',         ph: 'Buscar unidade...' },
+      { id: 'usuariosTableBody',    ph: 'Buscar usuário (nome, e-mail, empresa)...' },
+      { id: 'assinaturasTableBody', ph: 'Buscar assinatura...' },
+      { id: 'cuponsTableBody',      ph: 'Buscar cupom...' },
+    ];
+  </script>
+  <script src="/busca-listas.js"></script>
 </body>
 </html>
